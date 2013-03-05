@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from flowtracks.io import collect_particles, collect_particles_mat
+from ConfigParser import SafeConfigParser
 
 class Sequence(object):
     def __init__(self, frange, frate, particle, part_tmpl, tracer_tmpl):
@@ -51,3 +52,29 @@ class Sequence(object):
         
         self._frame += 1
         return tuple(data)
+
+def read_sequence(conf_fname):
+    """
+    Read sequence-wide parameters, such as unchanging particle properties and
+    frame range. Values are stored in an INI-format file.
+    
+    Arguments:
+    conf_fname - name of the config file
+    
+    Returns:
+    a Sequence object initialized with the configuration values found.
+    """
+    parser = SafeConfigParser()
+    parser.read(conf_fname)
+
+    particle = Particle(
+        parser.getfloat("Particle", "diameter"),
+        parser.getfloat("Particle", "density"))
+    
+    frate = parser.getfloat("Scene", "frame rate")
+    tracer_tmpl = parser.get("Scene", "tracers file")
+    part_tmpl = parser.get("Scene", "particles file")
+    frange = (parser.getint("Scene", "first frame"),
+        parser.getint("Scene", "last frame") + 1)
+    
+    return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl)
