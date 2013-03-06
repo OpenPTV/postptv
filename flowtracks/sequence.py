@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from flowtracks.io import collect_particles, collect_particles_mat
+from .io import collect_particles, collect_particles_mat
+from .particle import Particle
 from ConfigParser import SafeConfigParser
 
 class Sequence(object):
