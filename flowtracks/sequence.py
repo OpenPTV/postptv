@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .io import collect_particles, collect_particles_mat
+from .io import collect_particles_generic, trajectories_mat,trajectories_acc
 from .particle import Particle
 from ConfigParser import SafeConfigParser
 
@@ -27,32 +27,43 @@ class Sequence(object):
     def part_fname(self):
         return self._ptmpl
     
+    def part_format(self):
+        return self._pfmt
+    
+    def range(self):
+        return self._rng
+    
     def __iter__(self):
         """
         Iterate over frames. For each frame return the data for the tracers and
         particles in it.
         """
         self._frame = self._rng[0]
-        return self
-    
-    def next(self):
-        if self._frame == self._rng[1]:
-            raise StopIteration
         
-        data = [None]*2
+        traj = [None]*2
         fnames = [self._ptmpl, self._trtmpl]
         formats = [self._pfmt, self._trfmt]
         
         for dix, fname in enumerate(fnames):
             if formats[dix] == 'acc':
-                data[dix] = collect_particles(fname, self._frame,
-                    path_seg=True)
+                traj[dix] = traj[dix] = trajectories_acc(
+                    fname, self._rng[0], self._rng[1])
             elif formats[dix] == 'mat':
-                data[dix] = collect_particles_mat(fname, self._frame,
-                    path_seg=True)
+                traj[dix] = trajectories_mat(fname)                
+
+        self.__ptraj, self.__ttraj = tuple(traj)
+        return self
+    
+    def next(self):
+        if self._frame == self._rng[1]:
+            del self.__ptraj, self.__ttraj
+            raise StopIteration
+        
+        parts = collect_particles_generic(self.__ptraj, self._frame, True)
+        tracers = collect_particles_generic(self.__ttraj, self._frame, True)
         
         self._frame += 1
-        return tuple(data)
+        return parts, tracers
 
 def read_sequence(conf_fname):
     """
