@@ -30,6 +30,9 @@ class Trajectory(object):
     def trajid(self):
         return self._id
     
+    def __len__(self):
+        return len(self._t)
+    
     def __getitem__(self, selector):
         """
         Gets the data for time points selected as a table of shape (n,8),

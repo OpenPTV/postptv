@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .io import collect_particles_generic, trajectories_mat,trajectories_acc
+from .io import collect_particles_generic, trajectories, infer_format
 from .particle import Particle
 from ConfigParser import SafeConfigParser
 
@@ -21,8 +21,9 @@ class Sequence(object):
         self._ptmpl = part_tmpl
         self._trtmpl = tracer_tmpl
         
-        self._pfmt = 'mat' if part_tmpl.endswith('.mat') else 'acc'
-        self._trfmt = 'mat' if tracer_tmpl.endswith('.mat') else 'acc'
+        # This is just a chache. Else trajectories() would check every time.
+        self._pfmt = infer_format(part_tmpl)
+        self._trfmt = infer_format(tracer_tmpl)
     
     def part_fname(self):
         return self._ptmpl
@@ -45,11 +46,8 @@ class Sequence(object):
         formats = [self._pfmt, self._trfmt]
         
         for dix, fname in enumerate(fnames):
-            if formats[dix] == 'acc':
-                traj[dix] = traj[dix] = trajectories_acc(
-                    fname, self._rng[0], self._rng[1])
-            elif formats[dix] == 'mat':
-                traj[dix] = trajectories_mat(fname)                
+            traj[dix] = trajectories(fname, self._rng[0], self._rng[1],
+                self.frate, formats[dix])
 
         self.__ptraj, self.__ttraj = tuple(traj)
         return self
