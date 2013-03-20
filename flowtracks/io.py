@@ -330,6 +330,9 @@ def collect_particles_generic(trajects, frame, path_seg=False):
         
         selected.append(sel)
     
+    if len(selected) == 0:
+        return np.empty((2,0,7))
+    
     if path_seg is True:
         all_rows = np.concatenate(selected, axis=1)
         return all_rows[:,mark_unique_rows(all_rows[0])]
