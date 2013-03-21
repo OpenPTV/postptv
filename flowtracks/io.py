@@ -190,8 +190,16 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     table = np.loadtxt(fname % frame_nums[0], dtype=fmt, skiprows=skip)
     
     frames = []
-    frame = np.hstack((table['pos']/1000., np.empty_like(table['pos']), 
-        np.ones((table.shape[0], 1))*frame_nums[0],
+    
+    pos = table['pos']
+    if not xuap: pos /=1000.
+    
+    if 'vel' in fmt.fields:
+        vel = table['vel']
+    else:
+        vel = np.zeros_like(pos)
+    
+    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_nums[0],
         np.arange(table.shape[0])[:,None]))
     max_traj = table.shape[0]
     frames.append(frame)
@@ -212,8 +220,10 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         max_traj += num_new_traj
         
         # Consolidate into frame table.
-        pos = table['pos']/1000.
+        pos = table['pos']
+        if not xuap: pos /= 1000.
         t = np.ones((table.shape[0], 1))*frame_num
+        
         if 'vel' in fmt.fields:
             vel = table['vel']
         else:
