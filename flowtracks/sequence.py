@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import numpy as np
+
 from .io import collect_particles_generic, trajectories, infer_format
 from .particle import Particle
 from ConfigParser import SafeConfigParser
@@ -21,6 +23,9 @@ class Sequence(object):
         self._ptmpl = part_tmpl
         self._trtmpl = tracer_tmpl
         
+        # No-op particle selector, can be changed by the setter below later.
+        self._psel = lambda traj: traj
+        
         # This is just a chache. Else trajectories() would check every time.
         self._pfmt = infer_format(part_tmpl)
         self._trfmt = infer_format(tracer_tmpl)
@@ -33,13 +38,44 @@ class Sequence(object):
     
     def range(self):
         return self._rng
+        
+    def subrange(self):
+        """
+        Returns the earliest and latest time points covered by the subset of
+        trajectories that the particle selector selects, bounded by the range
+        restricting the overall sequence.
+        """
+        trs = self._psel(trajectories(self._ptmpl, self._rng[0], self._rng[1],
+                self.frate, self._pfmt))
+        mins = np.empty(len(trs))
+        maxs = np.empty(len(trs))
+        
+        for trn, tr in enumerate(trs):
+            t = tr.time()
+            mins[trn] = t.min()
+            maxs[trn] = t.max()
+        
+        return max(mins.min(), self._rng[0]), min(maxs.max(), self._rng[1])
     
+    def set_particle_selector(self, selector):
+        """
+        Sets a filter on the particle trajectories used in sequencing.
+        
+        Arguments:
+        selector - a function which receives a list of Trajectory objects and
+            returns a sublit thereof.
+        """
+        self._psel = selector
+        
     def __iter__(self):
         """
         Iterate over frames. For each frame return the data for the tracers and
         particles in it.
         """
-        self._frame = self._rng[0]
+        if not hasattr(self, '_act_rng'):
+            self._act_rng = self._rng
+        
+        self._frame = self._act_rng[0]
         
         traj = [None]*2
         fnames = [self._ptmpl, self._trtmpl]
@@ -49,12 +85,17 @@ class Sequence(object):
             traj[dix] = trajectories(fname, self._rng[0], self._rng[1],
                 self.frate, formats[dix])
 
-        self.__ptraj, self.__ttraj = tuple(traj)
+        self.__ttraj = traj[1]
+        self.__ptraj = self._psel(traj[0])
+        return self
+    
+    def iter_subrange(self, first, last):
+        self._act_rng = (first, last)
         return self
     
     def next(self):
-        if self._frame == self._rng[1]:
-            del self.__ptraj, self.__ttraj
+        if self._frame == self._act_rng[1]:
+            del self.__ptraj, self.__ttraj, self._act_rng
             raise StopIteration
         
         parts = collect_particles_generic(self.__ptraj, self._frame, True)
