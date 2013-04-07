@@ -242,7 +242,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
             trajects[int(tix)].append(frame[frame[:,-1] == tix][0])
     
     trajects = [np.array(traj) for traj in trajects]
-    return [Trajectory(traj[:,:3], traj[:,3:6], traj[:,6], traj[0,7]) \
+    return [Trajectory(traj[:,:3], traj[:,3:6], traj[:,6], np.int(traj[0,7])) \
         for traj in trajects]
     
 def trajectories(fname, first, last, frate, fmt=None):
