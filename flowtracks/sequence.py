@@ -6,7 +6,8 @@ from .particle import Particle
 from ConfigParser import SafeConfigParser
 
 class Sequence(object):
-    def __init__(self, frange, frate, particle, part_tmpl, tracer_tmpl):
+    def __init__(self, frange, frate, particle, part_tmpl, tracer_tmpl,
+                 smooth_tracers=False):
         """
         Arguments:
         frange - tuple, (first frame #, after last frame #)
@@ -15,6 +16,8 @@ class Sequence(object):
             properties.
         part_tmpl, tracer_tmpl - the templates for filenames of particles and
             tracers respectively. Should contain one %d for the frame number.
+        smoothe_tracers - if True, uses trajectory smoothing on the tracer
+            trajectories when iterating over frames.
         """
         self.part = particle
         self.frate = frate
@@ -22,6 +25,7 @@ class Sequence(object):
         self._rng = frange
         self._ptmpl = part_tmpl
         self._trtmpl = tracer_tmpl
+        self._smooth = smooth_tracers
         
         # No-op particle selector, can be changed by the setter below later.
         self._psel = lambda traj: traj
@@ -67,6 +71,10 @@ class Sequence(object):
         """
         self._psel = selector
         
+        # Clear the trajectory cache, so __iter__ reads trajectories.
+        self.__ttraj = None
+        self.__ptraj = None
+        
     def __iter__(self):
         """
         Iterate over frames. For each frame return the data for the tracers and
@@ -77,6 +85,9 @@ class Sequence(object):
         
         self._frame = self._act_rng[0]
         
+        if not ((self.__ttraj is None) or (self.__ptraj is None)):
+            return self
+        
         traj = [None]*2
         fnames = [self._ptmpl, self._trtmpl]
         formats = [self._pfmt, self._trfmt]
@@ -84,9 +95,13 @@ class Sequence(object):
         for dix, fname in enumerate(fnames):
             traj[dix] = trajectories(fname, self._rng[0], self._rng[1],
                 self.frate, formats[dix])
-
-        self.__ttraj = traj[1]
+        
+        if self._smooth:
+            self.__ttraj = [tr.smoothed() for tr in traj[1]]
+        else:
+            self.__ttraj = traj[1]
         self.__ptraj = self._psel(traj[0])
+        
         return self
     
     def iter_subrange(self, first, last):
@@ -95,7 +110,7 @@ class Sequence(object):
     
     def next(self):
         if self._frame == self._act_rng[1]:
-            del self.__ptraj, self.__ttraj, self._act_rng
+            del self._act_rng
             raise StopIteration
         
         parts = collect_particles_generic(self.__ptraj, self._frame, True)
@@ -104,13 +119,14 @@ class Sequence(object):
         self._frame += 1
         return parts, tracers
 
-def read_sequence(conf_fname):
+def read_sequence(conf_fname, smooth=False):
     """
     Read sequence-wide parameters, such as unchanging particle properties and
     frame range. Values are stored in an INI-format file.
     
     Arguments:
     conf_fname - name of the config file
+    smooth - whether the sequence shoud use tracers trajectory-smoothing.
     
     Returns:
     a Sequence object initialized with the configuration values found.
@@ -128,4 +144,4 @@ def read_sequence(conf_fname):
     frange = (parser.getint("Scene", "first frame"),
         parser.getint("Scene", "last frame") + 1)
     
-    return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl)
+    return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth)
