@@ -125,6 +125,48 @@ class Sequence(object):
         
         self._frame += 1
         return parts, tracers
+    
+    def map_trajectories(self, func, subrange=None, history=False):
+        """
+        Iterate over frames, for each frame call a function that generates a
+        per-trajectory result and add the results up in a per-trajectory
+        time-series.
+        
+        Arguments:
+        func - the function to call. Returns a dictionary keyed by trajid.
+            receives as arguments (self, particles, tracers) where particles,
+            tracers are the sequence iteration results as given by __iter__.
+        subrange - tuple (first, last). Iterate over a subrange of the sequence
+            delimited by these frame numbers.
+        inertia - true if the result of one frame depends on earlier results.
+            If true, func receives a 4th argument, the accumulated results so 
+            far as a dictionary of time-series lists.
+        
+        Returns:
+        a dictionary keyed by trajid, where for each trajectory a time series 
+        of results obtained during the trajectory's lifetime is the value.
+        """
+        if subrange is None:
+            subrange = self._rng
+        trajects = self.particle_trajectories()
+        
+        # Allocate result space:
+        res = dict((tr.trajid(), [None]*(len(tr) - 1)) for tr in trajects)
+        frame_counters = dict((tr.trajid(), 0) for tr in trajects)
+        
+        for parts, tracers in self.iter_subrange(*subrange):
+            if history:
+                frm_res = func(self, parts, tracers, res)
+            else:
+                frm_res = func(self, parts, tracers)
+            
+            for k, v in frm_res.iteritems():
+                res[k][frame_counters[k]] = v
+                frame_counters[k] += 1
+        
+        for k in res.keys():
+            res[k] = np.array(res[k])
+        return res
 
 def read_sequence(conf_fname, smooth=False):
     """
