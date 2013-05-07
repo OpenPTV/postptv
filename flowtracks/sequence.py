@@ -28,7 +28,7 @@ class Sequence(object):
         self._smooth = smooth_tracers
         
         # No-op particle selector, can be changed by the setter below later.
-        self._psel = lambda traj: traj
+        self.set_particle_selector(lambda traj: traj)
         
         # This is just a chache. Else trajectories() would check every time.
         self._pfmt = infer_format(part_tmpl)
@@ -49,8 +49,7 @@ class Sequence(object):
         trajectories that the particle selector selects, bounded by the range
         restricting the overall sequence.
         """
-        trs = self._psel(trajectories(self._ptmpl, self._rng[0], self._rng[1],
-                self.frate, self._pfmt))
+        trs = self.particle_trajectories()
         mins = np.empty(len(trs))
         maxs = np.empty(len(trs))
         
@@ -74,6 +73,17 @@ class Sequence(object):
         # Clear the trajectory cache, so __iter__ reads trajectories.
         self.__ttraj = None
         self.__ptraj = None
+    
+    def particle_trajectories(self):
+        """
+        Return (and possibly generate and cache) the list of Trajectory objects
+        as selected by the particle selector.
+        """
+        if (self.__ptraj is not None):
+            return self.__ptraj
+        self.__ptraj = self._psel(trajectories(self._ptmpl, self._rng[0], 
+            self._rng[1], self.frate, self._pfmt))
+        return self.__ptraj
         
     def __iter__(self):
         """
@@ -85,22 +95,19 @@ class Sequence(object):
         
         self._frame = self._act_rng[0]
         
-        if not ((self.__ttraj is None) or (self.__ptraj is None)):
+        # Make sure the particle trajectory cache is populated.
+        self.particle_trajectories()
+        if not (self.__ttraj is None):
             return self
         
-        traj = [None]*2
-        fnames = [self._ptmpl, self._trtmpl]
-        formats = [self._pfmt, self._trfmt]
-        
-        for dix, fname in enumerate(fnames):
-            traj[dix] = trajectories(fname, self._rng[0], self._rng[1],
-                self.frate, formats[dix])
+        # Make sure the tracers cache is populated:
+        trac_trajects = trajectories(self._trtmpl, self._rng[0], self._rng[1],
+                self.frate, self._trfmt)
         
         if self._smooth:
-            self.__ttraj = [tr.smoothed() for tr in traj[1]]
+            self.__ttraj = [tr.smoothed() for tr in trac_trajects]
         else:
-            self.__ttraj = traj[1]
-        self.__ptraj = self._psel(traj[0])
+            self.__ttraj = trac_trajects
         
         return self
     
