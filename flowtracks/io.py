@@ -326,8 +326,8 @@ def collect_particles_generic(trajects, frame, path_seg=False):
     selected = []
     for traj in trajects:
         if path_seg is True:
-            t = np.nonzero((traj.time() == frame) & \
-                (np.roll(traj.time(), -1) == frame + 1))[0]
+            t = np.nonzero((traj.time()[:-1] == frame) & \
+                (traj.time()[1:] == frame + 1))[0]
             if len(t) == 0: continue
             
             t = t[0]
