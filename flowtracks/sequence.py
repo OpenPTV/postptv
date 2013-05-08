@@ -126,7 +126,7 @@ class Sequence(object):
         self._frame += 1
         return parts, tracers
     
-    def map_trajectories(self, func, subrange=None, history=False):
+    def map_trajectories(self, func, subrange=None, history=False, args=()):
         """
         Iterate over frames, for each frame call a function that generates a
         per-trajectory result and add the results up in a per-trajectory
@@ -138,9 +138,11 @@ class Sequence(object):
             tracers are the sequence iteration results as given by __iter__.
         subrange - tuple (first, last). Iterate over a subrange of the sequence
             delimited by these frame numbers.
-        inertia - true if the result of one frame depends on earlier results.
+        history - true if the result of one frame depends on earlier results.
             If true, func receives a 4th argument, the accumulated results so 
             far as a dictionary of time-series lists.
+        args - a tuple of extra positional arguments to pass to the function
+            after the usual arguments and the possible history argument.
         
         Returns:
         a dictionary keyed by trajid, where for each trajectory a time series 
@@ -156,9 +158,10 @@ class Sequence(object):
         
         for parts, tracers in self.iter_subrange(*subrange):
             if history:
-                frm_res = func(self, parts, tracers, res)
+                fargs = (self, parts, tracers, res) + args
             else:
-                frm_res = func(self, parts, tracers)
+                fargs = (self, parts, tracers) + args
+            frm_res = func(*fargs)
             
             for k, v in frm_res.iteritems():
                 res[k][frame_counters[k]] = v
