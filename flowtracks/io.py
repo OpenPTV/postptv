@@ -385,3 +385,33 @@ def read_frame_data(conf_fname):
         data[dix] = collect_particles_generic(traj, frame, True)
     
     return particle, frate, data[0], data[1]
+
+def load_trajectories(res_dir):
+    """
+    Load a series of trajectories and associated data from a directory 
+    containing npz trajectory files, as created by save_trajectories().
+    
+    Arguments:
+    res_dir - path to the directory holding the trajectory files.
+    
+    Returns:
+    trajects - a list of Trajectory objects created from the files is res_dir
+    per_traject_adds - a dictionary of named added date. Each value is a 
+        dictionary keyed by trajid.
+    """
+    trajects = []
+    per_traject_adds = {}
+    
+    for tr_file in os.listdir(res_dir):
+        data = np.load(os.path.join(res_dir, tr_file))
+        trajid = int(tr_file.split('.')[0][5:]) # traj_*.pyz
+        
+        trajects.append(
+            Trajectory(data['pos'], data['vel'], data['t'], trajid))
+            
+        for k in data.files:
+            if k in ('pos', 'vel', 't'): continue
+            per_traject_adds.setdefault(k, {})
+            per_traject_adds[k][trajid] = data[k]
+    
+    return trajects, per_traject_adds
