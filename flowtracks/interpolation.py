@@ -115,45 +115,66 @@ def rbf_interp(tracer_dists, dists, use_parts, velocity, epsilon=1e-2):
     vel_interp = np.sum(rbf[...,None] * coeffs, axis=1)
     return vel_interp
 
-def interpolate(tracer_pos, interp_points, velocity, method,
-    neighbs=None, param=None):
+class Interpolant(object):
     """
-    Selects an interpolation method, sets up the necessary parameters, and 
-    performs the interpolation.
-    
-    Arguments:
-    tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, [m]
-    interp_points - (m,3) array, coordinates of points where interpolation will
-        be done.
-    velocity - (n,3) array, the u,v,w velocity components for each of n
-        tracers, [m/s]
-    method - interpolation method. Either 'inv' for inverse-distance weighting,
-        or 'rbf' for gaussian-kernel Radial Basis Function method.
-    neighbs - number of closest neighbours to interpolate from. If None.
-        uses 4 neighbours for 'inv' method, and 7 for 'rbf'.
-    param - the parameter adjusting the interpolation method. For IDW it is the
-        inverse power (default 1), for rbf it is epsilon (default 1e5).
-    
-    Returns:
-    vel_interp - an (m,3) array with the interpolated velocity at the position
-        of each particle, [m/s].
+    Holds all parameters necessary for performing an interpolation. Use is as
+    a callable object after initialization, see __call__().
     """
-    dists, use_parts = select_neighbs(tracer_pos, interp_points, None, neighbs)
+    def __init__(self, method, num_neighbs=None, param=None):
+        """
+        Arguments:
+        method - interpolation method. Either 'inv' for inverse-distance 
+            weighting, or 'rbf' for gaussian-kernel Radial Basis Function
+            method.
+        neighbs - number of closest neighbours to interpolate from. If None.
+            uses 4 neighbours for 'inv' method, and 7 for 'rbf'.
+        param - the parameter adjusting the interpolation method. For IDW it is
+            the inverse power (default 1), for rbf it is epsilon (default 1e5).
+        """        
+        if method == 'inv':
+            if num_neighbs is None:
+                num_neighbs = 4
+            if param is None: 
+                param = 1
+        elif method == 'rbf':
+            if num_neighbs is None:
+                num_neighbs = 7
+            if param is None:
+                param = 1e5
+        else:
+            raise NotImplementedError("Interpolation method %s not supported" \
+                % method)
+            
+        self._method = method
+        self._neighbs = num_neighbs
+        self._par = param
     
-    if method == 'inv':
-        if neighbs is None:
-            neighbs = 4
-        if param is None: 
-            param = 1
-        vel_interp = inv_dist_interp(dists, use_parts, velocity, param)
-    elif method == 'rbf':
-        if neighbs is None:
-            neighbs = 7
-        if param is None:
-            param = 1e5
-        tracer_dists = select_neighbs(tracer_pos, tracer_pos, None, neighbs)[0]
-        vel_interp = rbf_interp(tracer_dists, dists, use_parts, velocity, param)
-    else:
-        raise NotImplementedError("Unknown interpolation method " + method)
+    def num_neighbs(self):
+        return self._neighbs
     
-    return vel_interp
+    def __call__(self, tracer_pos, interp_points, data):
+        """
+        Sets up the necessary parameters, and performs the interpolation.
+        
+        Arguments:
+        tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
+            in [m]
+        interp_points - (m,3) array, coordinates of points where interpolation 
+            will be done.
+        data - (n,d) array, the for the d-dimensional data for tracer n. For 
+            example, in velocity interpolation this would be (n,3), each tracer
+            having 3 components of velocity.
+        
+        Returns:
+        vel_interp - an (m,3) array with the interpolated value at the position
+            of each particle, [m/s].
+        """
+        dists, use_parts = select_neighbs(tracer_pos, interp_points, 
+            None, self._neighbs)
+        
+        if self._method == 'inv':
+            return inv_dist_interp(dists, use_parts, data, self._par)
+        else:
+            tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
+                None, self._neighbs)[0]
+            return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
