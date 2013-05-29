@@ -157,4 +157,3 @@ def interpolate(tracer_pos, interp_points, velocity, method,
         raise NotImplementedError("Unknown interpolation method " + method)
     
     return vel_interp
-    
