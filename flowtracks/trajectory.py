@@ -1,10 +1,90 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
+import types, numpy as np
 import scipy.interpolate as interp
+from flowtracks.io import mark_unique_rows
 
-class Trajectory(object):
-    def __init__(self, pos, velocity, time, trajid):
+class ParticleSet(object):
+    def __init__(self, pos, velocity, time, trajid, **kwds):
+        """
+        Arguments:
+        pos - a (t,3) array, the position of one particle in t time-points,
+            [m].
+        velocity - (t,3) array, corresponding velocity, [m/s].
+        kwds - keyword arguments should be arrays whose first dimension == t.
+            these are treated as extra attributes to be sliced when creating
+            segments.
+        """
+        base_vals = {
+            'pos': pos,
+            'velocity': velocity,
+        }
+        base_vals.update(kwds)
+        
+        self._check_attr = [] # Attrs to look for when concatenating bundles
+        for n, v in base_vals.iteritems():
+            self.create_property(n, v)
+    
+    def create_property(self, propname, init_val):
+        """
+        Add a property of the set, expected to be an array whose 
+        shape[0] == len(self).
+        
+        Creates the method <propname>(self, selector=None). If selector is
+        given, it will return only the selected time-points. Also creates
+        set_<propname>(self, value, selector=None) which sets either
+        the value over the entire trajectory or just for the selected time 
+        points (this requires the property to already exist for the full
+        trajectory).
+        
+        Arguments:
+        propname - a string, should be a valid Python identifier.
+        init_val - the initial value for the property.
+        """
+        attr = '_' + propname
+        self._check_attr.append(propname)
+        
+        def getter(self, selector=None):
+            if selector is None:
+                return self.__dict__[attr]
+            else:
+                return self.__dict__[attr][selector,...]
+        
+        def setter(self, new_val, selector=None):
+            if selector is None:
+                self.__dict__[attr] = new_val
+            else:
+                self.__dict__[attr][selector,...] = new_val
+        
+        self.__dict__[propname] = \
+            types.MethodType(getter, self, self.__class__)
+        self.__dict__['set_' + propname] = \
+            types.MethodType(setter, self, self.__class__)
+        
+        if init_val is not None:
+            self.__dict__['set_' + propname](init_val)
+    
+    def has_property(self, propname):
+        """
+        Checks whether the looked-after property ``propname`` exists for this
+        particle set.
+        """
+        return (propname in self._check_attr)
+    
+    def schema(self):
+        """
+        Creates a dictionary keyed by property name whose values are the shape
+        of one particle's value for that property. Example: {'pos': (3,),
+        'velocity': (3,)}
+        """
+        return dict((propname, self.__dict__['_' + propname].shape[1:]) \
+            for propname in self._check_attr)
+    
+    def __len__(self):
+        return self._pos.shape[0]
+    
+class Trajectory(ParticleSet):
+    def __init__(self, pos, velocity, time, trajid, **kwds):
         """
         Arguments:
         pos - a (t,3) array, the position of one particle in t time-points,
@@ -13,26 +93,16 @@ class Trajectory(object):
         time - (t,) array, the clock ticks. No specific units needed.
         trajid - the unique identifier of this trajectory in the set of
             trajectories that belong to the same sequence.
+        kwds - keyword arguments should be arrays whose first dimension == t.
+            these are treated as extra attributes to be sliced when creating
+            segments.
         """
-        self._pos = pos
-        self._vel = velocity
-        self._t = time
         self._id = trajid
-    
-    def pos(self):
-        return self._pos
-    
-    def velocity(self):
-        return self._vel
-    
-    def time(self):
-        return self._t
+        kwds['time'] = time
+        ParticleSet.__init__(self, pos, velocity, kwds)
     
     def trajid(self):
-        return self._id
-    
-    def __len__(self):
-        return len(self._t)
+        return self._id    
     
     def __getitem__(self, selector):
         """
@@ -42,10 +112,10 @@ class Trajectory(object):
         Arguments:
         selector - any 1d indexing expression known to numpy.
         """
-        return np.hstack((self._pos[selector], self._vel[selector],
-            self._t[selector][...,None], 
+        return np.hstack((self._pos[selector], self._velocity[selector],
+            self._time[selector][...,None], 
             np.ones(self._pos[selector].shape[:-1] + (1,))*self._id))
-    
+            
     def smoothed(self, smoothness=3.0):
         """
         Creates a trajectory generated from this trajectory using cubic 
@@ -68,3 +138,77 @@ class Trajectory(object):
         new_vel = np.array(interp.splev(eval_prms, spline, der=1)).T
         
         return Trajectory(new_pos, new_vel, self.time(), self.trajid())
+
+class ParticleSnapshot(ParticleSet):
+    def __init__(self, pos, velocity, time, trajid, **kwds):
+        """
+        Arguments:
+        pos - a (p,3) array, the position of one particle of p, [m].
+        velocity - (p,3) array, corresponding velocity, [m/s].
+        trajid - (p,3) array, for each particle in the snapshot, the unique 
+            identifier of the trajectory it belongs to.
+        time - scalar, the identifier of the frame from which this snapshot
+            is taken.
+        kwds - keyword arguments should be arrays whose first dimension == p.
+            these are treated as extra attributes to be sliced when creating
+            segments.
+        """
+        self._t = time
+        kwds['trajid'] = trajid
+        ParticleSet.__init__(self, pos, velocity, kwds)
+    
+    def time(self):
+        return self._t
+
+
+def trajectories_in_frame(trajects, frame_num, segs=False):
+    """
+    Notes the indices of trajectories participating in the frame for later 
+    extraction.
+    
+    Arguments:
+    trajects - a list of Trajectory objects to filter.
+    frame_num - the time value (as found in trajectory.time()) at which the
+        trajectory should be active.
+    segs - true if the trajectory should be active also in the following frame.
+    
+    Returns:
+    traj_nums = the indices of active trajectories in ``trajects``.
+    """
+    active = np.empty(len(trajects), dtype=np.bool)
+    pos = []
+    
+    for trix, traj in enumerate(trajects):
+        if segs:
+            plc = (traj.time()[:-1] == frame_num) & \
+                (traj.time()[1:] == frame_num + 1)
+        else:
+            plc = np.any(traj.time() == frame_num)
+        active[trix] = plc.any()
+        
+        if active[trix]:
+            pos.append(traj.pos(np.nonzero(plc)[0]))
+    
+    # Filter overlapping particles:
+    pos = np.array(pos)
+    update_active = np.zeros(pos.shape[0], dtype=np.bool)
+    update_active[mark_unique_rows(pos)] = True
+    active[active] = update_active
+    
+    return np.nonzero(active)[0]
+
+def take_snapshot(trajects, frame):
+    schema = trajects[0].schema()
+    kwds = dict((k, np.empty(
+        (len(trajects),) + v, 
+        dtype=trajects[0].__dict__['_' + k].dtype)) \
+        for k, v in schema.iteritems())
+    kwds['trajid'] = np.empty(len(trajects))
+    
+    for trix, traj in enumerate(trajects):
+        for prop in kwds.keys():
+            kwds[prop][trix] = traj.__dict__['prop'](frame)
+        kwds['trajid'] = traj.trajid()
+    
+    kwds['time'] = frame
+    return ParticleSnapshot(kwds)

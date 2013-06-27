@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from .io import collect_particles_generic, trajectories, infer_format
+from .io import trajectories, infer_format
 from .particle import Particle
+from .trajectory import take_snapshot, trajectories_in_frame
 from ConfigParser import SafeConfigParser
 
 class Sequence(object):
@@ -109,6 +110,14 @@ class Sequence(object):
         else:
             self.__ttraj = trac_trajects
         
+        # Initialize the values of the first frame that are usually taken from 
+        # the next frame.
+        frm = Frame()
+        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame)
+        frm.tracers = take_snapshot([self.__ttraj[t] for t in tracer_ixs], 
+            self._frame)
+        self._next_frame = frm
+        
         return self
     
     def iter_subrange(self, first, last):
@@ -120,11 +129,21 @@ class Sequence(object):
             del self._act_rng
             raise StopIteration
         
-        parts = collect_particles_generic(self.__ptraj, self._frame, True)
-        tracers = collect_particles_generic(self.__ttraj, self._frame, True)
-        
+        frame = self._next_frame
+        part_ixs = trajectories_in_frame(self.__ptraj, self._frame, segs=True)
+        part_trjs = [self.__ptraj[t] for t in part_ixs]
+        frame.particles = take_snapshot(part_trjs, self._frame)
+
         self._frame += 1
-        return parts, tracers
+        
+        next_frame = Frame()
+        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame)
+        next_frame.tracers = take_snapshot(
+            [self.__ttraj[t] for t in tracer_ixs], self._frame)
+        next_frame.particles = take_snapshot(part_trjs, self._frame)
+        self._next_frame = next_frame
+        
+        return frame, next_frame
     
     def map_trajectories(self, func, subrange=None, history=False, args=()):
         """
@@ -156,11 +175,11 @@ class Sequence(object):
         res = dict((tr.trajid(), [None]*(len(tr) - 1)) for tr in trajects)
         frame_counters = dict((tr.trajid(), 0) for tr in trajects)
         
-        for parts, tracers in self.iter_subrange(*subrange):
+        for frame, next_frame in self.iter_subrange(*subrange):
             if history:
-                fargs = (self, parts, tracers, res) + args
+                fargs = (self, frame, next_frame, res) + args
             else:
-                fargs = (self, parts, tracers) + args
+                fargs = (self, frame, next_frame) + args
             frm_res = func(*fargs)
             
             for k, v in frm_res.iteritems():
@@ -197,3 +216,6 @@ def read_sequence(conf_fname, smooth=False):
         parser.getint("Scene", "last frame") + 1)
     
     return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth)
+
+class Frame(object):
+    pass
