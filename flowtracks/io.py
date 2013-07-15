@@ -12,7 +12,7 @@ import numpy as np
 from scipy import io
 
 from .particle import Particle
-from .trajectory import Trajectory
+from .trajectory import Trajectory, mark_unique_rows
 
 def collect_particles(fname_tmpl, frame, path_seg=False):
     """
@@ -63,26 +63,6 @@ def collect_particles(fname_tmpl, frame, path_seg=False):
     else:
         all_rows = np.vstack(selected)
         return all_rows[mark_unique_rows(all_rows)]
-
-def mark_unique_rows(all_rows):
-    """
-    Filter out rows whose position columns represent a particle that already
-    appears, so that each particle position appears only once.
-    
-    Arguments:
-    all_rows - an array with n rows and at least 3 columns for position.
-    
-    Returns:
-    an array with the indices of rows to take from the input such that in the
-    result, the first 3 columns form a unique combination.
-    """
-    # Remove duplicates (particles occupying same position):
-    srt = np.lexsort(all_rows[:,:3].T)
-    diff = np.diff(all_rows[srt,:3], axis=0).any(axis=1)
-    uniq = np.r_[srt[0], srt[1:][diff]]
-    uniq.sort()
-        
-    return uniq
 
 def trajectories_mat(fname):
     data = io.loadmat(os.path.expanduser(fname))

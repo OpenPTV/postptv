@@ -2,10 +2,9 @@
 
 import types, numpy as np
 import scipy.interpolate as interp
-from flowtracks.io import mark_unique_rows
 
 class ParticleSet(object):
-    def __init__(self, pos, velocity, time, trajid, **kwds):
+    def __init__(self, pos, velocity, **kwds):
         """
         Arguments:
         pos - a (t,3) array, the position of one particle in t time-points,
@@ -48,13 +47,13 @@ class ParticleSet(object):
             if selector is None:
                 return self.__dict__[attr]
             else:
-                return self.__dict__[attr][selector,...]
+                return self.__dict__[attr][selector]
         
         def setter(self, new_val, selector=None):
             if selector is None:
                 self.__dict__[attr] = new_val
             else:
-                self.__dict__[attr][selector,...] = new_val
+                self.__dict__[attr][selector] = new_val
         
         self.__dict__[propname] = \
             types.MethodType(getter, self, self.__class__)
@@ -99,7 +98,7 @@ class Trajectory(ParticleSet):
         """
         self._id = trajid
         kwds['time'] = time
-        ParticleSet.__init__(self, pos, velocity, kwds)
+        ParticleSet.__init__(self, pos, velocity, **kwds)
     
     def trajid(self):
         return self._id    
@@ -155,11 +154,31 @@ class ParticleSnapshot(ParticleSet):
         """
         self._t = time
         kwds['trajid'] = trajid
-        ParticleSet.__init__(self, pos, velocity, kwds)
+        ParticleSet.__init__(self, pos, velocity, **kwds)
     
     def time(self):
         return self._t
 
+
+def mark_unique_rows(all_rows):
+    """
+    Filter out rows whose position columns represent a particle that already
+    appears, so that each particle position appears only once.
+    
+    Arguments:
+    all_rows - an array with n rows and at least 3 columns for position.
+    
+    Returns:
+    an array with the indices of rows to take from the input such that in the
+    result, the first 3 columns form a unique combination.
+    """
+    # Remove duplicates (particles occupying same position):
+    srt = np.lexsort(all_rows[:,:3].T)
+    diff = np.diff(all_rows[srt,:3], axis=0).any(axis=1)
+    uniq = np.r_[srt[0], srt[1:][diff]]
+    uniq.sort()
+        
+    return uniq
 
 def trajectories_in_frame(trajects, frame_num, segs=False):
     """
@@ -187,28 +206,35 @@ def trajectories_in_frame(trajects, frame_num, segs=False):
         active[trix] = plc.any()
         
         if active[trix]:
-            pos.append(traj.pos(np.nonzero(plc)[0]))
+            pos.append(traj.pos(np.nonzero(plc)[0]).squeeze())
     
-    # Filter overlapping particles:
-    pos = np.array(pos)
-    update_active = np.zeros(pos.shape[0], dtype=np.bool)
-    update_active[mark_unique_rows(pos)] = True
-    active[active] = update_active
+    if active.any():
+        # Filter overlapping particles:
+        pos = np.array(pos)
+        update_active = np.zeros(pos.shape[0], dtype=np.bool)
+        update_active[mark_unique_rows(pos)] = True
+        active[active] = update_active
     
     return np.nonzero(active)[0]
 
 def take_snapshot(trajects, frame):
+    if len(trajects) == 0:
+        return ParticleSnapshot(np.empty((0,3)), np.empty((0,3)), frame,
+                                np.empty((0,3)))
+    
     schema = trajects[0].schema()
     kwds = dict((k, np.empty(
         (len(trajects),) + v, 
         dtype=trajects[0].__dict__['_' + k].dtype)) \
         for k, v in schema.iteritems())
-    kwds['trajid'] = np.empty(len(trajects))
+    copy_keys = kwds.keys()
+    kwds['trajid'] = np.empty(len(trajects), dtype=np.int_)
     
     for trix, traj in enumerate(trajects):
-        for prop in kwds.keys():
-            kwds[prop][trix] = traj.__dict__['prop'](frame)
-        kwds['trajid'] = traj.trajid()
+        first_frame = traj.time()[0]
+        for prop in copy_keys:
+            kwds[prop][trix] = traj.__dict__[prop](frame - first_frame)
+        kwds['trajid'][trix] = traj.trajid()
     
     kwds['time'] = frame
-    return ParticleSnapshot(kwds)
+    return ParticleSnapshot(**kwds)

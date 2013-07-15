@@ -110,14 +110,6 @@ class Sequence(object):
         else:
             self.__ttraj = trac_trajects
         
-        # Initialize the values of the first frame that are usually taken from 
-        # the next frame.
-        frm = Frame()
-        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame)
-        frm.tracers = take_snapshot([self.__ttraj[t] for t in tracer_ixs], 
-            self._frame)
-        self._next_frame = frm
-        
         return self
     
     def iter_subrange(self, first, last):
@@ -126,10 +118,15 @@ class Sequence(object):
     
     def next(self):
         if self._frame == self._act_rng[1]:
+            # The real problem is in reconstruction_frame() where
+            # somethong fails after frame 5
             del self._act_rng
             raise StopIteration
         
-        frame = self._next_frame
+        frame = Frame()
+        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame, segs=True)
+        tracer_trjs = [self.__ttraj[t] for t in tracer_ixs]
+        frame.tracers = take_snapshot(tracer_trjs, self._frame)
         part_ixs = trajectories_in_frame(self.__ptraj, self._frame, segs=True)
         part_trjs = [self.__ptraj[t] for t in part_ixs]
         frame.particles = take_snapshot(part_trjs, self._frame)
@@ -137,9 +134,7 @@ class Sequence(object):
         self._frame += 1
         
         next_frame = Frame()
-        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame)
-        next_frame.tracers = take_snapshot(
-            [self.__ttraj[t] for t in tracer_ixs], self._frame)
+        next_frame.tracers = take_snapshot(tracer_trjs, self._frame)
         next_frame.particles = take_snapshot(part_trjs, self._frame)
         self._next_frame = next_frame
         
