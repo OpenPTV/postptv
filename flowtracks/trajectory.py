@@ -217,12 +217,26 @@ def trajectories_in_frame(trajects, frame_num, segs=False):
     
     return np.nonzero(active)[0]
 
-def take_snapshot(trajects, frame):
-    if len(trajects) == 0:
-        return ParticleSnapshot(np.empty((0,3)), np.empty((0,3)), frame,
-                                np.empty((0,3)))
+def take_snapshot(trajects, frame, schema):
+    """
+    Goes over a list of trajectories and extracts the particle data at a given
+    time point. If the trajectory list is empty, creates an empty snapshot.
     
-    schema = trajects[0].schema()
+    Arguments:
+    trajects - a list of Trajectory objects to query.
+    frame - the frame number to which snapshot data belongs.
+    schema - a dict, {propname: shape tuple}, as given by Trajectopry.schema().
+        This is only needed for consistency in the case of an empty trajectory
+        list resulting in an empty snapshot.
+    
+    Returns:
+    a ParticleSnapshot object with all the particles in the given frame.
+    """
+    if len(trajects) == 0:
+        kwds = dict((k, np.empty((0,) + v)) for k, v in schema.iteritems())
+        kwds['time'] = frame
+        return ParticleSnapshot(trajid=np.empty(0), **kwds)
+    
     kwds = dict((k, np.empty(
         (len(trajects),) + v, 
         dtype=trajects[0].__dict__['_' + k].dtype)) \

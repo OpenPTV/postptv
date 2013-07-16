@@ -98,6 +98,7 @@ class Sequence(object):
         
         # Make sure the particle trajectory cache is populated.
         self.particle_trajectories()
+        self.__schema = self.__ptraj[0].schema()
         if not (self.__ttraj is None):
             return self
         
@@ -109,6 +110,8 @@ class Sequence(object):
             self.__ttraj = [tr.smoothed() for tr in trac_trajects]
         else:
             self.__ttraj = trac_trajects
+        
+        self.__tschem = self.__ttraj[0].schema()
         
         return self
     
@@ -126,16 +129,18 @@ class Sequence(object):
         frame = Frame()
         tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame, segs=True)
         tracer_trjs = [self.__ttraj[t] for t in tracer_ixs]
-        frame.tracers = take_snapshot(tracer_trjs, self._frame)
+        frame.tracers = take_snapshot(tracer_trjs, self._frame, self.__tschem)
         part_ixs = trajectories_in_frame(self.__ptraj, self._frame, segs=True)
         part_trjs = [self.__ptraj[t] for t in part_ixs]
-        frame.particles = take_snapshot(part_trjs, self._frame)
+        frame.particles = take_snapshot(part_trjs, self._frame, self.__schema)
 
         self._frame += 1
         
         next_frame = Frame()
-        next_frame.tracers = take_snapshot(tracer_trjs, self._frame)
-        next_frame.particles = take_snapshot(part_trjs, self._frame)
+        next_frame.tracers = take_snapshot(tracer_trjs, self._frame,
+            self.__tschem)
+        next_frame.particles = take_snapshot(part_trjs, self._frame,
+            self.__schema)
         self._next_frame = next_frame
         
         return frame, next_frame
