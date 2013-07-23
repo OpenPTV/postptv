@@ -33,6 +33,8 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
     dists =  np.sqrt(np.sum(
         (tracer_pos[None,:,:] - interp_points[:,None,:])**2, axis=2))
     
+    dists[dists <= 0] = np.inf # Only for selection phase,later changed back.
+    
     if radius is None:
         if num_neighbs is None:
             raise ValueError("Either radius or num_neighbs must be given.")
@@ -41,16 +43,13 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
         use_parts = np.zeros(dists.shape, dtype=np.bool)
         
         # num_neighbs + 1 because the list still includes self-distance (0).
-        use_parts[np.repeat(np.arange(interp_points.shape[0]), num_neighbs + 1),
-            dist_sort[:,:num_neighbs + 1].flatten()] = True
+        use_parts[np.repeat(np.arange(interp_points.shape[0]), num_neighbs),
+            dist_sort[:,:num_neighbs].flatten()] = True
     
     else:
         use_parts = dists < radius
     
-    # Don't include the particle at the position of interpolation or
-    # overlapping particles:
-    use_parts[dists <= 0 ] = False
-    
+    dists[np.isinf(dists)] = 0.
     return dists, use_parts
     
 def inv_dist_interp(dists, use_parts, velocity, p=1):
@@ -178,3 +177,28 @@ class Interpolant(object):
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
                 None, self._neighbs)[0]
             return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
+    
+    def neighb_dists(self, tracer_pos, interp_points):
+        """
+        The distance from each interpolation point to each data point of those
+        used for interpolation. Assumes, for now, a constant number of
+        neighbours.
+        Arguments:
+        tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
+            in [m]
+        interp_points - (m,3) array, coordinates of points where interpolation 
+            will be done.
+        
+        Returns:
+        ndists - an (m,c) array, for c closest neighbours as defined during
+            object construction.
+        """
+        dists, use_parts = select_neighbs(tracer_pos, interp_points, 
+            None, self._neighbs)
+        ndists = np.zeros((interp_points.shape[0], self._neighbs))
+        
+        for pt in xrange(interp_points.shape[0]):
+            # allow assignment of less than the desired number of neighbours.
+            ndists[pt] = dists[pt, use_parts[pt]]
+        
+        return ndists
