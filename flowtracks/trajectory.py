@@ -143,8 +143,11 @@ class Trajectory(ParticleSet):
         
         new_pos = np.array(interp.splev(eval_prms, spline)).T
         new_vel = np.array(interp.splev(eval_prms, spline, der=1)).T
+        new_accel = np.array(interp.splev(eval_prms, spline, der=2)).T
+        new_accel = np.vstack( (new_accel, np.zeros(3)) )
         
-        return Trajectory(new_pos, new_vel, self.time(), self.trajid())
+        return Trajectory(new_pos, new_vel, self.time(), self.trajid(),
+            accel=new_accel)
 
 class ParticleSnapshot(ParticleSet):
     def __init__(self, pos, velocity, time, trajid, **kwds):

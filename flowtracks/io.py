@@ -76,9 +76,10 @@ def trajectories_mat(fname):
         # also convert data from mm to m.
         pos = np.hstack((traj['xf'], traj['yf'], traj['zf']))/1000.
         vel = np.hstack((traj['uf'], traj['vf'], traj['wf']))/1000.
+        accel = np.hstack((traj['axf'], traj['ayf'], traj['azf']))/1000.
         t = traj['t'].squeeze()
         trajid = traj['trajid'][0,0]
-        trajects.append(Trajectory(pos, vel, t, trajid))
+        trajects.append(Trajectory(pos, vel, t, trajid, accel=accel))
     
     return trajects
 
@@ -107,14 +108,14 @@ def trajectories_acc(fname, first=None, last=None):
         if last is not None and frame >= last: break
         
         table = np.loadtxt(os.path.join(dirname, fname),
-            usecols=(0,1,2,3,4,5,33))
+            usecols=(0,1,2,3,4,5,6,7,8,33))
         traj_starts = np.nonzero(table[:,-1] == 0)[0]
         traj_ends = np.r_[traj_starts[1:], table.shape[0]]
         
         for s, e in zip(traj_starts, traj_ends):
             trajects.append(Trajectory(
-                table[s:e,0:3], table[s:e,3:6], table[s:e,6] + frame,
-                len(trajects) ))
+                table[s:e,0:3], table[s:e,3:6], table[s:e,-1] + frame,
+                len(trajects), accel= table[s:e,6:9]))
     
     return trajects
 
@@ -222,8 +223,16 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
             trajects[int(tix)].append(frame[frame[:,-1] == tix][0])
     
     trajects = [np.array(traj) for traj in trajects]
-    return [Trajectory(traj[:,:3], traj[:,3:6], traj[:,6], np.int(traj[0,7])) \
+    trajects = [Trajectory(traj[:,:3], traj[:,3:6], traj[:,6], np.int(traj[0,7])) \
         for traj in trajects]
+    
+    # Add forward-difference acceleration:
+    for traj in trajects:
+        accel = np.zeros_like(traj.velocity())
+        accel[:-1] = (traj.velocity()[1:] - traj.velocity()[:-1]) * frate
+        traj.create_property('accel', accel)
+    
+    return trajects
     
 def trajectories(fname, first, last, frate, fmt=None):
     """
