@@ -366,6 +366,36 @@ def read_frame_data(conf_fname):
     
     return particle, frate, data[0], data[1]
 
+def save_trajectories(output_dir, trajects, per_traject_adds):
+    """
+    Save for each trajectory the data for this trajectory, as well as 
+    additional data attached to each trajectory, such as trajectory 
+    reconstructions. Creates in the output directory one npz file per
+    trajectory, containing the arrays of the trajectory as well as the added 
+    arrays.
+    
+    Arguments:
+    output_dir - name of the directory where output should be placed. Will be 
+        created if it does not exist.
+    trajects - a list of Trajectory objects.
+    per_traject_adds - a dictionary, whose keys are the aray names to use when
+        saving, and vaslues are trajid-keyed dictionaries with the actual 
+        arrays to save for each trajectory.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    for traj in trajects:
+        save_data = {
+            'pos': traj.pos(), 'vel': traj.velocity(), 
+            't': traj.time()
+        }
+        for k, v in per_traject_adds.iteritems():
+            save_data[k] = v[traj.trajid()]
+        
+        np.savez(os.path.join(output_dir, 'traj_%d' % traj.trajid()),
+            **save_data)
+
 def load_trajectories(res_dir):
     """
     Load a series of trajectories and associated data from a directory 
