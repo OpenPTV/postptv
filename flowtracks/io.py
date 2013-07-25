@@ -386,10 +386,8 @@ def save_trajectories(output_dir, trajects, per_traject_adds):
         os.makedirs(output_dir)
     
     for traj in trajects:
-        save_data = {
-            'pos': traj.pos(), 'vel': traj.velocity(), 
-            't': traj.time()
-        }
+        save_data = dict(('traj:' + k, v) \
+            for k, v in traj.as_dict().iteritems())
         for k, v in per_traject_adds.iteritems():
             save_data[k] = v[traj.trajid()]
         
@@ -416,12 +414,14 @@ def load_trajectories(res_dir):
         data = np.load(os.path.join(res_dir, tr_file))
         trajid = int(tr_file.split('.')[0][5:]) # traj_*.pyz
         
-        trajects.append(
-            Trajectory(data['pos'], data['vel'], data['t'], trajid))
-            
+        kwds = {'trajid': trajid}
         for k in data.files:
-            if k in ('pos', 'vel', 't'): continue
-            per_traject_adds.setdefault(k, {})
-            per_traject_adds[k][trajid] = data[k]
+            if k.startswith('traj:'):
+                kwds[k[5:]] = data[k]
+            else:
+                per_traject_adds.setdefault(k, {})
+                per_traject_adds[k][trajid] = data[k]
+        
+        trajects.append(Trajectory(**kwds))
     
     return trajects, per_traject_adds

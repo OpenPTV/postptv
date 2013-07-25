@@ -79,6 +79,14 @@ class ParticleSet(object):
         return dict((propname, self.__dict__['_' + propname].shape[1:]) \
             for propname in self._check_attr)
     
+    def as_dict(self):
+        """
+        Returns a dictionary with the "business" properties only, without all
+        the Python bookkeeping and other stuff in the __dict__.
+        """
+        return dict((propname, self.__dict__['_' + propname]) \
+            for propname in self._check_attr)
+    
     def __len__(self):
         return self._pos.shape[0]
     
