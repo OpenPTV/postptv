@@ -85,6 +85,23 @@ class Sequence(object):
         self.__ptraj = self._psel(trajectories(self._ptmpl, self._rng[0], 
             self._rng[1], self.frate, self._pfmt))
         return self.__ptraj
+    
+    def tracer_trajectories(self):
+        """
+        Return (and possibly generate and cache) the list of Trajectory objects
+        corresponding to tracers.
+        """
+        if (self.__ttraj is not None):
+            return self.__ttraj
+        ttraj = trajectories(self._trtmpl, self._rng[0], self._rng[1], 
+            self.frate, self._trfmt)
+        
+        if self._smooth:
+            self.__ttraj = [tr.smoothed() for tr in ttraj]
+        else:
+            self.__ttraj = ttraj
+            
+        return self.__ttraj
         
     def __iter__(self):
         """
@@ -103,13 +120,7 @@ class Sequence(object):
             return self
         
         # Make sure the tracers cache is populated:
-        trac_trajects = trajectories(self._trtmpl, self._rng[0], self._rng[1],
-                self.frate, self._trfmt)
-        
-        if self._smooth:
-            self.__ttraj = [tr.smoothed() for tr in trac_trajects]
-        else:
-            self.__ttraj = trac_trajects
+        self.tracer_trajectories()
         
         self.__tschem = self.__ttraj[0].schema()
         
@@ -121,8 +132,6 @@ class Sequence(object):
     
     def next(self):
         if self._frame == self._act_rng[1]:
-            # The real problem is in reconstruction_frame() where
-            # somethong fails after frame 5
             del self._act_rng
             raise StopIteration
         
