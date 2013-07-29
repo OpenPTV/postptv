@@ -3,6 +3,9 @@
 import types, numpy as np
 import scipy.interpolate as interp
 
+class Frame(object):
+    pass
+
 class ParticleSet(object):
     def __init__(self, pos, velocity, **kwds):
         """

@@ -3,7 +3,7 @@ import numpy as np
 
 from .io import trajectories, infer_format
 from .particle import Particle
-from .trajectory import take_snapshot, trajectories_in_frame
+from .trajectory import take_snapshot, trajectories_in_frame, Frame
 from ConfigParser import SafeConfigParser
 
 class Sequence(object):
@@ -225,6 +225,3 @@ def read_sequence(conf_fname, smooth=False):
         parser.getint("Scene", "last frame") + 1)
     
     return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth)
-
-class Frame(object):
-    pass

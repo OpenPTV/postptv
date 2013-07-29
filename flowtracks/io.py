@@ -12,7 +12,8 @@ import numpy as np
 from scipy import io
 
 from .particle import Particle
-from .trajectory import Trajectory, mark_unique_rows
+from .trajectory import Trajectory, mark_unique_rows, \
+    Frame, take_snapshot, trajectories_in_frame
 
 def collect_particles(fname_tmpl, frame, path_seg=False):
     """
@@ -352,9 +353,9 @@ def read_frame_data(conf_fname):
     Returns:
     particle - a Particle object holding particle properties.
     frate - the frame rate at which the scene was shot.
-    part_segs - particle segents, a (2,n,7) array with the properties of each
-        particle at the first and last frame of a path segment.
-    tracer_segs - same as part_segs but for tracer files.
+    frame, next_frame - Frame objects holding the tracers and particles data
+        for the time points indicated in config, and the one immediately 
+        following it.
     """
     parser = SafeConfigParser()
     parser.read(conf_fname)
@@ -363,16 +364,29 @@ def read_frame_data(conf_fname):
         parser.getfloat("Particle", "diameter"),
         parser.getfloat("Particle", "density"))
     
-    data = [None]*2
-    titles = ["part_file", "tracer_file"]
-    frame = parser.getint("Scene", "frame")
+    first_frame = parser.getint("Scene", "frame")
     frate = parser.getfloat("Scene", "frame rate")
     
-    for dix in xrange(2):
-        fname = parser.get("Scene", titles[dix])
-        traj = trajectories(fname, frame, frame + 1, frate, None)
-        data[dix] = collect_particles_generic(traj, frame, True)
+    fname = parser.get("Scene", "tracer_file")
+    tracer_trjs = trajectories(fname, first_frame, first_frame + 2, 
+        frate, None)
+    tracer_ixs = trajectories_in_frame(tracer_trjs, first_frame, segs=True)
     
+    fname = parser.get("Scene", "part_file")
+    part_trjs = trajectories(fname, first_frame, first_frame + 2, frate, None)
+    part_ixs = trajectories_in_frame(part_trjs, first_frame, segs=True)
+
+    data = []
+    for frame_num in [first_frame, first_frame + 1]:
+        frame = Frame()
+        frame.tracers = take_snapshot([tracer_trjs[t] for t in tracer_ixs], 
+            frame_num, tracer_trjs[0].schema())
+    
+        frame.particles = take_snapshot([part_trjs[t] for t in part_ixs],
+            frame_num, part_trjs[0].schema())
+        
+        data.append(frame)
+
     return particle, frate, data[0], data[1]
 
 def save_trajectories(output_dir, trajects, per_traject_adds):
