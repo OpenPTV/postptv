@@ -420,6 +420,8 @@ def load_trajectories(res_dir):
     per_traject_adds = {}
     
     for tr_file in os.listdir(res_dir):
+        if not tr_file.endswith('.npz'): continue
+        
         data = np.load(os.path.join(res_dir, tr_file))
         trajid = int(tr_file.split('.')[0][5:]) # traj_*.pyz
         
