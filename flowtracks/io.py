@@ -389,7 +389,7 @@ def read_frame_data(conf_fname):
 
     return particle, frate, data[0], data[1]
 
-def save_trajectories(output_dir, trajects, per_traject_adds):
+def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     """
     Save for each trajectory the data for this trajectory, as well as 
     additional data attached to each trajectory, such as trajectory 
@@ -404,6 +404,7 @@ def save_trajectories(output_dir, trajects, per_traject_adds):
     per_traject_adds - a dictionary, whose keys are the aray names to use when
         saving, and vaslues are trajid-keyed dictionaries with the actual 
         arrays to save for each trajectory.
+    kwds - free arrays to save in the output dir
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -416,6 +417,10 @@ def save_trajectories(output_dir, trajects, per_traject_adds):
         
         np.savez(os.path.join(output_dir, 'traj_%d' % traj.trajid()),
             **save_data)
+    
+    # Save non-trajectory arrays:
+    for k, v in kwds.iteritems():
+        np.save(os.path.join(output_dir, k), v)
 
 def load_trajectories(res_dir):
     """
