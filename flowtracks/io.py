@@ -259,6 +259,8 @@ def trajectories(fname, first, last, frate, fmt=None):
     
     if fmt == 'mat':
         traj = trajectories_mat(fname)
+    elif fmt == 'npz':
+        traj, _ = load_trajectories(fname)
     elif fmt == 'acc':
         traj = trajectories_acc(fname, first, last)
     elif fmt == 'ptvis':
@@ -280,6 +282,8 @@ def infer_format(fname):
     """
     if fname.endswith('mat'):
         return 'mat'
+    elif fname.endswith('/'):
+        return 'npz'
     elif 'ptv_is' in fname:
         return 'ptvis'
     elif 'xuap' in fname:
@@ -435,6 +439,8 @@ def load_trajectories(res_dir):
     per_traject_adds - a dictionary of named added date. Each value is a 
         dictionary keyed by trajid.
     """
+    res_dir = os.path.expanduser(res_dir)
+    
     trajects = []
     per_traject_adds = {}
     
