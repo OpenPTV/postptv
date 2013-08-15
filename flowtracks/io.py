@@ -149,7 +149,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         frame = int(match.group(1))
         
         if first is not None and frame < first: continue
-        if last is not None and frame > last: break
+        if last is not None and frame > last: continue
         # Note that we're reading one extra frame, otherwise the last frame
         # has 0 path segments.
         
@@ -188,6 +188,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     
     # Assign trajectory numbers:
     for fix, frame_num in enumerate(frame_nums[1:]):
+        print frame_num
         table = np.loadtxt(fname % frame_num, dtype=fmt, skiprows=skip)
         
         # Continue existing trajectories into this frame:
