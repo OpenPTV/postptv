@@ -139,10 +139,11 @@ class Trajectory(ParticleSet):
         a new Trajectory object with the interpolated positions and 
         velocities. If the length of the trajectory < 4, returns self.
         """
-        if len(self.time()) < 4: return self
+        k = 5
+        if len(self.time()) < k + 1: return self
         
-        spline, _ = interp.splprep(list(self.pos().T), s=smoothness)
-        eval_prms = np.linspace(0, 1, len(self))
+        spline, eval_prms = interp.splprep(list(self.pos().T), 
+            nest=-1, k=k)
         
         new_pos = np.array(interp.splev(eval_prms, spline)).T
         new_vel = np.array(interp.splev(eval_prms, spline, der=1)).T
