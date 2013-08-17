@@ -63,7 +63,7 @@ def particle_pairs(primary_trajects, secondary_trajects, trajids, time_points):
             (prim_parts.pos()[:,None,:] - sec_parts.pos()[None,:,:])**2,
             axis=2)
         pair_ixs = np.argmin(dists_sq, axis=1)
-        pair_trids[coord_locator] = sec_in_frame.trajid(pair_ixs)
+        pair_trids[coord_locator] = sec_parts.trajid(pair_ixs)
         pair_time[coord_locator] = frame_num # later transformed.
     
     # Transform frame numbers back into time index in the output array.

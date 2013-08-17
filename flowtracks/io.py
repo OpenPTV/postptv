@@ -188,7 +188,6 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     
     # Assign trajectory numbers:
     for fix, frame_num in enumerate(frame_nums[1:]):
-        print frame_num
         table = np.loadtxt(fname % frame_num, dtype=fmt, skiprows=skip)
         
         # Continue existing trajectories into this frame:
