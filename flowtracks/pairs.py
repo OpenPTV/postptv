@@ -27,7 +27,8 @@ def particle_pairs(primary_trajects, secondary_trajects, trajids, time_points):
     Returns:
     pair_trid, pair_time - coordinates of the found pairs, element i describes
         the pair of particle i in (trajid, time_points). Format is the same as 
-        that of ``trajid``, ``time_points``.
+        that of ``trajid``, ``time_points``. For particles without a match, 
+        returns -1 as the pair_time value.
     """
     # Output buffers:
     pair_trids = np.empty_like(time_points)
@@ -57,6 +58,12 @@ def particle_pairs(primary_trajects, secondary_trajects, trajids, time_points):
         sec_in_frame_ixs = trajectories_in_frame(secondary_trajects, frame_num,
             segs=True)
         sec_in_frame = [secondary_trajects[tix] for tix in sec_in_frame_ixs]
+        
+        if len(sec_in_frame) == 0:
+            pair_trids[coord_locator] = -1
+            pair_time[coord_locator] = -1
+            continue
+            
         sec_parts = take_snapshot(sec_in_frame, frame_num, schema)
         
         dists_sq = np.sum(
