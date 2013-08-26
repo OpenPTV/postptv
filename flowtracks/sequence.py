@@ -29,9 +29,11 @@ class Sequence(object):
         self._smooth = smooth_tracers
         
         # No-op particle selector, can be changed by the setter below later.
-        self.set_particle_selector(lambda traj: traj)
+        identity = lambda traj: traj
+        self.set_particle_selector(identity)
+        self.set_tracer_selector(identity)
         
-        # This is just a chache. Else trajectories() would check every time.
+        # This is just a cache. Else trajectories() would check every time.
         self._pfmt = infer_format(part_tmpl)
         self._trfmt = infer_format(tracer_tmpl)
     
@@ -70,11 +72,19 @@ class Sequence(object):
             returns a sublit thereof.
         """
         self._psel = selector
-        
-        # Clear the trajectory cache, so __iter__ reads trajectories.
-        self.__ttraj = None
         self.__ptraj = None
-    
+
+    def set_tracer_selector(self, selector):
+        """
+        Sets a filter on the tracer trajectories used in sequencing.
+        
+        Arguments:
+        selector - a function which receives a list of Trajectory objects and
+            returns a sublit thereof.
+        """
+        self._tsel = selector
+        self.__ttraj = None
+            
     def particle_trajectories(self):
         """
         Return (and possibly generate and cache) the list of Trajectory objects
@@ -93,8 +103,8 @@ class Sequence(object):
         """
         if (self.__ttraj is not None):
             return self.__ttraj
-        ttraj = trajectories(self._trtmpl, self._rng[0], self._rng[1], 
-            self.frate, self._trfmt)
+        ttraj = self._tsel(trajectories(self._trtmpl, self._rng[0], 
+            self._rng[1], self.frate, self._trfmt))
         
         if self._smooth:
             self.__ttraj = [tr.smoothed() for tr in ttraj]
