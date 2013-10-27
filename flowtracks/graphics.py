@@ -13,7 +13,7 @@ import numpy as np, matplotlib.pyplot as pl
 def pdf_graph(data, num_bins, log=False):
     """
     Draw a normalized PDF of the given data, according to the visual custom of
-    the fluid dynamics community, and possibly with logarithmioc bins.
+    the fluid dynamics community, and possibly with logarithmic bins.
     
     Arguments:
     data - the samples to histogram.
