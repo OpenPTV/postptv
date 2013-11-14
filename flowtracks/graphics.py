@@ -10,7 +10,7 @@ Created on Sun Sep 22 16:11:34 2013
 
 import numpy as np, matplotlib.pyplot as pl
 
-def pdf_graph(data, num_bins, log=False):
+def pdf_graph(data, num_bins, log=False, log_density=False):
     """
     Draw a normalized PDF of the given data, according to the visual custom of
     the fluid dynamics community, and possibly with logarithmic bins.
@@ -21,6 +21,8 @@ def pdf_graph(data, num_bins, log=False):
     log - if True, the bin edges are equally spaced on the log scale, otherwise
         they are linearly spaced (a normal histogram). If True, ``data`` should
         not contain zeros.
+    log_density - Show the log of the probability density value. Only if log 
+        is False.
     """
     if log:
         minv = np.min(data)
@@ -28,7 +30,7 @@ def pdf_graph(data, num_bins, log=False):
         plt = pl.semilogx
     else:
         bins = num_bins
-        plt = pl.plot
+        plt = pl.semilogy if log_density else pl.plot 
         
     hist, bin_edges = np.histogram(data, bins=bins, density=True)
     plt(bin_edges[:-1], hist, '-o')
