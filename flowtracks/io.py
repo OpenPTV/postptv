@@ -190,11 +190,20 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     for fix, frame_num in enumerate(frame_nums[1:]):
         table = np.loadtxt(fname % frame_num, dtype=fmt, skiprows=skip)
         
+        if table.ndim == 0:
+            frames.append(None)
+            continue
+            # We assume that the next frame will have no continuing particles,
+            # and this case is caused by detection failure. Otherwise the code
+            # that generated the data has a bug that can't be dealt with here.
+        
         # Continue existing trajectories into this frame:
         cont = table['prev'] - count_base > -1
         traj = np.empty(table['prev'].shape)
-        prev_ix = table['prev'][cont] - count_base
-        traj[cont] = frames[fix][:,-1][prev_ix]
+        
+        if  frames[fix] is not None:
+            prev_ix = table['prev'][cont] - count_base
+            traj[cont] = frames[fix][:,-1][prev_ix]
         
         # Start new trajectories:
         num_new_traj = np.sum(~cont)
@@ -212,7 +221,8 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
             vel = np.zeros_like(pos)
         
         frame = np.hstack((pos, vel, t, traj[:,None]))
-        if 'vel' not in fmt.fields:
+        if 'vel' not in fmt.fields and frames[fix] is not None:
+            # Update velocity of previous frame's continuing particles
             frames[fix][prev_ix,3:6] = \
                 (pos[cont] - frames[fix][prev_ix,:3]) * frate
         frames.append(frame)
@@ -220,6 +230,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     # From time series to list of trajectories:
     trajects = [[] for tr in xrange(max_traj)]
     for frame in frames:
+        if frame is None: continue
         for tix in np.unique(frame[:,-1]):
             trajects[int(tix)].append(frame[frame[:,-1] == tix][0])
     
