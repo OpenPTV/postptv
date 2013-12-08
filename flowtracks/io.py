@@ -4,9 +4,9 @@
 Contains functions for reading frame-by-frame flow data and trajectories in 
 various formats.
 """
-import os, os.path
+import os, os.path, re
 from ConfigParser import SafeConfigParser
-import re
+from StringIO import StringIO
 
 import numpy as np
 from scipy import io
@@ -69,6 +69,49 @@ class FramesIterator(object):
         self._frmix += 1
         return self._frame_nums[curframenum], frame
         
+class SingleFileIterator(object):
+    def __init__(self, fname, fmt):
+        """
+        Arguments:
+        fname - file name containing concatenated ptv_is frames, separated by
+            empty line.
+        fmt - a dtype object describing the table structure to be read.
+        skip - number of header lines to skip in each file.
+        """
+        self._frmix = 0
+        self._f = open(fname, 'r')
+        self._read_frame = lambda str_tbl: np.loadtxt(str_tbl, dtype=fmt)
+    
+    def __iter__(self):
+        return self
+    
+    def next(self):
+        """
+        Returns:
+        frm_num - frame number as recorded in the file names.
+        frame - a table corresponding to the format (``fmt``) given to 
+            __init__().
+        """
+        curframenum = self._frmix
+        
+        # Make the stringio object to be used by read_frame
+        lines = []
+        for line in self._f:
+            if re.match("^\s*$", line):
+                break
+            lines.append(line)
+        
+        if len(lines) == 0:
+            raise StopIteration # EOF
+        
+        str_tbl = StringIO("".join(lines))
+        frame = self._read_frame(str_tbl)
+        self._frmix += 1
+        return curframenum, frame
+    
+    def __def__(self):
+        self._f.close()
+    
 def collect_particles(fname_tmpl, frame, path_seg=False):
     """
     Going backwards over trajAcc files [2], starting from a given frame,
@@ -205,8 +248,11 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         skip = 1
         count_base = 0
 
-    frames = []    
-    frm_iter = FramesIterator(fname, fmt, skip, first, last)
+    frames = []
+    if '%d' in fname:
+        frm_iter = FramesIterator(fname, fmt, skip, first, last)
+    else:
+        frm_iter = SingleFileIterator(fname, fmt)
     
     # In the first frame, every particle starts a trajectory.
     frame_num, table = frm_iter.next()    
@@ -333,7 +379,7 @@ def infer_format(fname):
         return 'mat'
     elif fname.endswith('/'):
         return 'npz'
-    elif 'ptv_is' in fname:
+    elif 'ptv_is' in fname or fname.endswith('.txt'):
         return 'ptvis'
     elif 'xuap' in fname:
         return 'xuap'
