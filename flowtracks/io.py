@@ -15,6 +15,60 @@ from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
 
+class FramesIterator(object):
+    def __init__(self, fname_tmpl, fmt, skip, first=None, last=None):
+        """
+        Arguments:
+        fname_tmpl - a template file name representing all ptv_is/xuap files in
+            the directory, with exactly one '%d' representing the frame number.
+        fmt - a dtype object describing the table structure to be read.
+        skip - number of header lines to skip in each file.
+        first, last - inclusive range of frames to read, rel. filename 
+            numbering.
+        """
+        self._frmix = 0
+        self._read_frame = lambda fix: np.loadtxt(fname_tmpl % fix, 
+            dtype=fmt, skiprows=skip)
+        
+        dirname, basename = os.path.split(fname_tmpl)
+        is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
+
+        # Collect existing frames. This is necessary to ensure that frames are
+        # processed in the correct order.
+        self._frame_nums = []
+        for name in os.listdir(dirname):
+            match = is_data_file.match(name)
+            if match is None: continue
+            frame = int(match.group(1))
+
+            if first is not None and frame < first: continue
+            if last is not None and frame > last: continue
+            # Note that we're reading one extra frame, otherwise the last frame
+            # has 0 path segments.
+
+            self._frame_nums.append(frame)
+
+        # Process frames in order.
+        self._frame_nums.sort()
+    
+    def __iter__(self):
+        return self
+    
+    def next(self):
+        """
+        Returns:
+        frm_num - frame number as recorded in the file names.
+        frame - a table corresponding to the format (``fmt``) given to 
+            __init__().
+        """
+        curframenum = self._frmix
+        if len(self._frame_nums) <= curframenum:
+            raise StopIteration
+        
+        frame = self._read_frame(self._frame_nums[curframenum])
+        self._frmix += 1
+        return self._frame_nums[curframenum], frame
+        
 def collect_particles(fname_tmpl, frame, path_seg=False):
     """
     Going backwards over trajAcc files [2], starting from a given frame,
@@ -126,8 +180,11 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     programs in the 3d-ptv/pyptv family.
     
     Arguments:
-    fname - a template file name representing all trajAcc files in the
-        directory, with exactly one '%d' representing the frame number.
+    fname - a template file name representing all ptv_is/xuap files in the
+        directory, with exactly one '%d' representing the frame number. If
+        no '%d' is found, the input is assumed to be in the Ron format - single
+        file of concatenated ptv_is files, each stripped of the particle count
+        line (first line) and separated from the next by an empty line.
     first, last - inclusive range of frames to read, rel. filename numbering.
     frate - frame rate, used for calculating velocities by backward 
         derivative.
@@ -137,26 +194,6 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     a list of Trajectory objects.
     """
     fname = os.path.expanduser(fname)
-    dirname, basename = os.path.split(fname)
-    is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
-    
-    # Collect existing frames. This is necessary to ensure that frames are
-    # processed in the correct order, which in this format is important.
-    frame_nums = []
-    for name in os.listdir(dirname):
-        match = is_data_file.match(name)
-        if match is None: continue
-        frame = int(match.group(1))
-        
-        if first is not None and frame < first: continue
-        if last is not None and frame > last: continue
-        # Note that we're reading one extra frame, otherwise the last frame
-        # has 0 path segments.
-        
-        frame_nums.append(frame)
-    
-    # Process frames in order.
-    frame_nums.sort()
     
     if xuap:
         fmt = np.dtype([('prev', 'i4'), ('next', 'i4'), ('pos', '3f8'),
@@ -167,11 +204,12 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         fmt = np.dtype([('prev', 'i4'), ('next', 'i4'), ('pos', '3f8')])
         skip = 1
         count_base = 0
+
+    frames = []    
+    frm_iter = FramesIterator(fname, fmt, skip, first, last)
     
     # In the first frame, every particle starts a trajectory.
-    table = np.loadtxt(fname % frame_nums[0], dtype=fmt, skiprows=skip)
-    
-    frames = []
+    frame_num, table = frm_iter.next()    
     
     pos = table['pos']
     if not xuap: pos /=1000.
@@ -181,14 +219,14 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     else:
         vel = np.zeros_like(pos)
     
-    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_nums[0],
+    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_num,
         np.arange(table.shape[0])[:,None]))
     max_traj = table.shape[0]
     frames.append(frame)
     
     # Assign trajectory numbers:
-    for fix, frame_num in enumerate(frame_nums[1:]):
-        table = np.loadtxt(fname % frame_num, dtype=fmt, skiprows=skip)
+    for fix, frm in enumerate(frm_iter):
+        frame_num, table = frm
         
         if table.ndim == 0:
             frames.append(None)
