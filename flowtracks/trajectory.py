@@ -82,6 +82,20 @@ class ParticleSet(object):
         return dict((propname, self.__dict__['_' + propname].shape[1:]) \
             for propname in self._check_attr)
     
+    def ext_schema(self):
+        """
+        Extended schema. Like schema() but the values of the returned 
+        dictionary are a tuple (type, shape). The shape is scalar, so it only 
+        supports 1D or 0D items.
+        """
+        schm = {}
+        for propname in self._check_attr:
+            prop = self.__dict__['_' + propname]
+            shape = prop.shape[-1] if prop.ndim > 1 else 1
+            schm[propname] = (prop.dtype.type, shape)
+            
+        return schm
+        
     def as_dict(self):
         """
         Returns a dictionary with the "business" properties only, without all

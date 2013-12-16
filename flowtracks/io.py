@@ -10,6 +10,7 @@ from StringIO import StringIO
 
 import numpy as np
 from scipy import io
+import tables
 
 from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
@@ -355,13 +356,15 @@ def trajectories(fname, first, last, frate, fmt=None):
     if fmt == 'mat':
         traj = trajectories_mat(fname)
     elif fmt == 'npz':
-        traj, _ = load_trajectories(fname)
+        traj, _ = load_trajectories(fname, first, last)
     elif fmt == 'acc':
         traj = trajectories_acc(fname, first, last)
     elif fmt == 'ptvis':
         traj = trajectories_ptvis(fname, first, last, frate)
     elif fmt == 'xuap':
         traj = trajectories_ptvis(fname, first, last, frate, xuap=True)
+    elif fmt == 'hdf':
+        traj = trajectories_table(fname, first, last)
     
     return [tr for tr in traj if len(tr) > 1]
         
@@ -383,6 +386,8 @@ def infer_format(fname):
         return 'ptvis'
     elif 'xuap' in fname:
         return 'xuap'
+    elif fname.endswith('h5') or fname.endswith('hdf'):
+        return 'hdf'
     else:
         return 'acc'
 
@@ -500,7 +505,7 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     output_dir - name of the directory where output should be placed. Will be 
         created if it does not exist.
     trajects - a list of Trajectory objects.
-    per_traject_adds - a dictionary, whose keys are the aray names to use when
+    per_traject_adds - a dictionary, whose keys are the array names to use when
         saving, and vaslues are trajid-keyed dictionaries with the actual 
         arrays to save for each trajectory.
     kwds - free arrays to save in the output dir
@@ -520,8 +525,57 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     # Save non-trajectory arrays:
     for k, v in kwds.iteritems():
         np.save(os.path.join(output_dir, k), v)
+    
+def save_particles_table(filename, trajects):
+    """
+    Save trajectory data as a table of particles, with added columns for time
+    (frame number) and trajid - the last one may be indexed.
+    """
+    # Format of records in a trajectory array :
+    fields = [('trajid', int, 1)] + [(field,) + desc for field, desc in \
+        trajects[0].ext_schema().iteritems()]
+    dtype = np.dtype(fields)
+    
+    outfile = tables.openFile(filename, mode='w')
+    table = outfile.createTable('/', 'particles', dtype)
+    
+    for traj in trajects:
+        arr = np.empty(len(traj), dtype=dtype)
+        arr['trajid'] = traj.trajid()
+        
+        for k, v in traj.as_dict().iteritems():
+            arr[k] = v
+        
+        table.append(arr)
+    
+    table.cols.trajid.createIndex()
+    table.cols.time.createIndex()
+    
+    outfile.flush()
+    outfile.close()
 
-def load_trajectories(res_dir):
+def trajectories_table(fname, first=None, last=None):
+    outfile = tables.openFile(fname, mode='r')
+    table = outfile.getNode('/particles')
+    
+    query_string = ('(trajid == trid)')
+    if first is not None:
+        query_string += " & (time >= %d)" % first
+    if last is not None:
+        query_string += " & (time <= %d)" % last
+                
+    trajects = []
+    for trid in np.unique(table.col('trajid')):
+        arr = table.readWhere(query_string)
+        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            if field != 'trajid')
+        kwds['trajid'] = trid
+        trajects.append(Trajectory(**kwds))
+    
+    outfile.close()
+    return trajects
+
+def load_trajectories(res_dir, first=None, last=None):
     """
     Load a series of trajectories and associated data from a directory 
     containing npz trajectory files, as created by save_trajectories().
@@ -545,7 +599,7 @@ def load_trajectories(res_dir):
         data = np.load(os.path.join(res_dir, tr_file))
         trajid = int(tr_file.split('.')[0][5:]) # traj_*.pyz
         
-        kwds = {'trajid': trajid}
+        kwds = {}
         for k in data.files:
             if k.startswith('traj:'):
                 kwds[k[5:]] = data[k]
@@ -553,6 +607,27 @@ def load_trajectories(res_dir):
                 per_traject_adds.setdefault(k, {})
                 per_traject_adds[k][trajid] = data[k]
         
+        if (first is not None) or (last is not None):
+            in_range = np.ones(kwds['time'].shape, dtype=np.bool)
+            if first is not None:
+                in_range[kwds['time'] < first] = False
+            if last is not None:
+                in_range[kwds['time'] > last] = False
+            # Note that we're reading one extra frame, otherwise the last frame
+            # has 0 path segments.
+            
+            if in_range.sum() < 1:
+                continue # Filter out empty trajectories (that are really empty
+                         # or completely out of range)
+            
+            for k in kwds.keys():
+                kwds[k] = kwds[k][in_range]
+            # per_traject_adds do not get the same treatment as it is 
+            # impossible to know their size. It is therefore up to the user to
+            # create only per_traject_adds in the range matching the processed
+            # range.
+        
+        kwds['trajid'] = trajid
         trajects.append(Trajectory(**kwds))
     
     return trajects, per_traject_adds
