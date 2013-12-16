@@ -529,7 +529,13 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
 def save_particles_table(filename, trajects):
     """
     Save trajectory data as a table of particles, with added columns for time
-    (frame number) and trajid - the last one may be indexed.
+    (frame number) and trajid - the last one may be indexed. Note that no extra
+    (per-trajectory or meta) data is allowed here, unlike the npz save format.
+    
+    Arguments:
+    filename - name of output PyTables HDF5 file to create. The 'h5' extension
+        is recommended so that infer_format() knows what to do with it.
+    trajects - a list of Trajectory objects to save.
     """
     # Format of records in a trajectory array :
     fields = [('trajid', int, 1)] + [(field,) + desc for field, desc in \
@@ -555,6 +561,17 @@ def save_particles_table(filename, trajects):
     outfile.close()
 
 def trajectories_table(fname, first=None, last=None):
+    """
+    Reads trajectories from a PyTables HDF5 file, as saved by
+    save_particles_table().
+    
+    Arguments:
+    fname - path to file to read.
+    first, last - inclusive range of frames to read.
+    
+    Returns:
+    trajects - a list of Trajectory objects, each trimmed to the frame range.
+    """
     outfile = tables.openFile(fname, mode='r')
     table = outfile.getNode('/particles')
     
