@@ -191,8 +191,23 @@ class Sequence(object):
         trajects = self.particle_trajectories()
         
         # Allocate result space:
-        res = dict((tr.trajid(), [None]*(len(tr) - 1)) for tr in trajects)
-        frame_counters = dict((tr.trajid(), 0) for tr in trajects)
+        res = {}
+        frame_counters = {}
+        
+        # Initialize result buffer and frame counter per trajectory.
+        for tr in trajects:
+            trid = tr.trajid()
+            t = tr.time()[:-1]
+            
+            # This handles trajectories partly out of subrange bounds.
+            in_range = (t >= subrange[0]) & (t < subrange[1])
+            len_in_range = in_range.sum()
+            
+            if len_in_range < 1:
+                continue
+            
+            res[trid] = [None]*len_in_range
+            frame_counters[trid] = 0
         
         for frame, next_frame in self.iter_subrange(*subrange):
             if history:
