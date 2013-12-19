@@ -8,6 +8,7 @@ Created on Tue May 28 10:27:15 2013
 """
 
 import numpy as np
+from ConfigParser import SafeConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
     """
@@ -182,6 +183,7 @@ class Interpolant(object):
         The distance from each interpolation point to each data point of those
         used for interpolation. Assumes, for now, a constant number of
         neighbours.
+        
         Arguments:
         tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
             in [m]
@@ -201,3 +203,25 @@ class Interpolant(object):
             ndists[pt] = dists[pt, use_parts[pt]]
         
         return ndists
+
+def read_interpolant(conf_fname):
+    """
+    Builds an Interpolant object based on values in an INI-formatted file.
+    
+    Arguments:
+    conf_fname - path to configuration file.
+    
+    Returns:
+    an Interpolant object constructed from values in the configuration file.
+    """
+    parser = SafeConfigParser()
+    parser.read(conf_fname)
+    
+    # Optional arguments:
+    kwds = {}
+    if parser.has_option('Interpolant', 'num_neighbs'):
+        kwds['num_neighbs'] = parser.getint('Interpolant', 'num_neighbs')
+    if parser.has_option('Interpolant', 'param'):
+        kwds['param'] = parser.getint('Interpolant', 'param')
+    
+    return Interpolant(parser.get('Interpolant', 'method'), **kwds)
