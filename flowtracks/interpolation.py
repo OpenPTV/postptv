@@ -7,7 +7,7 @@ Created on Tue May 28 10:27:15 2013
 @author: yosef
 """
 
-import numpy as np
+import numpy as np, warnings
 from ConfigParser import SafeConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
@@ -168,6 +168,14 @@ class Interpolant(object):
         vel_interp - an (m,3) array with the interpolated value at the position
             of each particle, [m/s].
         """
+        # If for some reason tracking failed for a whole frame, interpolation 
+        # is impossible at that frame. This checks for frame tracking failure.
+        if len(tracer_pos) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers im frame, interpolation returned zeros.")
+            ret_shape = data.shape[-1] if data.ndim > 1 else 1
+            return np.zeros((interp_points.shape[0], ret_shape))
+            
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
             None, self._neighbs)
         
