@@ -82,6 +82,20 @@ class ParticleSet(object):
         return dict((propname, self.__dict__['_' + propname].shape[1:]) \
             for propname in self._check_attr)
     
+    def ext_schema(self):
+        """
+        Extended schema. Like schema() but the values of the returned 
+        dictionary are a tuple (type, shape). The shape is scalar, so it only 
+        supports 1D or 0D items.
+        """
+        schm = {}
+        for propname in self._check_attr:
+            prop = self.__dict__['_' + propname]
+            shape = prop.shape[-1] if prop.ndim > 1 else 1
+            schm[propname] = (prop.dtype.type, shape)
+            
+        return schm
+        
     def as_dict(self):
         """
         Returns a dictionary with the "business" properties only, without all
@@ -195,7 +209,8 @@ def mark_unique_rows(all_rows):
         
     return uniq
 
-def trajectories_in_frame(trajects, frame_num, segs=False):
+def trajectories_in_frame(trajects, frame_num,
+    start_times=None, end_times=None, segs=False):
     """
     Notes the indices of trajectories participating in the frame for later 
     extraction.
@@ -204,33 +219,33 @@ def trajectories_in_frame(trajects, frame_num, segs=False):
     trajects - a list of Trajectory objects to filter.
     frame_num - the time value (as found in trajectory.time()) at which the
         trajectory should be active.
+    start_times, end_times - each a len(trajects) array containing the 
+        corresponding start/end frame number of each trajectory, respectively.
     segs - true if the trajectory should be active also in the following frame.
     
     Returns:
     traj_nums = the indices of active trajectories in ``trajects``.
     """
-    active = np.empty(len(trajects), dtype=np.bool)
-    pos = []
+    if start_times is None or end_times is None:
+        start_end = [(tr.time()[0], tr.time()[-1]) for tr in trajects]
+        start_times, end_times = map(np.array, zip(*start_end))
     
-    for trix, traj in enumerate(trajects):
-        if segs:
-            plc = (traj.time()[:-1] == frame_num) & \
-                (traj.time()[1:] == frame_num + 1)
-        else:
-            plc = np.any(traj.time() == frame_num)
-        active[trix] = plc.any()
+    end_frm = (frame_num + 1) if segs else frame_num
+    cands = (frame_num >= start_times) & (end_frm <= end_times)
+    cand_nums = np.nonzero(cands)[0]
+    
+    if len(cand_nums) > 0:
+        # Filter candidates with overlapping particles.
+        frm_ixs = frame_num - start_times[cands]
+        pos = np.array([trajects[trix].pos()[frm] \
+            for trix, frm in zip(cand_nums, frm_ixs)])
         
-        if active[trix]:
-            pos.append(traj.pos(np.nonzero(plc)[0]).squeeze())
+        update_cands = np.zeros(pos.shape[0], dtype=np.bool)
+        update_cands[mark_unique_rows(pos)] = True
+        cands[cands] = update_cands
+        cand_nums = np.nonzero(cands)[0]
     
-    if active.any():
-        # Filter overlapping particles:
-        pos = np.array(pos)
-        update_active = np.zeros(pos.shape[0], dtype=np.bool)
-        update_active[mark_unique_rows(pos)] = True
-        active[active] = update_active
-    
-    return np.nonzero(active)[0]
+    return cand_nums
 
 def take_snapshot(trajects, frame, schema):
     """
