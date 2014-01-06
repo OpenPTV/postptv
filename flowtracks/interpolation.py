@@ -43,7 +43,9 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
         dist_sort = np.argsort(dists, axis=1)
         use_parts = np.zeros(dists.shape, dtype=np.bool)
         
-        use_parts[np.repeat(np.arange(interp_points.shape[0]), num_neighbs),
+        eff_num_neighbs = min(num_neighbs, tracer_pos.shape[0])
+        use_parts[
+            np.repeat(np.arange(interp_points.shape[0]), eff_num_neighbs),
             dist_sort[:,:num_neighbs].flatten()] = True
     
     else:
