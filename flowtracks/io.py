@@ -266,13 +266,25 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     else:
         vel = np.zeros_like(pos)
     
-    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_num,
-        np.arange(table.shape[0])[:,None]))
     max_traj = table.shape[0]
+    trids = np.arange(max_traj)
+    frame = np.hstack((pos, vel, np.ones((max_traj, 1))*frame_num,
+        trids[:,None]))
     frames.append(frame)
     
     traj_starts = {} # what is the starting frame for each trajectory.
+    for trid in trids:
+        traj_starts[trid] = 0
+    
     trajects = {}
+    
+    # Single-frame trajectories in first frame:
+    ending = table['next'] - count_base == -2
+    if ending.any():
+        ending_trids = np.atleast_1d(np.int_(frame[ending,-1]))
+        for trid in ending_trids:
+            trajects[trid] = frame[frame[:,-1] == trid]
+    
     frame_buffer_start = 0
     
     # Main loop, sequentially read each frame and process:
@@ -290,15 +302,15 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         cont = table['prev'] - count_base > -1
         traj = np.empty(table['prev'].shape)
         
-        if  frames[fix] is not None:
+        if  frames[-1] is not None:
             prev_ix = table['prev'][cont] - count_base
-            traj[cont] = frames[fix][:,-1][prev_ix]
+            traj[cont] = frames[-1][:,-1][prev_ix]
         
         # Start new trajectories:
         num_new_traj = np.sum(~cont)
         traj[~cont] = np.arange(max_traj, max_traj + num_new_traj)
         for trid in traj[~cont]:
-            traj_starts[trid] = fix
+            traj_starts[trid] = fix + 1
         max_traj += num_new_traj
         
         # Consolidate into frame table.
@@ -312,7 +324,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
             vel = np.zeros_like(pos)
         
         frame = np.hstack((pos, vel, t, traj[:,None]))
-        if 'vel' not in fmt.fields and frames[fix] is not None:
+        if 'vel' not in fmt.fields and frames[-1] is not None:
             # Update velocity of previous frame's continuing particles
             frames[-1][prev_ix,3:6] = \
                 (pos[cont] - frames[-1][prev_ix,:3]) * frate
@@ -324,31 +336,37 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         if not ending.any():
             continue
         
-        ending_trids = np.int_(frame[ending,-1])
+        ending_trids = np.atleast_1d(np.int_(frame[ending,-1]))
         ending_starts = np.r_[[traj_starts[trid] for trid in ending_trids]]
-        for trid in ending_trids:
-            traj_len = fix - traj_starts[trid] + 1
-            trajects[trid] = np.empty((traj_len, frames[-1].shape[-1]))
         
-        for scanix, frame in enumerate(frames):
-            if frame is None: continue
+        for trid in ending_trids:
+            traj_len = fix - traj_starts[trid] + 2
+            trajects[trid] = np.empty((traj_len, frames[-1].shape[-1]))
+            
+        for scanix, past_frame in enumerate(frames):
+            if past_frame is None: continue
             
             in_frame = ending_starts <= scanix + frame_buffer_start
             for trid in ending_trids[in_frame]:
                 traj_rel_ix = scanix + frame_buffer_start - traj_starts[trid]
-                trajects[trid][traj_rel_ix] = frame[frame[:,-1] == trid][0]
+                traj_locator = past_frame[:,-1] == trid
+                trajects[trid][traj_rel_ix] = past_frame[traj_locator][0]
         
         # Discard frames that only have trajectories that ended.
         cont_trids = frame[~ending,-1]
-        new_start = min([traj_starts[trid] for trid in cont_trids])
-        frames = frame[new_start - frame_buffer_start : ]
+        if not cont_trids.any():
+            new_start = fix
+        else:
+            new_start = min([traj_starts[trid] for trid in cont_trids])
+        
+        frames = frames[new_start - frame_buffer_start : ]
         frame_buffer_start = new_start
         
                 
     # Convert the dictionary of trajectory arrays to list of Trajectory objects
     trajects = [Trajectory(traj[:,:3], traj[:,3:6], traj[:,6], np.int(traj[0,7])) \
         for traj in trajects.values()]
-    trajects.sort(key=lambda traj: traj_starts[traj.trajid())
+    trajects.sort(key=lambda traj: traj_starts[traj.trajid()])
     
     # Add forward-difference acceleration:
     for traj in trajects:
