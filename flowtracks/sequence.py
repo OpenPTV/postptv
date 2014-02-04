@@ -8,7 +8,7 @@ from ConfigParser import SafeConfigParser
 
 class Sequence(object):
     def __init__(self, frange, frate, particle, part_tmpl, tracer_tmpl,
-                 smooth_tracers=False):
+                 smooth_tracers=False, traj_min_len=0.):
         """
         Arguments:
         frange - tuple, (first frame #, after last frame #)
@@ -19,6 +19,8 @@ class Sequence(object):
             tracers respectively. Should contain one %d for the frame number.
         smoothe_tracers - if True, uses trajectory smoothing on the tracer
             trajectories when iterating over frames.
+        traj_min_len - when reading trajectories (tracers and particles) 
+            discard trajectories shorter than this many frames.
         """
         self.part = particle
         self.frate = frate
@@ -27,6 +29,7 @@ class Sequence(object):
         self._ptmpl = part_tmpl
         self._trtmpl = tracer_tmpl
         self._smooth = smooth_tracers
+        self._minlen = traj_min_len
         
         # No-op particle selector, can be changed by the setter below later.
         identity = lambda traj: traj
@@ -94,7 +97,7 @@ class Sequence(object):
             return self.__ptraj
         
         self.__ptraj = self._psel(trajectories(self._ptmpl, self._rng[0], 
-            self._rng[1], self.frate, self._pfmt))
+            self._rng[1], self.frate, self._pfmt, self._minlen))
         
         # Also caches the starts and ends of trajectories, so that accessing
         # only the ones relevant to a specific frame is easier.
@@ -112,7 +115,7 @@ class Sequence(object):
             return self.__ttraj
         
         ttraj = self._tsel(trajectories(self._trtmpl, self._rng[0], 
-            self._rng[1], self.frate, self._trfmt))
+            self._rng[1], self.frate, self._trfmt, self._minlen))
         
         if self._smooth:
             self.__ttraj = [tr.smoothed() for tr in ttraj]
@@ -260,12 +263,13 @@ class Sequence(object):
         cfg.set("Scene", "first frame", str(self._rng[0]))
         cfg.set("Scene", "last frame", str(self._rng[1] - 1))
         cfg.set("Scene", "apply smoothing", "yes" if self._smooth else "no")
+        cfg.set("Scene", "trajectory minimal length", str(self._minlen))
         
         # Need to escape these because of ConfigParser's 'magic variables'.
         cfg.set("Scene", "tracers file", self._trtmpl.replace('%', '%%', 1))
         cfg.set("Scene", "particles file", self._ptmpl.replace('%', '%%', 1))
 
-def read_sequence(conf_fname, smooth=None):
+def read_sequence(conf_fname, smooth=None, traj_min_len=None):
     """
     Read sequence-wide parameters, such as unchanging particle properties and
     frame range. Values are stored in an INI-format file.
@@ -275,6 +279,9 @@ def read_sequence(conf_fname, smooth=None):
     smooth - whether the sequence shoud use tracers trajectory-smoothing. Used
         to override the config value if present, and supply it if missing. If 
         None and missing, default is False.
+    traj_min_len - tells the sequence to ignore trajectories shorter than this
+        many frames. Overrides file. If None and file has no value, default is
+        0.
     
     Returns:
     a Sequence object initialized with the configuration values found.
@@ -300,4 +307,13 @@ def read_sequence(conf_fname, smooth=None):
         if smooth is None:
             smooth = False
     
-    return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth)
+    # Same goes for traj_min_len
+    if parser.has_option("Scene", "trajectory minimal length"):
+        if traj_min_len is None:
+            traj_min_len = parser.getint("Scene", "trajectory minimal length")
+    else:
+        if traj_min_len is None:
+            traj_min_len = 0
+    
+    return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth,
+        traj_min_len)
