@@ -239,15 +239,42 @@ class Sequence(object):
         for k in res.keys():
             res[k] = np.array(res[k])
         return res
+    
+    def save_config(self, cfg):
+        """
+        Adds the keys necessary for recreating this sequence into a 
+        configuration object. It is the caller's responsibility to do a 
+        writeback to file.
+        
+        Arguments:
+        cfg - a ConfigParser object.
+        """
+        if not cfg.has_section("Particle"):
+            cfg.add_section("Particle")
+        cfg.set("Particle", "diameter", str(self.part.diam))
+        cfg.set("Particle", "density", str(self.part.density))
+        
+        if not cfg.has_section("Scene"):
+            cfg.add_section("Scene")
+        cfg.set("Scene", "frame rate", str(self.frate))
+        cfg.set("Scene", "first frame", str(self._rng[0]))
+        cfg.set("Scene", "last frame", str(self._rng[1] - 1))
+        cfg.set("Scene", "apply smoothing", "yes" if self._smooth else "no")
+        
+        # Need to escape these because of ConfigParser's 'magic variables'.
+        cfg.set("Scene", "tracers file", self._trtmpl.replace('%', '%%', 1))
+        cfg.set("Scene", "particles file", self._ptmpl.replace('%', '%%', 1))
 
-def read_sequence(conf_fname, smooth=False):
+def read_sequence(conf_fname, smooth=None):
     """
     Read sequence-wide parameters, such as unchanging particle properties and
     frame range. Values are stored in an INI-format file.
     
     Arguments:
     conf_fname - name of the config file
-    smooth - whether the sequence shoud use tracers trajectory-smoothing.
+    smooth - whether the sequence shoud use tracers trajectory-smoothing. Used
+        to override the config value if present, and supply it if missing. If 
+        None and missing, default is False.
     
     Returns:
     a Sequence object initialized with the configuration values found.
@@ -264,5 +291,13 @@ def read_sequence(conf_fname, smooth=False):
     part_tmpl = parser.get("Scene", "particles file")
     frange = (parser.getint("Scene", "first frame"),
         parser.getint("Scene", "last frame") + 1)
+    
+    # The smoothing option is subject to default/override rules.
+    if parser.has_option("Scene", "apply smoothing"):
+        if smooth is None:
+            smooth = parser.getboolean("Scene", "apply smoothing")
+    else:
+        if smooth is None:
+            smooth = False
     
     return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth)
