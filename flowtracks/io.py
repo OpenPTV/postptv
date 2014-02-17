@@ -28,8 +28,8 @@ class FramesIterator(object):
             numbering.
         """
         self._frmix = 0
-        self._read_frame = lambda fix: np.loadtxt(fname_tmpl % fix, 
-            dtype=fmt, skiprows=skip)
+        self._read_frame = lambda fix: np.atleast_1d(
+            np.loadtxt(fname_tmpl % fix, dtype=fmt, skiprows=skip))
         
         dirname, basename = os.path.split(fname_tmpl)
         is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
