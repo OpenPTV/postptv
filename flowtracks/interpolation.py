@@ -7,7 +7,8 @@ Created on Tue May 28 10:27:15 2013
 @author: yosef
 """
 
-import numpy as np
+import numpy as np, warnings
+from ConfigParser import SafeConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
     """
@@ -42,7 +43,9 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
         dist_sort = np.argsort(dists, axis=1)
         use_parts = np.zeros(dists.shape, dtype=np.bool)
         
-        use_parts[np.repeat(np.arange(interp_points.shape[0]), num_neighbs),
+        eff_num_neighbs = min(num_neighbs, tracer_pos.shape[0])
+        use_parts[
+            np.repeat(np.arange(interp_points.shape[0]), eff_num_neighbs),
             dist_sort[:,:num_neighbs].flatten()] = True
     
     else:
@@ -79,7 +82,7 @@ def inv_dist_interp(dists, use_parts, velocity, p=1):
 
     return vel_avg
 
-def rbf_interp(tracer_dists, dists, use_parts, velocity, epsilon=1e-2):
+def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     """
     Radial-basis interpolation [3] for each particle, from all neighbours 
     selected by caller. The difference from inv_dist_interp is that the 
@@ -92,8 +95,7 @@ def rbf_interp(tracer_dists, dists, use_parts, velocity, epsilon=1e-2):
         tracer j. [m]
     use_parts - (m,n) boolean array, True where tracer j=1...n is a neighbour
         of interpolation point i=1...m.
-    velocity - (n,3) array, the u,v,w velocity components for each of n
-        tracers, [m/s]
+    data - (n,d) array, the d components of the data for each of n tracers.
     
     Returns:
     vel_interp - an (m,3) array with the interpolated velocity at the position
@@ -102,12 +104,12 @@ def rbf_interp(tracer_dists, dists, use_parts, velocity, epsilon=1e-2):
     kernel = np.exp(-tracer_dists**2 * epsilon)
     
     # Determine the set of coefficients for each particle:
-    coeffs = np.zeros(dists.shape + (3,))
+    coeffs = np.zeros(dists.shape + (data.shape[-1],))
     for pix in xrange(dists.shape[0]):
         neighbs = np.nonzero(use_parts[pix])[0]
         K = kernel[np.ix_(neighbs, neighbs)]
         
-        coeffs[pix, neighbs] = np.linalg.solve(K, velocity[neighbs])
+        coeffs[pix, neighbs] = np.linalg.solve(K, data[neighbs])
     
     rbf = np.exp(-dists**2 * epsilon)
     vel_interp = np.sum(rbf[...,None] * coeffs, axis=1)
@@ -167,6 +169,14 @@ class Interpolant(object):
         vel_interp - an (m,3) array with the interpolated value at the position
             of each particle, [m/s].
         """
+        # If for some reason tracking failed for a whole frame, interpolation 
+        # is impossible at that frame. This checks for frame tracking failure.
+        if len(tracer_pos) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers im frame, interpolation returned zeros.")
+            ret_shape = data.shape[-1] if data.ndim > 1 else 1
+            return np.zeros((interp_points.shape[0], ret_shape))
+            
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
             None, self._neighbs)
         
@@ -182,6 +192,7 @@ class Interpolant(object):
         The distance from each interpolation point to each data point of those
         used for interpolation. Assumes, for now, a constant number of
         neighbours.
+        
         Arguments:
         tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
             in [m]
@@ -201,3 +212,25 @@ class Interpolant(object):
             ndists[pt] = dists[pt, use_parts[pt]]
         
         return ndists
+
+def read_interpolant(conf_fname):
+    """
+    Builds an Interpolant object based on values in an INI-formatted file.
+    
+    Arguments:
+    conf_fname - path to configuration file.
+    
+    Returns:
+    an Interpolant object constructed from values in the configuration file.
+    """
+    parser = SafeConfigParser()
+    parser.read(conf_fname)
+    
+    # Optional arguments:
+    kwds = {}
+    if parser.has_option('Interpolant', 'num_neighbs'):
+        kwds['num_neighbs'] = parser.getint('Interpolant', 'num_neighbs')
+    if parser.has_option('Interpolant', 'param'):
+        kwds['param'] = parser.getint('Interpolant', 'param')
+    
+    return Interpolant(parser.get('Interpolant', 'method'), **kwds)

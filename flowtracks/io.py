@@ -4,17 +4,115 @@
 Contains functions for reading frame-by-frame flow data and trajectories in 
 various formats.
 """
-import os, os.path
+import os, os.path, re
 from ConfigParser import SafeConfigParser
-import re
+from StringIO import StringIO
 
 import numpy as np
 from scipy import io
+import tables
 
 from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
 
+class FramesIterator(object):
+    def __init__(self, fname_tmpl, fmt, skip, first=None, last=None):
+        """
+        Arguments:
+        fname_tmpl - a template file name representing all ptv_is/xuap files in
+            the directory, with exactly one '%d' representing the frame number.
+        fmt - a dtype object describing the table structure to be read.
+        skip - number of header lines to skip in each file.
+        first, last - inclusive range of frames to read, rel. filename 
+            numbering.
+        """
+        self._frmix = 0
+        self._read_frame = lambda fix: np.atleast_1d(
+            np.loadtxt(fname_tmpl % fix, dtype=fmt, skiprows=skip))
+        
+        dirname, basename = os.path.split(fname_tmpl)
+        is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
+
+        # Collect existing frames. This is necessary to ensure that frames are
+        # processed in the correct order.
+        self._frame_nums = []
+        for name in os.listdir(dirname):
+            match = is_data_file.match(name)
+            if match is None: continue
+            frame = int(match.group(1))
+
+            if first is not None and frame < first: continue
+            if last is not None and frame > last: continue
+            # Note that we're reading one extra frame, otherwise the last frame
+            # has 0 path segments.
+
+            self._frame_nums.append(frame)
+
+        # Process frames in order.
+        self._frame_nums.sort()
+    
+    def __iter__(self):
+        return self
+    
+    def next(self):
+        """
+        Returns:
+        frm_num - frame number as recorded in the file names.
+        frame - a table corresponding to the format (``fmt``) given to 
+            __init__().
+        """
+        curframenum = self._frmix
+        if len(self._frame_nums) <= curframenum:
+            raise StopIteration
+        
+        frame = self._read_frame(self._frame_nums[curframenum])
+        self._frmix += 1
+        return self._frame_nums[curframenum], frame
+        
+class SingleFileIterator(object):
+    def __init__(self, fname, fmt):
+        """
+        Arguments:
+        fname - file name containing concatenated ptv_is frames, separated by
+            empty line.
+        fmt - a dtype object describing the table structure to be read.
+        skip - number of header lines to skip in each file.
+        """
+        self._frmix = 0
+        self._f = open(fname, 'r')
+        self._read_frame = lambda str_tbl: np.loadtxt(str_tbl, dtype=fmt)
+    
+    def __iter__(self):
+        return self
+    
+    def next(self):
+        """
+        Returns:
+        frm_num - frame number as recorded in the file names.
+        frame - a table corresponding to the format (``fmt``) given to 
+            __init__().
+        """
+        curframenum = self._frmix
+        
+        # Make the stringio object to be used by read_frame
+        lines = []
+        for line in self._f:
+            if re.match("^\s*$", line):
+                break
+            lines.append(line)
+        
+        if len(lines) == 0:
+            raise StopIteration # EOF
+        
+        str_tbl = StringIO("".join(lines))
+        frame = self._read_frame(str_tbl)
+        self._frmix += 1
+        return curframenum, frame
+    
+    def __def__(self):
+        self._f.close()
+    
 def collect_particles(fname_tmpl, frame, path_seg=False):
     """
     Going backwards over trajAcc files [2], starting from a given frame,
@@ -126,8 +224,11 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     programs in the 3d-ptv/pyptv family.
     
     Arguments:
-    fname - a template file name representing all trajAcc files in the
-        directory, with exactly one '%d' representing the frame number.
+    fname - a template file name representing all ptv_is/xuap files in the
+        directory, with exactly one '%d' representing the frame number. If
+        no '%d' is found, the input is assumed to be in the Ron format - single
+        file of concatenated ptv_is files, each stripped of the particle count
+        line (first line) and separated from the next by an empty line.
     first, last - inclusive range of frames to read, rel. filename numbering.
     frate - frame rate, used for calculating velocities by backward 
         derivative.
@@ -137,26 +238,6 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     a list of Trajectory objects.
     """
     fname = os.path.expanduser(fname)
-    dirname, basename = os.path.split(fname)
-    is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
-    
-    # Collect existing frames. This is necessary to ensure that frames are
-    # processed in the correct order, which in this format is important.
-    frame_nums = []
-    for name in os.listdir(dirname):
-        match = is_data_file.match(name)
-        if match is None: continue
-        frame = int(match.group(1))
-        
-        if first is not None and frame < first: continue
-        if last is not None and frame > last: continue
-        # Note that we're reading one extra frame, otherwise the last frame
-        # has 0 path segments.
-        
-        frame_nums.append(frame)
-    
-    # Process frames in order.
-    frame_nums.sort()
     
     if xuap:
         fmt = np.dtype([('prev', 'i4'), ('next', 'i4'), ('pos', '3f8'),
@@ -167,11 +248,15 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
         fmt = np.dtype([('prev', 'i4'), ('next', 'i4'), ('pos', '3f8')])
         skip = 1
         count_base = 0
+
+    frames = []
+    if '%d' in fname:
+        frm_iter = FramesIterator(fname, fmt, skip, first, last)
+    else:
+        frm_iter = SingleFileIterator(fname, fmt)
     
     # In the first frame, every particle starts a trajectory.
-    table = np.loadtxt(fname % frame_nums[0], dtype=fmt, skiprows=skip)
-    
-    frames = []
+    frame_num, table = frm_iter.next()    
     
     pos = table['pos']
     if not xuap: pos /=1000.
@@ -181,14 +266,14 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False):
     else:
         vel = np.zeros_like(pos)
     
-    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_nums[0],
+    frame = np.hstack((pos, vel, np.ones((table.shape[0], 1))*frame_num,
         np.arange(table.shape[0])[:,None]))
     max_traj = table.shape[0]
     frames.append(frame)
     
     # Assign trajectory numbers:
-    for fix, frame_num in enumerate(frame_nums[1:]):
-        table = np.loadtxt(fname % frame_num, dtype=fmt, skiprows=skip)
+    for fix, frm in enumerate(frm_iter):
+        frame_num, table = frm
         
         if table.ndim == 0:
             frames.append(None)
@@ -271,13 +356,15 @@ def trajectories(fname, first, last, frate, fmt=None):
     if fmt == 'mat':
         traj = trajectories_mat(fname)
     elif fmt == 'npz':
-        traj, _ = load_trajectories(fname)
+        traj, _ = load_trajectories(fname, first, last)
     elif fmt == 'acc':
         traj = trajectories_acc(fname, first, last)
     elif fmt == 'ptvis':
         traj = trajectories_ptvis(fname, first, last, frate)
     elif fmt == 'xuap':
         traj = trajectories_ptvis(fname, first, last, frate, xuap=True)
+    elif fmt == 'hdf':
+        traj = trajectories_table(fname, first, last)
     
     return [tr for tr in traj if len(tr) > 1]
         
@@ -295,10 +382,12 @@ def infer_format(fname):
         return 'mat'
     elif fname.endswith('/'):
         return 'npz'
-    elif 'ptv_is' in fname:
+    elif 'ptv_is' in fname or fname.endswith('.txt'):
         return 'ptvis'
     elif 'xuap' in fname:
         return 'xuap'
+    elif fname.endswith('h5') or fname.endswith('hdf'):
+        return 'hdf'
     else:
         return 'acc'
 
@@ -416,7 +505,7 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     output_dir - name of the directory where output should be placed. Will be 
         created if it does not exist.
     trajects - a list of Trajectory objects.
-    per_traject_adds - a dictionary, whose keys are the aray names to use when
+    per_traject_adds - a dictionary, whose keys are the array names to use when
         saving, and vaslues are trajid-keyed dictionaries with the actual 
         arrays to save for each trajectory.
     kwds - free arrays to save in the output dir
@@ -436,8 +525,74 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     # Save non-trajectory arrays:
     for k, v in kwds.iteritems():
         np.save(os.path.join(output_dir, k), v)
+    
+def save_particles_table(filename, trajects):
+    """
+    Save trajectory data as a table of particles, with added columns for time
+    (frame number) and trajid - the last one may be indexed. Note that no extra
+    (per-trajectory or meta) data is allowed here, unlike the npz save format.
+    
+    Arguments:
+    filename - name of output PyTables HDF5 file to create. The 'h5' extension
+        is recommended so that infer_format() knows what to do with it.
+    trajects - a list of Trajectory objects to save.
+    """
+    # Format of records in a trajectory array :
+    fields = [('trajid', int, 1)] + [(field,) + desc for field, desc in \
+        trajects[0].ext_schema().iteritems()]
+    dtype = np.dtype(fields)
+    
+    outfile = tables.openFile(filename, mode='w')
+    table = outfile.createTable('/', 'particles', dtype)
+    
+    for traj in trajects:
+        arr = np.empty(len(traj), dtype=dtype)
+        arr['trajid'] = traj.trajid()
+        
+        for k, v in traj.as_dict().iteritems():
+            arr[k] = v
+        
+        table.append(arr)
+    
+    table.cols.trajid.createIndex()
+    table.cols.time.createIndex()
+    
+    outfile.flush()
+    outfile.close()
 
-def load_trajectories(res_dir):
+def trajectories_table(fname, first=None, last=None):
+    """
+    Reads trajectories from a PyTables HDF5 file, as saved by
+    save_particles_table().
+    
+    Arguments:
+    fname - path to file to read.
+    first, last - inclusive range of frames to read.
+    
+    Returns:
+    trajects - a list of Trajectory objects, each trimmed to the frame range.
+    """
+    outfile = tables.openFile(fname, mode='r')
+    table = outfile.getNode('/particles')
+    
+    query_string = ('(trajid == trid)')
+    if first is not None:
+        query_string += " & (time >= %d)" % first
+    if last is not None:
+        query_string += " & (time <= %d)" % last
+                
+    trajects = []
+    for trid in np.unique(table.col('trajid')):
+        arr = table.readWhere(query_string)
+        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            if field != 'trajid')
+        kwds['trajid'] = trid
+        trajects.append(Trajectory(**kwds))
+    
+    outfile.close()
+    return trajects
+
+def load_trajectories(res_dir, first=None, last=None):
     """
     Load a series of trajectories and associated data from a directory 
     containing npz trajectory files, as created by save_trajectories().
@@ -461,7 +616,7 @@ def load_trajectories(res_dir):
         data = np.load(os.path.join(res_dir, tr_file))
         trajid = int(tr_file.split('.')[0][5:]) # traj_*.pyz
         
-        kwds = {'trajid': trajid}
+        kwds = {}
         for k in data.files:
             if k.startswith('traj:'):
                 kwds[k[5:]] = data[k]
@@ -469,6 +624,27 @@ def load_trajectories(res_dir):
                 per_traject_adds.setdefault(k, {})
                 per_traject_adds[k][trajid] = data[k]
         
+        if (first is not None) or (last is not None):
+            in_range = np.ones(kwds['time'].shape, dtype=np.bool)
+            if first is not None:
+                in_range[kwds['time'] < first] = False
+            if last is not None:
+                in_range[kwds['time'] > last] = False
+            # Note that we're reading one extra frame, otherwise the last frame
+            # has 0 path segments.
+            
+            if in_range.sum() < 1:
+                continue # Filter out empty trajectories (that are really empty
+                         # or completely out of range)
+            
+            for k in kwds.keys():
+                kwds[k] = kwds[k][in_range]
+            # per_traject_adds do not get the same treatment as it is 
+            # impossible to know their size. It is therefore up to the user to
+            # create only per_traject_adds in the range matching the processed
+            # range.
+        
+        kwds['trajid'] = trajid
         trajects.append(Trajectory(**kwds))
     
     return trajects, per_traject_adds

@@ -92,8 +92,15 @@ class Sequence(object):
         """
         if (self.__ptraj is not None):
             return self.__ptraj
+        
         self.__ptraj = self._psel(trajectories(self._ptmpl, self._rng[0], 
             self._rng[1], self.frate, self._pfmt))
+        
+        # Also caches the starts and ends of trajectories, so that accessing
+        # only the ones relevant to a specific frame is easier.
+        start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ptraj]
+        self.__pstarts, self.__pends =  map(np.array, zip(*start_end))
+        
         return self.__ptraj
     
     def tracer_trajectories(self):
@@ -103,6 +110,7 @@ class Sequence(object):
         """
         if (self.__ttraj is not None):
             return self.__ttraj
+        
         ttraj = self._tsel(trajectories(self._trtmpl, self._rng[0], 
             self._rng[1], self.frate, self._trfmt))
         
@@ -110,6 +118,11 @@ class Sequence(object):
             self.__ttraj = [tr.smoothed() for tr in ttraj]
         else:
             self.__ttraj = ttraj
+        
+        # Also caches the starts and ends of trajectories, so that accessing
+        # only the ones relevant to a specific frame is easier.
+        start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ttraj]
+        self.__tstarts, self.__tends =  map(np.array, zip(*start_end))
             
         return self.__ttraj
         
@@ -146,10 +159,13 @@ class Sequence(object):
             raise StopIteration
         
         frame = Frame()
-        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame, segs=True)
+        tracer_ixs = trajectories_in_frame(self.__ttraj, self._frame, 
+            self.__tstarts, self.__tends, segs=True)
         tracer_trjs = [self.__ttraj[t] for t in tracer_ixs]
         frame.tracers = take_snapshot(tracer_trjs, self._frame, self.__tschem)
-        part_ixs = trajectories_in_frame(self.__ptraj, self._frame, segs=True)
+        
+        part_ixs = trajectories_in_frame(self.__ptraj, self._frame,
+            self.__pstarts, self.__pends, segs=True)
         part_trjs = [self.__ptraj[t] for t in part_ixs]
         frame.particles = take_snapshot(part_trjs, self._frame, self.__schema)
 
@@ -191,8 +207,23 @@ class Sequence(object):
         trajects = self.particle_trajectories()
         
         # Allocate result space:
-        res = dict((tr.trajid(), [None]*(len(tr) - 1)) for tr in trajects)
-        frame_counters = dict((tr.trajid(), 0) for tr in trajects)
+        res = {}
+        frame_counters = {}
+        
+        # Initialize result buffer and frame counter per trajectory.
+        for tr in trajects:
+            trid = tr.trajid()
+            t = tr.time()[:-1]
+            
+            # This handles trajectories partly out of subrange bounds.
+            in_range = (t >= subrange[0]) & (t < subrange[1])
+            len_in_range = in_range.sum()
+            
+            if len_in_range < 1:
+                continue
+            
+            res[trid] = [None]*len_in_range
+            frame_counters[trid] = 0
         
         for frame, next_frame in self.iter_subrange(*subrange):
             if history:
