@@ -212,6 +212,21 @@ class Interpolant(object):
             ndists[pt] = dists[pt, use_parts[pt]]
         
         return ndists
+    
+    def save_config(self, cfg):
+        """
+        Adds the keys necessary for recreating this interpolant into a 
+        configuration object. It is the caller's responsibility to do a 
+        writeback to file.
+        
+        Arguments:
+        cfg - a ConfigParser object.
+        """
+        if not cfg.has_section("Interpolant"):
+            cfg.add_section("Interpolant")
+        cfg.set('Interpolant', 'num_neighbs', str(self.num_neighbs()))
+        cfg.set('Interpolant', 'param', str(self._par))
+        cfg.set('Interpolant', 'method', self._method)
 
 def read_interpolant(conf_fname):
     """
@@ -231,6 +246,6 @@ def read_interpolant(conf_fname):
     if parser.has_option('Interpolant', 'num_neighbs'):
         kwds['num_neighbs'] = parser.getint('Interpolant', 'num_neighbs')
     if parser.has_option('Interpolant', 'param'):
-        kwds['param'] = parser.getint('Interpolant', 'param')
+        kwds['param'] = parser.getfloat('Interpolant', 'param')
     
     return Interpolant(parser.get('Interpolant', 'method'), **kwds)
