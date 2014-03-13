@@ -34,7 +34,7 @@ class TestReadWrite(unittest.TestCase):
             cfg.write(fobj)
         
         # Round-trip check:
-        nseq = sequence.read_sequence(fname)
+        nseq = sequence.read_sequence(nfname)
         self.failUnlessEqual(seq.frate, nseq.frate)
         self.failUnlessEqual(seq.range(), nseq.range())
         self.failUnlessEqual(seq.part_fname(), nseq.part_fname())
