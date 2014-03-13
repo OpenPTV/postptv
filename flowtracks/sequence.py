@@ -242,17 +242,46 @@ class Sequence(object):
         for k in res.keys():
             res[k] = np.array(res[k])
         return res
+    
+    def save_config(self, cfg):
+        """
+        Adds the keys necessary for recreating this sequence into a 
+        configuration object. It is the caller's responsibility to do a 
+        writeback to file.
+        
+        Arguments:
+        cfg - a ConfigParser object.
+        """
+        if not cfg.has_section("Particle"):
+            cfg.add_section("Particle")
+        cfg.set("Particle", "diameter", str(self.part.diam))
+        cfg.set("Particle", "density", str(self.part.density))
+        
+        if not cfg.has_section("Scene"):
+            cfg.add_section("Scene")
+        cfg.set("Scene", "frame rate", str(self.frate))
+        cfg.set("Scene", "first frame", str(self._rng[0]))
+        cfg.set("Scene", "last frame", str(self._rng[1] - 1))
+        cfg.set("Scene", "apply smoothing", "yes" if self._smooth else "no")
+        cfg.set("Scene", "trajectory minimal length", str(self._minlen))
+        
+        # Need to escape these because of ConfigParser's 'magic variables'.
+        cfg.set("Scene", "tracers file", self._trtmpl.replace('%', '%%', 1))
+        cfg.set("Scene", "particles file", self._ptmpl.replace('%', '%%', 1))
 
-def read_sequence(conf_fname, smooth=False, traj_min_len=0):
+def read_sequence(conf_fname, smooth=None, traj_min_len=None):
     """
     Read sequence-wide parameters, such as unchanging particle properties and
     frame range. Values are stored in an INI-format file.
     
     Arguments:
     conf_fname - name of the config file
-    smooth - whether the sequence shoud use tracers trajectory-smoothing.
+    smooth - whether the sequence shoud use tracers trajectory-smoothing. Used
+        to override the config value if present, and supply it if missing. If 
+        None and missing, default is False.
     traj_min_len - tells the sequence to ignore trajectories shorter than this
-        many frames.
+        many frames. Overrides file. If None and file has no value, default is
+        0.
     
     Returns:
     a Sequence object initialized with the configuration values found.
@@ -269,6 +298,22 @@ def read_sequence(conf_fname, smooth=False, traj_min_len=0):
     part_tmpl = parser.get("Scene", "particles file")
     frange = (parser.getint("Scene", "first frame"),
         parser.getint("Scene", "last frame") + 1)
+    
+    # The smoothing option is subject to default/override rules.
+    if parser.has_option("Scene", "apply smoothing"):
+        if smooth is None:
+            smooth = parser.getboolean("Scene", "apply smoothing")
+    else:
+        if smooth is None:
+            smooth = False
+    
+    # Same goes for traj_min_len
+    if parser.has_option("Scene", "trajectory minimal length"):
+        if traj_min_len is None:
+            traj_min_len = parser.getint("Scene", "trajectory minimal length")
+    else:
+        if traj_min_len is None:
+            traj_min_len = 0
     
     return Sequence(frange, frate, particle, part_tmpl, tracer_tmpl, smooth,
         traj_min_len)
