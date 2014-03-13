@@ -414,7 +414,8 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
     return [t for t in iter_trajectories_ptvis(fname, first, last, frate, 
         xuap, traj_min_len)]
 
-def trajectories(fname, first, last, frate, fmt=None, traj_min_len=0):
+def trajectories(fname, first, last, frate, fmt=None, traj_min_len=0,
+    iter_allowed=False):
     """
     Extract all trajectories in a given target location. The location format
     is interpreted based on the format of the data files, in the respective 
@@ -430,30 +431,46 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=0):
         trajectories.
     traj_min_len - on some formats, (currently ptv_is and xuap) it is possible
         to filter trajectories with less frames than this, saving memory.
+    iter_allowed - may return an iterator instead of a list.
     
     Returns:
-    a list of Trajectory objects.
+    a list (or iterator) of Trajectory objects.
     """
     # Infer format:
     if fmt is None:
         fmt = infer_format(fname)
     
+    filter_needed = True
+    
     if fmt == 'mat':
         traj = trajectories_mat(fname)
+    
     elif fmt == 'npz':
         traj, _ = load_trajectories(fname, first, last)
+    
     elif fmt == 'acc':
         traj = trajectories_acc(fname, first, last)
+    
     elif fmt == 'ptvis':
-        traj = trajectories_ptvis(fname, first, last, frate,
-            traj_min_len=traj_min_len)
+        filter_needed = False
+        if iter_allowed:
+            traj = iter_trajectories_ptvis(fname, first, last, frate,
+                traj_min_len=traj_min_len)
+        else:
+            traj = trajectories_ptvis(fname, first, last, frate,
+                traj_min_len=traj_min_len)
+    
     elif fmt == 'xuap':
         traj = trajectories_ptvis(fname, first, last, frate, xuap=True,
             traj_min_len=traj_min_len)
+    
     elif fmt == 'hdf':
         traj = trajectories_table(fname, first, last)
     
-    return [tr for tr in traj if len(tr) > 1]
+    if filter_needed:
+        traj = [tr for tr in traj if len(tr) > 1]
+    
+    return traj
         
 def infer_format(fname):
     """
@@ -624,15 +641,18 @@ def save_particles_table(filename, trajects):
         is recommended so that infer_format() knows what to do with it.
     trajects - a list of Trajectory objects to save.
     """
-    # Format of records in a trajectory array :
-    fields = [('trajid', int, 1)] + [(field,) + desc for field, desc in \
-        trajects[0].ext_schema().iteritems()]
-    dtype = np.dtype(fields)
-    
+    table = None
     outfile = tables.openFile(filename, mode='w')
-    table = outfile.createTable('/', 'particles', dtype)
     
     for traj in trajects:
+        # First trajectory creates the table:
+        if table is None:
+            # Format of records in a trajectory array :
+            fields = [('trajid', int, 1)] + [(field,) + desc \
+                for field, desc in traj.ext_schema().iteritems()]
+            dtype = np.dtype(fields)
+            table = outfile.createTable('/', 'particles', dtype)
+
         arr = np.empty(len(traj), dtype=dtype)
         arr['trajid'] = traj.trajid()
         
