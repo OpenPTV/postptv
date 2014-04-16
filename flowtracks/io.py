@@ -247,7 +247,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
                         ('pos_int', '3f8'), ('vel', '3f8'), ('acc', '3f8')])
         skip = 0
         count_base = 1
-        def_tr_len = 1
+        def_tr_len = 2
     else:
         fmt = np.dtype([('prev', 'i4'), ('next', 'i4'), ('pos', '3f8')])
         skip = 1
