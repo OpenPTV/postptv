@@ -15,7 +15,7 @@ class TestPtvis(unittest.TestCase):
         There are 3 trajectories of 4 frames each, each going along a separate
         axis.
         """
-        self.tmpl = "testing_fodder/ptvis/ptv_is.%d"
+        self.tmpl = "tests/testing_fodder/ptvis/ptv_is.%d"
         self.first = 10001
         self.last = 10004
         
