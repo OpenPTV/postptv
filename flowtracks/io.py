@@ -641,7 +641,7 @@ def trajectories_table(fname, first=None, last=None):
                 
     trajects = []
     for trid in np.unique(table.col('trajid')):
-        arr = table.readWhere(query_string)
+        arr = table.read_where(query_string)
         kwds = dict((field, arr[field]) for field in arr.dtype.fields \
             if field != 'trajid')
         kwds['trajid'] = trid
