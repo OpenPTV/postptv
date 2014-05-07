@@ -25,13 +25,14 @@ def pdf_graph(data, num_bins, log=False, log_density=False):
         is False.
     """
     if log:
+        data = data[data > 0] 
         minv = np.min(data)
         bins = np.logspace(np.log10(minv), np.log10(data.max()), num_bins + 1)
         plt = pl.semilogx
     else:
         bins = num_bins
         plt = pl.semilogy if log_density else pl.plot 
-        
+    
     hist, bin_edges = np.histogram(data, bins=bins, density=True)
     plt(bin_edges[:-1], hist, '-o')
     pl.ylabel("Probability density [-]")
