@@ -10,9 +10,36 @@ Created on Sun Sep 22 16:11:34 2013
 
 import numpy as np, matplotlib.pyplot as pl
 
+def pdf_bins(data, num_bins, log_bins=False):
+    """
+    Generate a PDF of the given data possibly with logarithmic bins, ready for
+    using in a histogram plot.
+    
+    Arguments:
+    data - the samples to histogram.
+    bins - the number of bins in the histogram.
+    log_bins - if True, the bin edges are equally spaced on the log scale, 
+        otherwise they are linearly spaced (a normal histogram). If True, 
+        ``data`` should not contain zeros.
+    
+    Returns:
+    hist - num_bins-lenght array of density values for each bin.
+    bin_edges - array of size num_bins + 1 with the edges of the bins including
+        the ending limit of the bins.
+    """
+    if log_bins:
+        data = data[data > 0] 
+        minv = np.min(data)
+        bins = np.logspace(np.log10(minv), np.log10(data.max()), num_bins + 1)
+    else:
+        bins = num_bins
+    
+    hist, bin_edges = np.histogram(data, bins=bins, density=True)
+    return hist, bin_edges
+    
 def pdf_graph(data, num_bins, log=False, log_density=False, marker='o'):
     """
-    Draw a normalized PDF of the given data, according to the visual custom of
+    Draw a PDF of the given data, according to the visual custom of
     the fluid dynamics community, and possibly with logarithmic bins.
     
     Arguments:
