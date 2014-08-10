@@ -9,7 +9,7 @@ import numpy as np, numpy.testing as nptest
 from flowtracks.scene import Scene
 from flowtracks.trajectory import Trajectory, take_snapshot
 
-class TestPtvis(unittest.TestCase):
+class TestScene(unittest.TestCase):
     def setUp(self):
         """
         There are 3 trajectories of 4 frames each, each going along a separate
@@ -39,6 +39,7 @@ class TestPtvis(unittest.TestCase):
                 accel=accel))
     
     def test_iter_trajectories(self):
+        """Iterating trajectories and getting correct Trajectory objects"""
         trjs = [tr for tr in self.scene.iter_trajectories()]
         self.failUnlessEqual(len(trjs), len(self.correct))
         
@@ -50,6 +51,7 @@ class TestPtvis(unittest.TestCase):
             self.failUnlessEqual(trj.trajid(), correct.trajid())
     
     def test_iter_trajectories_subrange(self):
+        """Iterating trajectories in part of the frame range."""
         self.scene.set_frame_range((10002, 10004))
         trjs = [tr for tr in self.scene.iter_trajectories()]
         self.failUnlessEqual(len(trjs), len(self.correct))
@@ -62,6 +64,7 @@ class TestPtvis(unittest.TestCase):
             self.failUnlessEqual(trj.trajid(), correct.trajid())
      
     def test_iter_frames(self):
+        """Iterating the HDF files by frames, and getting correct ParticleSnapshot objects"""
         schm = self.correct[0].schema()
         correct_frames = [take_snapshot(self.correct, frm, schm) \
             for frm in xrange(10001, 10005)]

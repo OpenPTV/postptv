@@ -63,6 +63,11 @@ class Scene(object):
         self._file.close()
     
     def iter_trajectories(self):
+        """
+        Iterator over trajectories. Generates a Trajectory object for each 
+        trajectory in the file (in no particular order, but the same order 
+        every time on the same PyTables version) and yields it.
+        """
         query_string = '(trajid == trid)' +  self._frame_limit
         
         for trid in self._trids:
@@ -73,6 +78,10 @@ class Scene(object):
             yield Trajectory(**kwds)
         
     def iter_frames(self):
+        """
+        Iterator over frames. Generates a ParticleSnapshot object for each
+        frame, in the file, ordered by frame number, and yields it.
+        """
         query_string = '(time == t)'
         
         for t in xrange(self._first, self._last):
