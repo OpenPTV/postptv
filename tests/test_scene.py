@@ -78,4 +78,22 @@ class TestScene(unittest.TestCase):
             nptest.assert_array_almost_equal(frm.accel(), correct.accel())
             nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
             self.failUnlessEqual(frm.time(), correct.time())
+    
+    def test_iter_frames_subrange(self):
+        """Iterating frames subrange"""
+        self.scene.set_frame_range((10002, 10004))
+        
+        schm = self.correct[0].schema()
+        correct_frames = [take_snapshot(self.correct, frm, schm) \
+            for frm in xrange(10002, 10004)]
+        
+        frames = [frm for frm in self.scene.iter_frames()]
+        self.failUnlessEqual(len(frames), len(correct_frames))
+        
+        for frm, correct in zip(frames, correct_frames):
+            nptest.assert_array_almost_equal(frm.pos(), correct.pos())
+            nptest.assert_array_almost_equal(frm.velocity(), correct.velocity())
+            nptest.assert_array_almost_equal(frm.accel(), correct.accel())
+            nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
+            self.failUnlessEqual(frm.time(), correct.time())
 

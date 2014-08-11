@@ -49,6 +49,7 @@ class Scene(object):
             t = self._table.col('time')
             self._first = int(t.min())
         else:
+            self._first = first
             self._frame_limit += " & (time >= %d)" % first
         
         # Working on the assumptions that usually not both will be None 
@@ -57,6 +58,7 @@ class Scene(object):
             t = self._table.col('time')
             self._last = int(t.max()) + 1
         else:
+            self._last = last
             self._frame_limit += " & (time < %d)" % last
     
     def __del__(self):
