@@ -11,9 +11,12 @@ Main design goals:
 Created on Sun Aug 10 11:28:42 2014
 
 @author: yosef
+
+References:
+[1] https://docs.python.org/2/library/itertools.html
 """
 
-import itertools, tables, numpy as np
+import itertools as it, tables, numpy as np
 from ConfigParser import SafeConfigParser
 
 from .trajectory import Trajectory, ParticleSnapshot
@@ -21,6 +24,15 @@ from .particle import Particle
 
 class Frame(object):
     pass
+
+def pairwise(iterable):
+    """
+    copied from itertools documentation, [1]
+    s -> (s0,s1), (s1,s2), (s2, s3), ...
+    """
+    a, b = it.tee(iterable)
+    next(b, None)
+    return it.izip(a, b)
 
 class Scene(object):
     def __init__(self, file_name, frame_range=None):
@@ -87,15 +99,65 @@ class Scene(object):
         Iterator over frames. Generates a ParticleSnapshot object for each
         frame, in the file, ordered by frame number, and yields it.
         """
-        query_string = '(time == t)'
-        
-        for t in xrange(self._first, self._last):
-            arr = self._table.read_where(query_string)
+        for t, arr in self._iter_frame_arrays():
             kwds = dict((field, arr[field]) for field in arr.dtype.fields \
                 if field != 'time')
             kwds['time'] = t
             yield ParticleSnapshot(**kwds)
+    
+    def _iter_frame_arrays(self):
+        """
+        Private. Like iter_frames but does not create a ParticleSnapshot
+        object, leaving the raw array.
+        """
+        query_string = '(time == t)'
+        for t in xrange(self._first, self._last):
+            yield t, self._table.read_where(query_string)
         
+    def iter_segments(self):
+        """
+        Iterates over frames, taking out only the particles whose trajectory 
+        continues in the next frame.
+        
+        Yields:
+        frame - a ParticleSnapshot object representing the current frame with
+            the particles that have continuing trajectories.
+        next_frame - same object, for the same particles in the next frame
+            (the time attribute is obviously +1 from ``frame``).
+        """
+        for arr, next_arr in pairwise(self._iter_frame_arrays()):
+            t, arr = arr
+            tn, next_arr = next_arr
+            
+            # find continuing trajectories:
+            arr_trids = arr['trajid']
+            next_arr_trids = next_arr['trajid']
+            trajids = set(arr_trids) & set(next_arr_trids)
+            
+            # select only those from the two frames:
+            in_arr = np.array([True if tr in trajids else False \
+                for tr in arr_trids])
+            in_next_arr = np.array([True if tr in trajids else False \
+                for tr in next_arr_trids])
+            
+            if len(in_arr) > 0:
+                arr = arr[in_arr]
+            if len(in_next_arr) > 0:
+                next_arr = next_arr[in_next_arr]
+            
+            # format as ParticleSnapshot.
+            kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+                if field != 'time')
+            kwds['time'] = t
+            frame = ParticleSnapshot(**kwds)
+            
+            kwds = dict((field, next_arr[field]) for field in arr.dtype.fields \
+                if field != 'time')
+            kwds['time'] = tn
+            next_frame = ParticleSnapshot(**kwds)
+            
+            yield frame, next_frame
+    
 
 class DualScene(object):
     """
@@ -134,8 +196,6 @@ class DualScene(object):
         ParticleSnapshot object.
         
         Arguments:
-        particle_scene, tracer_scene - each a Scene object for the 
-            corresponding file.
         frame_range - tuple (first, last) sets the frame range of both scenes
             to an identical frame range. Argument format as in 
             Scene.set_frame_range(). Default is (-1) meaning to skip this. 
@@ -149,7 +209,7 @@ class DualScene(object):
             self._particles.set_frame_range(frame_range)
             self._tracers.set_frame_range(frame_range)
     
-        for particles, tracers in itertools.izip(
+        for particles, tracers in it.izip(
             self._particles.iter_frames(), self._tracers.iter_frames()):
             frame = Frame()
             frame.tracers = tracers
@@ -158,8 +218,45 @@ class DualScene(object):
         
         # restore original frame range.
         if frame_range != -1:
-            self._particles.set_frame_range(self._frame_range)
-            self._tracers.set_frame_range(self._frame_range)
+            self._particles.set_frame_range(self._rng)
+            self._tracers.set_frame_range(self._rng)
+    
+    def iter_segments(self, frame_range=-1):
+        """
+        Like iter_frames, but returns two consecutive frames, both having the
+        same trajids set (in other words, both contain only particles from 
+        the first frame whose trajectory continues to the next frame).
+        
+        Arguments:
+        frame_range - tuple (first, last) sets the frame range of both scenes
+            to an identical frame range. Argument format as in 
+            Scene.set_frame_range(). Default is (-1) meaning to skip this. 
+            Then the object's initialization range is used, so initialize
+            to a coordinated range if you use the default.
+        
+        Yields:
+        two Frame objects, representing the consecutive selective frames.
+        """
+        if frame_range != -1:
+            self._particles.set_frame_range(frame_range)
+            self._tracers.set_frame_range(frame_range)
+    
+        for part_frames, tracer_frames in it.izip(
+            self._particles.iter_segments(), self._tracers.iter_segments()):
+            frame = Frame()
+            frame.tracers = tracer_frames[0]
+            frame.particles = part_frames[0]
+            
+            next_frame = Frame()
+            next_frame.tracers = tracer_frames[1]
+            next_frame.particles = part_frames[1]
+            
+            yield frame, next_frame
+        
+        # restore original frame range.
+        if frame_range != -1:
+            self._particles.set_frame_range(self._rng)
+            self._tracers.set_frame_range(self._rng)
 
 def read_dual_scene(conf_fname):
     """
