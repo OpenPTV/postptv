@@ -473,7 +473,9 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
         traj = trajectories_table(fname, first, last)
     
     if filter_needed:
-        traj = [tr for tr in traj if len(tr) > 1]
+        if traj_min_len is None:
+            traj_min_len = 2
+        traj = [tr for tr in traj if len(tr) >= traj_min_len]
     
     return traj
         
