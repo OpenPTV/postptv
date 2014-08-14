@@ -78,7 +78,7 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
     analysis_file - path to the file where analysis should be saved. If the 
         file exists, it will be cloberred.
     conf_file - name of config file used for creating the analysis.
-    analysers - a list of Generalanalyser subclasses that do the actual
+    analysers - a list of GeneralAnalyser subclasses that do the actual
         analysis work and know all that is needed about output shape.
     frame_range - if -1 no adjustment is necessary, otherwise see 
         Scene.dual_scene_iterator()
@@ -109,7 +109,6 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
         table.append(arr)
     
     # Wrap up and close.
-    table.cols.trajid.createIndex()
+    table.cols.trajid.create_index()
     outfile.flush()
     outfile.close()
-
