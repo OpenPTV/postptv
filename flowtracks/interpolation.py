@@ -5,6 +5,12 @@ Interpolation routines.
 Created on Tue May 28 10:27:15 2013
 
 @author: yosef
+
+References:
+[1] Lüthi, Beat. Some Aspects of Strain, Vorticity and Material Element 
+    Dynamics as Measured with 3D Particle Tracking Velocimetry in a Turbulent 
+    Flow. PhD Thesis, ETH-Zürich (2002).
+
 """
 
 import numpy as np, warnings
@@ -74,11 +80,42 @@ def inv_dist_interp(dists, use_parts, velocity, p=1):
     vel_avg - an (m,3) array with the interpolated velocity at each 
         interpolation point, [m/s].
     """
-    weights = 1./dists**p
-    weights[~use_parts] = 0.
+    weights = np.zeros_like(dists)
+    weights[use_parts] = 1./dists[use_parts]**p
     
     vel_avg = (weights[...,None] * velocity[None,...]).sum(axis=1) / \
         weights.sum(axis=1)[:,None]
+
+    return vel_avg
+
+def corrfun_interp(dists, use_parts, data, corrs_hist, corrs_bins):
+    """
+    For each of n particle, generate the velocity interpolated to its 
+    position from all neighbours as selected by caller. The weighting of 
+    neighbours is by the correlation function, e.g. if the distance at 
+    neighbor i is r_i, then it adds \rho(r_i)*v_i to the interpolated velocity.
+    This is done for each component separately.
+    
+    Arguemnts:
+    dists - (m,n) array, the distance of interpolation_point i=1...m from 
+        tracer j=1...n, for (row,col) (i,j) [m] 
+    use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
+        particle i, same indexing as ``dists``.
+    data - (n,d) array, the d components of the data that is interpolated from,
+        for each of n tracers.
+    corrs_hist - the correlation function histogram, an array of b bins.
+    corrs_bins - same size array, the bin start point for each bin.
+        
+    Returns:
+    vel_avg - an (m,3) array with the interpolated velocity at each 
+        interpolation point, [units of ``data``].
+    """
+    weights = np.zeros(dists.shape + (data.shape[-1],))
+    weights[use_parts] = corrs_hist[
+        np.digitize(dists[use_parts].flatten(), corrs_bins) - 1]
+    
+    vel_avg = (weights * data[None,...]).sum(axis=1) / \
+        weights.sum(axis=1)
 
     return vel_avg
 
@@ -124,8 +161,8 @@ class Interpolant(object):
         """
         Arguments:
         method - interpolation method. Either 'inv' for inverse-distance 
-            weighting, or 'rbf' for gaussian-kernel Radial Basis Function
-            method.
+            weighting, 'rbf' for gaussian-kernel Radial Basis Function
+            method, or 'corrfun' for using a correlation function.
         neighbs - number of closest neighbours to interpolate from. If None.
             uses 4 neighbours for 'inv' method, and 7 for 'rbf'.
         param - the parameter adjusting the interpolation method. For IDW it is
@@ -136,11 +173,23 @@ class Interpolant(object):
                 num_neighbs = 4
             if param is None: 
                 param = 1
+        
         elif method == 'rbf':
             if num_neighbs is None:
                 num_neighbs = 7
             if param is None:
                 param = 1e5
+        
+        elif method == 'corrfun':
+            if num_neighbs is None:
+                num_neighbs = 4
+            if param is None: 
+                raise ValueError("'corrfun' method requires param to be "\
+                    "an NPZ file name containing the corrs and bins arrays.")
+            c = np.load(param)
+            self._corrs = c['corrs']
+            self._bins = c['bins']
+        
         else:
             raise NotImplementedError("Interpolation method %s not supported" \
                 % method)
@@ -182,10 +231,21 @@ class Interpolant(object):
         
         if self._method == 'inv':
             return inv_dist_interp(dists, use_parts, data, self._par)
-        else:
+            
+        elif self._method == 'rbf':
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
                 None, self._neighbs)[0]
             return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
+        
+        elif self._method == 'corrfun':
+            return corrfun_interp(dists, use_parts, data,
+                self._corrs, self._bins)
+        
+        else:
+            # This isn't supposed to ever happen. The constructor should fail.
+            raise NotImplementedError("Interpolation method %s not supported" \
+                % self._method)
+            
     
     def neighb_dists(self, tracer_pos, interp_points):
         """
