@@ -38,6 +38,11 @@ class TestScene(unittest.TestCase):
             self.correct.append(Trajectory(pos, vel, t, len(self.correct),
                 accel=accel))
     
+    def test_keys(self):
+        """Reading known available keys with the needed exclusions"""
+        correct_keys = ['velocity', 'pos', 'accel']
+        self.failUnlessEqual(self.scene.keys(), correct_keys)
+        
     def test_iter_trajectories(self):
         """Iterating trajectories and getting correct Trajectory objects"""
         trjs = [tr for tr in self.scene.iter_trajectories()]

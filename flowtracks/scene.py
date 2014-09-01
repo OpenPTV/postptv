@@ -41,6 +41,16 @@ class Scene(object):
         self._trids = np.unique(self._table.col('trajid'))
         self.set_frame_range(frame_range)
         
+        # Cache data on user-visible columsn:
+        filt = ('trajid', 'time')
+        self._keys = []
+        self._shapes = []
+        for name, desc in zip(self._table.colnames, self._table.coldescrs):
+            if name in filt:
+                continue
+            self._keys.append(name)
+            self._shapes.append(1 if type(desc) is str else desc.shape)
+        
     def set_frame_range(self, frame_range):
         """
         Prepare a query part that limits the frame numbers is needed.
@@ -79,6 +89,21 @@ class Scene(object):
     def __del__(self):
         self._file.close()
     
+    def keys(self):
+        """
+        Return all the possible trajectory properties that may be queried as
+        a data series (i.e. not the scalar property trajid), as a list of
+        strings.
+        """
+        return self._keys
+        
+    def shapes(self):
+        """
+        Return the number of components per item of each key in the order 
+        returned by ``keys()``.
+        """
+        return self._shapes
+        
     def iter_trajectories(self):
         """
         Iterator over trajectories. Generates a Trajectory object for each 
@@ -105,12 +130,18 @@ class Scene(object):
             kwds['time'] = t
             yield ParticleSnapshot(**kwds)
     
-    def _iter_frame_arrays(self):
+    def _iter_frame_arrays(self, cond=None):
         """
         Private. Like iter_frames but does not create a ParticleSnapshot
-        object, leaving the raw array.
+        object, leaving the raw array. Also allows heavier filtering.
+        
+        Arguments:
+        cond - an optional PyTables condition string to apply to each frame.
         """
         query_string = '(time == t)'
+        if cond is not None:
+            query_string = '&'.join(query_string, cond)
+            
         for t in xrange(self._first, self._last):
             yield t, self._table.read_where(query_string)
         
@@ -187,6 +218,12 @@ class DualScene(object):
     
     def get_particles_path(self):
         return self._paths[1]
+    
+    def get_particles(self):
+        return self._particles
+    
+    def get_range(self):
+        return self._rng
     
     def iter_frames(self, frame_range=-1):
         """

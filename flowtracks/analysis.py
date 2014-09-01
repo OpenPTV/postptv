@@ -84,7 +84,7 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
         Scene.dual_scene_iterator()
     """
     # Structure the output file:
-    descr = [('trajid', int, 1)]
+    descr = [('trajid', int, 1), ('time', int, 1)]
     for analyser in analysers:
         descr.extend(analyser.descr())
     descr = np.dtype(descr)
@@ -98,6 +98,7 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
         length = len(frame.particles)
         arr = np.empty(length, dtype=descr)
         arr['trajid'] = frame.particles.trajid()
+        arr['time'] = frame.particles.time()
         
         for analyser in analysers:
             analysis = analyser.analyse(frame, next_frame)
@@ -110,5 +111,6 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
     
     # Wrap up and close.
     table.cols.trajid.create_index()
+    table.cols.time.create_index()
     outfile.flush()
     outfile.close()
