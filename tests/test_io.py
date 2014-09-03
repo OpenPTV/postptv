@@ -1,5 +1,5 @@
 """
-Test the input/output routimes in flowtracks: read/write files and verify 
+Test the input/output routines in flowtracks: read/write files and verify 
 correct results.
 """
 
