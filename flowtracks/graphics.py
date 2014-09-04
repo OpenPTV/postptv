@@ -81,7 +81,7 @@ def pdf_graph(data, num_bins, log=False, log_density=False, marker='o'):
         matplotlib.
     """
     hist, bin_edges = pdf_bins(data, num_bins, log)
-    generalized_histogram_disp(bin_edges[:-1], hist, log, log_density,
+    generalized_histogram_disp(hist, bin_edges[:-1], log, log_density,
         marker='-' + marker)
 
 def plot_vectors(vecs, indep, xlabel, fig=None, marker='-', 
