@@ -45,12 +45,15 @@ class Scene(object):
         filt = ('trajid', 'time')
         self._keys = []
         self._shapes = []
-        for name, desc in zip(self._table.colnames, self._table.coldescrs):
+        desc = self._table.coldescrs
+        
+        for name in self._table.colnames:
             if name in filt:
                 continue
             self._keys.append(name)
-            self._shapes.append(1 if type(desc) is str else desc.shape)
-        
+            shape = desc[name].shape
+            self._shapes.append(1 if len(shape) == 0 else shape[0])
+    
     def set_frame_range(self, frame_range):
         """
         Prepare a query part that limits the frame numbers is needed.

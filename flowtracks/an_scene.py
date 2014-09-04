@@ -95,7 +95,7 @@ class AnalysedScene(object):
             an_cond_add = []
             
             for key, rng in where.iteritems():
-                cop1, cop2, lop = ('>=','<','&') if rng[2] else ('<','>=','|')
+                cop1, cop2, lop = ('<','>=','|') if rng[2] else ('>=','<','&')
                 cond_string = "((%s %s %g) %s (%s %s %g))" % \
                     (key, cop1, rng[0], lop, key, cop2, rng[1])
                 
