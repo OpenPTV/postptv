@@ -419,7 +419,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
     return [t for t in iter_trajectories_ptvis(fname, first, last, frate, 
         xuap, traj_min_len)]
 
-def trajectories(fname, first, last, frate, fmt=None, traj_min_len=0,
+def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
     iter_allowed=False):
     """
     Extract all trajectories in a given target location. The location format
@@ -473,7 +473,9 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=0,
         traj = trajectories_table(fname, first, last)
     
     if filter_needed:
-        traj = [tr for tr in traj if len(tr) > 1]
+        if traj_min_len is None:
+            traj_min_len = 2
+        traj = [tr for tr in traj if len(tr) >= traj_min_len]
     
     return traj
         
