@@ -8,6 +8,7 @@ Created on Tue Feb  4 11:52:38 2014
 """
 
 import unittest, os, ConfigParser
+import numpy as np
 from flowtracks import interpolation
 
 class TestReadWrite(unittest.TestCase):
@@ -40,3 +41,28 @@ class TestReadWrite(unittest.TestCase):
         self.failUnlessEqual(interp._par, ninterp._par)
         
         os.remove(nfname)
+    
+class TestJacobian(unittest.TestCase):
+    def test_inv(self):
+        pos = np.array([[0.,0.,0.]])
+        tracer_pos = np.array([
+            [ 0.001, 0, 0],
+            [-0.001, 0, 0],
+            [0,  0.001, 0],
+            [0, -0.001, 0],
+            [0, 0,  0.001],
+            [0, 0, -0.001]
+        ])
+        # Basically we interpolate something based on the average position
+        # change, because it's easy for me to visualize.
+        interp_data = tracer_pos*2
+        
+        interp = interpolation.Interpolant('inv', 6, 3)
+        local = interp(tracer_pos, pos, interp_data)
+        np.testing.assert_array_equal(local, np.zeros((1,3)))
+        
+        jac = interp.eulerian_jacobian(tracer_pos, pos, interp_data, local)
+        self.failUnless(np.all(jac[:, [0,1,2], [0,1,2]] != 0))
+        jac[:, [0,1,2], [0,1,2]] = 0
+        self.failUnless(np.all(jac == 0))
+        
