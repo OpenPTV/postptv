@@ -13,7 +13,7 @@ Created on Thu Nov 14 11:41:53 2013
 from flowtracks.trajectory import Trajectory
 import numpy as np
 
-def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
+def savitzky_golay(trajs, fps, window_size, order):
     r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
     The Savitzky-Golay filter removes high frequency noise from data.
     It has the advantage of preserving the original shape and
@@ -29,8 +29,6 @@ def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
     order : int
         the order of the polynomial used in the filtering.
         Must be less then `window_size` - 1.
-    deriv: int
-        the order of the derivative to compute (default = 0 means only smoothing)
     
     Returns
     -------
@@ -54,8 +52,6 @@ def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
        Cambridge University Press ISBN-13: 9780521880688
     .. [3] http://wiki.scipy.org/Cookbook/SavitzkyGolay
     """
-    from math import factorial
-
     try:
         window_size = np.abs(np.int(window_size))
         order = np.abs(np.int(order))
@@ -70,7 +66,11 @@ def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
     
     # precompute coefficients
     b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
-    m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
+    m = np.linalg.pinv(b).A
+    m_pos = m[0]
+    m_vel = m[1] * fps
+    m_acc = m[2] * (fps**2 * 2)
+    
     
     new_trajs = []
     for traj in trajs:
@@ -78,17 +78,21 @@ def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
             continue
         
         newpos = []
-        for y in traj.pos().T:
+        newvel = []
+        newacc = []
+        for y in traj.pos().T: # For each component of pos
             # pad the signal at the extremes with
             # values taken from the signal itself
             firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
             lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
             y = np.concatenate((firstvals, y, lastvals))
-            newpos.append(np.convolve( m[::-1], y, mode='valid'))
+            newpos.append(np.convolve( m_pos[::-1], y, mode='valid'))
+            newvel.append(np.convolve( m_vel[::-1], y, mode='valid'))
+            newacc.append(np.convolve( m_acc[::-1], y, mode='valid'))
             
         newpos = np.r_[newpos].T
-        newvel = np.vstack(( np.diff(newpos, axis=0)*fps, np.zeros((1,3)) ))
-        newacc = np.vstack(( np.diff(newvel[:-1], axis=0)*fps, np.zeros((2,3)) ))
+        newvel = np.r_[newvel].T
+        newacc = np.r_[newacc].T
         
         new_trajs.append(Trajectory(newpos, newvel, traj.time(), traj.trajid(),
             accel=newacc))
