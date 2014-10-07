@@ -4,7 +4,7 @@
 Contains functions for reading frame-by-frame flow data and trajectories in 
 various formats.
 """
-import os, os.path, re
+import os, os.path, re, itertools as itr
 from ConfigParser import SafeConfigParser
 from StringIO import StringIO
 
@@ -12,6 +12,7 @@ import numpy as np
 from scipy import io
 import tables
 
+from .scene import Scene
 from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
@@ -470,12 +471,22 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
             traj_min_len=traj_min_len)
     
     elif fmt == 'hdf':
+        scene = Scene(fname, (first, last))
+        it = scene.iter_trajectories()
+        if iter_allowed:
+            traj = it
+        else:
+            traj = [t for t in it]
         traj = trajectories_table(fname, first, last)
     
     if filter_needed:
         if traj_min_len is None:
             traj_min_len = 2
-        traj = [tr for tr in traj if len(tr) >= traj_min_len]
+        
+        if iter_allowed:
+            traj = itr.ifilter(lambda tr: len(tr) >= traj_min_len, traj)
+        else:
+            traj = [tr for tr in traj if len(tr) >= traj_min_len]
     
     return traj
         
