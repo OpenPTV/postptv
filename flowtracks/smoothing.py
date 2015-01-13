@@ -70,7 +70,7 @@ def savitzky_golay(trajs, fps, window_size, order):
     m_pos = m[0]
     m_vel = m[1] * fps
     m_acc = m[2] * (fps**2 * 2)
-    
+    m_jerk = m[3] * (fps**3 * 6)
     
     new_trajs = []
     for traj in trajs:
@@ -80,21 +80,36 @@ def savitzky_golay(trajs, fps, window_size, order):
         newpos = []
         newvel = []
         newacc = []
+        jerk = []
+        
+        nextacc = []
+        nextvel = []
         for y in traj.pos().T: # For each component of pos
             # pad the signal at the extremes with
             # values taken from the signal itself
             firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
             lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
             y = np.concatenate((firstvals, y, lastvals))
+            
             newpos.append(np.convolve( m_pos[::-1], y, mode='valid'))
             newvel.append(np.convolve( m_vel[::-1], y, mode='valid'))
             newacc.append(np.convolve( m_acc[::-1], y, mode='valid'))
+            jerk.append(np.convolve( m_jerk[::-1], y, mode='valid'))
             
         newpos = np.r_[newpos].T
         newvel = np.r_[newvel].T
         newacc = np.r_[newacc].T
+        jerk = np.r_[jerk].T
+        
+        # Velocity and acceleration evaluated at i = 1 rather than i = 0,
+        # for comparison with the i = 0 values from next polynomial.
+        # Delta t treatment is in m_*.
+        # Assumed that the first point is trimmed, the zeros are  just for
+        # alignment.
+        nextvel = np.vstack((np.zeros(3), newvel + newacc/fps + jerk/2./fps**2))[:-1]
+        nextacc = np.vstack((np.zeros(3), newacc + jerk/fps))[:-1]
         
         new_trajs.append(Trajectory(newpos, newvel, traj.time(), traj.trajid(),
-            accel=newacc))
+            accel=newacc, vel_pp=nextvel, acc_pp = nextacc))
     
     return new_trajs
