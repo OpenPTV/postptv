@@ -37,8 +37,8 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
     use_parts - (m,n) boolean array, True where tracer j=1...n is a neighbour
         of interpolation point i=1...m.
     """
-    dists =  np.sqrt(np.sum(
-        (tracer_pos[None,:,:] - interp_points[:,None,:])**2, axis=2))
+    dists =  np.linalg.norm(tracer_pos[None,:,:] - interp_points[:,None,:],
+        axis=2)
     
     dists[dists <= 0] = np.inf # Only for selection phase,later changed back.
     
@@ -201,9 +201,42 @@ class Interpolant(object):
     def num_neighbs(self):
         return self._neighbs
     
+    def set_scene(self, tracer_pos, interp_points, data):
+        """
+        Records scene data for future interpolation using the same scene.
+        
+        Arguments:
+        tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
+            in [m]
+        interp_points - (m,3) array, coordinates of points where interpolation 
+            will be done.
+        data - (n,d) array, the for the d-dimensional data for tracer n. For 
+            example, in velocity interpolation this would be (n,3), each tracer
+            having 3 components of velocity.
+        """
+        self.__tracers = tracer_pos
+        self.__interp_pts = interp_points
+        self.__data = data
+        
+        # empty the neighbours cache:
+        self.__dists = None
+        self.__active_neighbs = None
+    
+    def which_neighbours(self):
+        """
+        Finds the neighbours that would be selected for use at each 
+        interpolation point, given the current scene as set by set_scene().
+        """
+        if self.__active_neighbs is None:
+            self.__dists, self.__active_neighbs = select_neighbs(
+                self.__tracers, self.__interp_pts, None, self._neighbs)
+        return self.__active_neighbs
+        
     def __call__(self, tracer_pos, interp_points, data):
         """
         Sets up the necessary parameters, and performs the interpolation.
+        Does not change the scene set by set_scene if any, so may be used
+        for any off-scene interpolation.
         
         Arguments:
         tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 

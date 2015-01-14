@@ -7,7 +7,7 @@ Created on Tue Feb  4 11:52:38 2014
 @author: yosef
 """
 
-import unittest, os, ConfigParser
+import unittest, os, ConfigParser, numpy as np
 from flowtracks import interpolation
 
 class TestReadWrite(unittest.TestCase):
@@ -40,3 +40,28 @@ class TestReadWrite(unittest.TestCase):
         self.failUnlessEqual(interp._par, ninterp._par)
         
         os.remove(nfname)
+
+class TestRepeatedInterp(unittest.TestCase):
+    def test_set_scene(self):
+        """Scene data recorded and dists/use_parts selected"""
+        # Tracers are radially placed around one poor particle.
+        r = np.r_[0.001, 0.002, 0.003]
+        theta = np.r_[:360:45]*np.pi/180
+        tracer_pos = np.array((
+            r[:,None]*np.cos(theta), r[:,None]*np.sin(theta), 
+            np.zeros((len(r), len(theta))) )).transpose().reshape(-1,3)
+        
+        interp_points = np.zeros((1,3))
+        data = np.ones(tracer_pos.shape[0])
+        
+        interp = interpolation.Interpolant('inv', 4, 1.5)
+        interp.set_scene(tracer_pos, interp_points, data)
+        
+        # Truth: use_parts selects the first 4 closest particles.
+        # The test_case has 8 almoste qually spaced closest neighbs,
+        # so the final 4 are selected based on floating-point jitter. Don't
+        # fret about it.
+        use_parts = interp.which_neighbours()
+        correct_use_parts = np.zeros((1,tracer_pos.shape[0]))
+        correct_use_parts[0,[0,3,-3,-6]] = True
+        np.testing.assert_array_equal(use_parts, correct_use_parts)
