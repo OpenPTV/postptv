@@ -222,16 +222,65 @@ class Interpolant(object):
         self.__dists = None
         self.__active_neighbs = None
     
+    def _forego_laziness(self):
+        """
+        Populate the neighbours cache.
+        """
+        self.__dists, self.__active_neighbs = select_neighbs(
+            self.__tracers, self.__interp_pts, None, self._neighbs)
+            
+        if self._method == 'rbf':
+            self.__tracer_dists = select_neighbs(
+                self.__tracers, self.__tracers, None, self._neighbs)
+                
     def which_neighbours(self):
         """
         Finds the neighbours that would be selected for use at each 
         interpolation point, given the current scene as set by set_scene().
         """
         if self.__active_neighbs is None:
-            self.__dists, self.__active_neighbs = select_neighbs(
-                self.__tracers, self.__interp_pts, None, self._neighbs)
+            self._forego_laziness()
+                
         return self.__active_neighbs
+    
+    def interpolate(self):
+        """
+        Performs an interpolation over the recorded scene.
         
+        Returns:
+        an (m,3) array with the interpolated value at the position of each 
+        of m particles.
+        """
+        # Check that the cache is populated:
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+            
+        # If for some reason tracking failed for a whole frame, 
+        # interpolation is impossible at that frame. This checks for frame 
+        # tracking failure.
+        if len(self.__tracers) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers im frame, interpolation returned zeros.")
+            ret_shape = self.__data.shape[-1] if data.ndim > 1 else 1
+            return np.zeros((self.__interp_pts.shape[0], ret_shape))
+        
+        if self._method == 'inv':
+            return inv_dist_interp(self.__dists, self.__active_neighbs, 
+                self.__data, self._par)
+            
+        elif self._method == 'rbf':
+            return rbf_interp(self.__tracer_dists, self.__dists, 
+                self.__active_neighbs, self.__data, self._par)
+        
+        elif self._method == 'corrfun':
+            return corrfun_interp(self.__dists, self.__active_neighbs, 
+                self.__data, self._corrs, self._bins)
+        
+        else:
+            # This isn't supposed to ever happen. The constructor should fail.
+            raise NotImplementedError("Interpolation method %s not supported" \
+                % self._method)
+    
     def __call__(self, tracer_pos, interp_points, data):
         """
         Sets up the necessary parameters, and performs the interpolation.

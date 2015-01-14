@@ -42,26 +42,39 @@ class TestReadWrite(unittest.TestCase):
         os.remove(nfname)
 
 class TestRepeatedInterp(unittest.TestCase):
-    def test_set_scene(self):
-        """Scene data recorded and dists/use_parts selected"""
+    def setUp(self):
         # Tracers are radially placed around one poor particle.
         r = np.r_[0.001, 0.002, 0.003]
         theta = np.r_[:360:45]*np.pi/180
         tracer_pos = np.array((
             r[:,None]*np.cos(theta), r[:,None]*np.sin(theta), 
             np.zeros((len(r), len(theta))) )).transpose().reshape(-1,3)
+        self.num_tracers = tracer_pos.shape[0]
         
         interp_points = np.zeros((1,3))
-        data = np.ones(tracer_pos.shape[0])
+        self.data = np.random.rand(tracer_pos.shape[0], 3)
         
-        interp = interpolation.Interpolant('inv', 4, 1.5)
-        interp.set_scene(tracer_pos, interp_points, data)
+        self.interp = interpolation.Interpolant('inv', 4, 1.5)
+        self.interp.set_scene(tracer_pos, interp_points, self.data)
+        
+    def test_set_scene(self):
+        """Scene data recorded and dists/use_parts selected"""
         
         # Truth: use_parts selects the first 4 closest particles.
-        # The test_case has 8 almoste qually spaced closest neighbs,
+        # The test_case has 8 almost equally spaced closest neighbs,
         # so the final 4 are selected based on floating-point jitter. Don't
         # fret about it.
-        use_parts = interp.which_neighbours()
-        correct_use_parts = np.zeros((1,tracer_pos.shape[0]))
+        use_parts = self.interp.which_neighbours()
+        correct_use_parts = np.zeros((1,self.num_tracers))
         correct_use_parts[0,[0,3,-3,-6]] = True
         np.testing.assert_array_equal(use_parts, correct_use_parts)
+    
+    def test_interp_once(self):
+        """Interpolating a recorded scene"""
+        interped = self.interp.interpolate()
+        
+        # Since all are equally spaced, 
+        use_parts = self.interp.which_neighbours()
+        correct_interped = self.data[use_parts[0]].mean(axis=0)
+        
+        np.testing.assert_array_almost_equal(interped[0], correct_interped)
