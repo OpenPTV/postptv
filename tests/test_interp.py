@@ -78,3 +78,12 @@ class TestRepeatedInterp(unittest.TestCase):
         correct_interped = self.data[use_parts[0]].mean(axis=0)
         
         np.testing.assert_array_almost_equal(interped[0], correct_interped)
+    
+    def test_interp_subset(self):
+        """Interpolate using a temporary neighbour selection."""
+        use_parts = self.interp.which_neighbours()
+        use_parts[:,::3] = ~use_parts[:,::3]
+        interped = self.interp.interpolate(use_parts)
+        
+        correct_interped = self.data[use_parts[0]].mean(axis=0)
+        np.testing.assert_array_almost_equal(interped[0], correct_interped)
