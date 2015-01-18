@@ -54,7 +54,7 @@ class TestRepeatedInterp(unittest.TestCase):
         interp_points = np.zeros((1,3))
         self.data = np.random.rand(tracer_pos.shape[0], 3)
         
-        self.interp = interpolation.Interpolant('inv', 4, 1.5)
+        self.interp = interpolation.Interpolant('inv', 4, param=1.5)
         self.interp.set_scene(tracer_pos, interp_points, self.data)
         
     def test_set_scene(self):
@@ -87,3 +87,24 @@ class TestRepeatedInterp(unittest.TestCase):
         
         correct_interped = self.data[use_parts[0]].mean(axis=0)
         np.testing.assert_array_almost_equal(interped[0], correct_interped)
+
+class RadiusInterp(unittest.TestCase):
+    def test_radius(self):
+        """finding neighbours by radius"""
+        r = np.r_[0.001, 0.002, 0.003]
+        theta = np.r_[:360:45]*np.pi/180
+        tracer_pos = np.array((
+            r[:,None]*np.cos(theta), r[:,None]*np.sin(theta), 
+            np.zeros((len(r), len(theta))) )).transpose().reshape(-1,3)
+        
+        interp_points = np.zeros((1,3))
+        data = np.random.rand(tracer_pos.shape[0], 3)
+        
+        interp = interpolation.Interpolant('inv', radius=0.0015, param=1.5)
+        interp.set_scene(tracer_pos, interp_points, data)
+        
+        interped = interp.interpolate()
+        correct_interped = data[::3].mean(axis=0)
+        
+        np.testing.assert_array_almost_equal(interped[0], correct_interped)
+    

@@ -157,14 +157,17 @@ class Interpolant(object):
     Holds all parameters necessary for performing an interpolation. Use is as
     a callable object after initialization, see __call__().
     """
-    def __init__(self, method, num_neighbs=None, param=None):
+    def __init__(self, method, num_neighbs=None, radius=None, param=None):
         """
         Arguments:
         method - interpolation method. Either 'inv' for inverse-distance 
             weighting, 'rbf' for gaussian-kernel Radial Basis Function
             method, or 'corrfun' for using a correlation function.
+        radius - of the search area for neighbours, [m]. If None, select 
+            closest ``neighbs``.
         neighbs - number of closest neighbours to interpolate from. If None.
-            uses 4 neighbours for 'inv' method, and 7 for 'rbf'.
+            uses 4 neighbours for 'inv' method, and 7 for 'rbf', unless 
+            ``radius`` is not None, then ``neighbs`` is ignored.
         param - the parameter adjusting the interpolation method. For IDW it is
             the inverse power (default 1), for rbf it is epsilon (default 1e5).
         """        
@@ -196,10 +199,14 @@ class Interpolant(object):
             
         self._method = method
         self._neighbs = num_neighbs
+        self._radius = radius
         self._par = param
     
     def num_neighbs(self):
         return self._neighbs
+    
+    def radius(self):
+        return self._radius
     
     def set_scene(self, tracer_pos, interp_points, data):
         """
@@ -227,11 +234,11 @@ class Interpolant(object):
         Populate the neighbours cache.
         """
         self.__dists, self.__active_neighbs = select_neighbs(
-            self.__tracers, self.__interp_pts, None, self._neighbs)
+            self.__tracers, self.__interp_pts, self._radius, self._neighbs)
             
         if self._method == 'rbf':
             self.__tracer_dists = select_neighbs(
-                self.__tracers, self.__tracers, None, self._neighbs)
+                self.__tracers, self.__tracers, self._radius, self._neighbs)
                 
     def which_neighbours(self):
         """
@@ -320,14 +327,14 @@ class Interpolant(object):
             return np.zeros((interp_points.shape[0], ret_shape))
             
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
-            None, self._neighbs)
+            self._radius, self._neighbs)
         
         if self._method == 'inv':
             return inv_dist_interp(dists, use_parts, data, self._par)
             
         elif self._method == 'rbf':
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
-                None, self._neighbs)[0]
+                self._radius, self._neighbs)[0]
             return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
         
         elif self._method == 'corrfun':
@@ -377,6 +384,7 @@ class Interpolant(object):
         """
         if not cfg.has_section("Interpolant"):
             cfg.add_section("Interpolant")
+        cfg.set('Interpolant', 'radius', str(self.radius()))
         cfg.set('Interpolant', 'num_neighbs', str(self.num_neighbs()))
         cfg.set('Interpolant', 'param', str(self._par))
         cfg.set('Interpolant', 'method', self._method)
@@ -398,6 +406,8 @@ def read_interpolant(conf_fname):
     kwds = {}
     if parser.has_option('Interpolant', 'num_neighbs'):
         kwds['num_neighbs'] = parser.getint('Interpolant', 'num_neighbs')
+    if parser.has_option('Interpolant', 'radius'):
+        kwds['radius'] = parser.getfloat('Interpolant', 'radius')
     if parser.has_option('Interpolant', 'param'):
         kwds['param'] = parser.getfloat('Interpolant', 'param')
     
