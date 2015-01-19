@@ -229,6 +229,20 @@ class Interpolant(object):
         self.__dists = None
         self.__active_neighbs = None
     
+    def trim_points(self, which):
+        """
+        Remove interpolation points from the scene.
+        
+        Arguments:
+        which - a boolean array, length is number of current particle list
+            (as given in set_scene), True to trim a point, False to keep.
+        """
+        keep = ~which
+        self.__interp_pts = self.__interp_pts[keep]
+        if self.__dists is not None:
+            self.__dists = self.__dists[keep]
+            self.__active_neighbs = self.__active_neighbs[keep]
+    
     def _forego_laziness(self):
         """
         Populate the neighbours cache.
