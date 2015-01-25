@@ -87,6 +87,12 @@ class TestRepeatedInterp(unittest.TestCase):
         
         correct_interped = self.data[use_parts[0]].mean(axis=0)
         np.testing.assert_array_almost_equal(interped[0], correct_interped)
+    
+    def test_trim_scene(self):
+        """Dropping particles from the interpolated scene"""
+        self.interp.trim_points(np.r_[True])
+        # Now the scene is empty, so we expect empty arrays
+        self.failUnlessEqual(self.interp.interpolate().shape[0], 0.)
 
 class RadiusInterp(unittest.TestCase):
     def test_radius(self):
