@@ -94,6 +94,25 @@ class TestRepeatedInterp(unittest.TestCase):
         # Now the scene is empty, so we expect empty arrays
         self.failUnlessEqual(self.interp.interpolate().shape[0], 0.)
 
+class MethodInterp(unittest.TestCase):
+    def test_interp_rbf(self):
+        """Interpolating with rbf method finishes"""
+        r = np.r_[0.001, 0.002, 0.003]
+        theta = np.r_[:360:45]*np.pi/180
+        tracer_pos = np.array((
+            r[:,None]*np.cos(theta), r[:,None]*np.sin(theta), 
+            np.zeros((len(r), len(theta))) )).transpose().reshape(-1,3)
+        
+        interp_points = np.zeros((1,3))
+        data = np.random.rand(tracer_pos.shape[0], 3)
+        
+        interp = interpolation.Interpolant('rbf', 4, param=1e5)
+        interp.set_scene(tracer_pos, interp_points, data)
+        
+        interped = interp.interpolate()
+        use_parts = interp.which_neighbours()
+        # If we reached this line, we tested what we wanted.
+    
 class RadiusInterp(unittest.TestCase):
     def test_radius(self):
         """finding neighbours by radius"""
