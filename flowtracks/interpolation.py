@@ -251,7 +251,7 @@ class Interpolant(object):
             self.__tracers, self.__interp_pts, self._radius, self._neighbs)
             
         if self._method == 'rbf':
-            self.__tracer_dists = select_neighbs(
+            self.__tracer_dists, _ = select_neighbs(
                 self.__tracers, self.__tracers, self._radius, self._neighbs)
                 
     def which_neighbours(self):
