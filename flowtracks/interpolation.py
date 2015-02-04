@@ -268,6 +268,12 @@ class Interpolant(object):
                 
         return self.__active_neighbs
     
+    def current_dists(self):
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+                
+        return self.__dists
+    
     def interpolate(self, subset=None):
         """
         Performs an interpolation over the recorded scene.
