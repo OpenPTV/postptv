@@ -637,7 +637,7 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     for k, v in kwds.iteritems():
         np.save(os.path.join(output_dir, k), v)
     
-def save_particles_table(filename, trajects):
+def save_particles_table(filename, trajects, trim=None):
     """
     Save trajectory data as a table of particles, with added columns for time
     (frame number) and trajid - the last one may be indexed. Note that no extra
@@ -647,11 +647,20 @@ def save_particles_table(filename, trajects):
     filename - name of output PyTables HDF5 file to create. The 'h5' extension
         is recommended so that infer_format() knows what to do with it.
     trajects - a list of Trajectory objects to save.
+    trim - if None, remove this many time points from each end of each 
+        trajectory before saving.
     """
     table = None
+    trim_len = 0 if trim is None else trim * 2
+    
     outfile = tables.openFile(filename, mode='w')
+    bounds_tab = outfile.createTable('/', 'bounds', 
+        np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
     
     for traj in trajects:
+        if len(traj) - trim_len <= 0:
+            continue
+        
         # First trajectory creates the table:
         if table is None:
             # Format of records in a trajectory array :
@@ -660,16 +669,22 @@ def save_particles_table(filename, trajects):
             dtype = np.dtype(fields)
             table = outfile.createTable('/', 'particles', dtype)
 
-        arr = np.empty(len(traj), dtype=dtype)
+        arr = np.empty(len(traj) - trim_len, dtype=dtype)
         arr['trajid'] = traj.trajid()
         
         for k, v in traj.as_dict().iteritems():
-            arr[k] = v
+            if trim is None:
+                arr[k] = v
+            else:
+                arr[k] = v[trim:-trim]
         
         table.append(arr)
+        bounds_tab.append([
+            (traj.trajid(), traj.time()[trim_len], traj.time()[-trim_len])])
     
     table.cols.trajid.createIndex()
     table.cols.time.createIndex()
+    bounds_tab.cols.trajid.create_index()
     
     outfile.flush()
     outfile.close()

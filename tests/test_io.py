@@ -3,7 +3,7 @@ Test the input/output routines in flowtracks: read/write files and verify
 correct results.
 """
 
-import unittest
+import unittest, os
 import numpy as np, numpy.testing as nptest
 
 from flowtracks import io
@@ -42,8 +42,13 @@ class TestPtvis(unittest.TestCase):
     def test_trajectories_ptvis(self):
         trjs = io.trajectories_ptvis(self.tmpl, self.first, self.last)
         self.failUnlessEqual(len(trjs), len(self.correct))
+        self.compare_trajectories(trjs, self.correct)
         
-        for trj, correct in zip(trjs, self.correct):
+    def compare_trajectories(self, list1, list2):
+        """
+        Compare two lists of trajectories, fail if not the same.
+        """
+        for trj, correct in zip(list1, list2):
             nptest.assert_array_almost_equal(trj.pos(), correct.pos())
             nptest.assert_array_almost_equal(trj.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(trj.accel(), correct.accel())
@@ -59,5 +64,23 @@ class TestPtvis(unittest.TestCase):
     	trjs = io.trajectories_ptvis(inName, xuap = True, traj_min_len = None)
     	self.failUnlessEqual(len(trjs), 332)
     	
-    	
+    def test_trajectories_hdf(self):
+        """HDF reading works"""
+        outfile = 'tests/testing_fodder/table.h5'
+        io.save_particles_table(outfile, self.correct)
+        loaded = io.trajectories_table(outfile)
+        self.compare_trajectories(loaded, self.correct)
+        os.remove(outfile)
+    
+    def test_trim_hdf(self):
+        """HDF trajectory trimming"""
+        correct = io.trajectories_ptvis(self.tmpl, self.first+1, self.last-1)
         
+        outfile = 'tests/testing_fodder/table.h5'
+        io.save_particles_table(outfile, self.correct, trim=1)
+        
+        loaded = io.trajectories_table(outfile)
+        self.compare_trajectories(loaded, correct)
+        
+        os.remove(outfile)
+
