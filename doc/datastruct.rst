@@ -10,4 +10,4 @@ of this module.
 
 .. automodule:: flowtracks.trajectory
    :members:
-   :special-members: __len__
+   :special-members: __len__, __getitem__
