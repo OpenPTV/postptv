@@ -21,6 +21,8 @@ Contents:
    :maxdepth: 2
    :hidden:
 
+   datastruct
+
 Getting Started
 ===============
 
@@ -92,6 +94,8 @@ integer number unique to each trajectory. Users may select their numbering
 scheme when creating Trajectory objects from scratch, but in most cases the
 data is read from a file, in which case Flowtracks' input rutines handle the 
 numbering automatically.
+
+Refer to :doc:`datastruct` for the details of all these classes.
 
 Input and Output
 ----------------
