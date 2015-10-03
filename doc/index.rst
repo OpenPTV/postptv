@@ -22,6 +22,7 @@ Contents:
    :hidden:
 
    datastruct
+   io
 
 Getting Started
 ===============
@@ -125,7 +126,7 @@ particle data. The currently-supported formats are:
    flexible programmatic interface as well as the speed of PyTables.
 
 Description of the relevant functions, as well as some other IO convenience 
-facilities may be found in the module's reference documentation.
+facilities may be found in :doc:`the module's reference documentation<io>`.
 
 Basic Analysis and display
 --------------------------
