@@ -136,7 +136,7 @@ extracting kinematic or dynamic information embedded in it. Dynamic analysis
 requires the particle size and diameter to be known (Flowtracks assumes a
 spherical particle for these analyses, but users may extend this behaviour).
 These properties may be stored in the :doc:`Particle class <particle>` provided by the 
-package. ``flowtracks.io`` provides a way to read them from an INI file.
+package. :mod:`flowtracks.io` provides a way to read them from an INI file.
 
 The ``flowtracks.interpolation`` module provides an object-oriented approach
 to interpolating the data. It offers some built-in interpolation methods, and

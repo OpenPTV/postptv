@@ -4,7 +4,7 @@
 The main entry points for using the module are the :func:`trajectories`
 function (or its counterpart :func`iter_trajectories`) for reading the data
 for a scene; and either :func:`save_trajectories` or 
-:func:`save_trajectories_table` for saving scene data either an obsolete 
+:func:`save_particles_table` for saving scene data in, respectively, an obsolete 
 format based on a directory of NPZ files, or in the newer, recommended, HDF5
 format.
 
