@@ -23,6 +23,7 @@ Contents:
 
    datastruct
    io
+   particle
 
 Getting Started
 ===============
@@ -134,7 +135,7 @@ The package provides some facilities for analysing the database and
 extracting kinematic or dynamic information embedded in it. Dynamic analysis
 requires the particle size and diameter to be known (Flowtracks assumes a
 spherical particle for these analyses, but users may extend this behaviour).
-These properties may be stored in the ``Particle`` class provided by the 
+These properties may be stored in the :doc:`Particle class <particle>` provided by the 
 package. ``flowtracks.io`` provides a way to read them from an INI file.
 
 The ``flowtracks.interpolation`` module provides an object-oriented approach
