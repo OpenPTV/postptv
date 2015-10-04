@@ -221,10 +221,12 @@ callback functions on an entire scene, frame by frame.
 Examples
 ========
 The ``examples/`` subdirectory in the source distribution contains two 
-IPython notebooks:
+IPython notebooks, both available as HTML for direct viewing:
 
-* a tutorial to the basic HDF5 analysis workflow.
-* a demonstration of using the ``flowtracks.interpolation`` module.
+* a tutorial to the basic HDF5 analysis workflow 
+  (:download:`HTML <_static/hdf5_scene_analysis.html>`).
+* a demonstration of using the ``flowtracks.interpolation`` module 
+  (:download:`HTML <_static/repeated_interpolation.html>`).
 
 Indices and tables
 ==================
