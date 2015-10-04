@@ -24,6 +24,7 @@ Contents:
    datastruct
    io
    particle
+   interpolation
 
 Getting Started
 ===============
@@ -138,7 +139,7 @@ spherical particle for these analyses, but users may extend this behaviour).
 These properties may be stored in the :doc:`Particle class <particle>` provided by the 
 package. :mod:`flowtracks.io` provides a way to read them from an INI file.
 
-The ``flowtracks.interpolation`` module provides an object-oriented approach
+The :mod:`flowtracks.interpolation` module provides an object-oriented approach
 to interpolating the data. It offers some built-in interpolation methods, and
 is hoped to be extensible to other methods without much effort.
 
