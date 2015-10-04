@@ -6,7 +6,7 @@ import re
 # Section processing regexes:
 end_section = re.compile(r'^\s*$')
 section_title = re.compile(r'^\s*(\w+):')
-def_line = re.compile(r'(\w+)\s+-\s+(.+)')
+def_line = re.compile(r'(\w+(?:,\s*\w+)*)\s+-\s+(.+)')
 
 def setup(app):
     app.connect('autodoc-process-docstring', parse_docstring)

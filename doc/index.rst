@@ -30,6 +30,8 @@ Contents:
    pairs
    scene
    analysis
+   an_scene
+   sequence
 
 Getting Started
 ===============
@@ -107,7 +109,7 @@ Refer to :doc:`datastruct` for the details of all these classes.
 
 Input and Output
 ----------------
-The module ``flowtracks.io`` provides several functions for reading and writing
+The module :mod:`flowtracks.io` provides several functions for reading and writing
 particle data. The currently-supported formats are:
 
 *  ptv_is - the format output by OpenPTV code as well as the older but still
@@ -189,26 +191,32 @@ The :mod:`flowtracks.analysis` module provides a function for applying analyser
 classes sequentially to segments iterated over, and generetes a properly 
 sized HDF5 file in the format of the input file.
 
-``AnalysedScene`` objects track simultaneously the DualScene and an analysis
-file resulting from it. They contain the ``collect`` facility. It allows
+:class:`~flowtracks.an_scene.AnalysedScene` objects track simultaneously the 
+DualScene and an analysis file resulting from it. They contain the 
+:meth:`~flowtracks.an_scene.AnalysedScene.collect` facility. It allows
 finding of all (or selected) data belonging to a certain property, regardless
 of which of the files it is stored in.
 
 
 Manipulating text formats directly
 ==================================
-Similarly to the ``DualScene`` class used with the HDF5 format, the 
-``Sequence`` class tracks two sets of particles and allows iterating by frame.
-Since this class relies on ``Trajectory`` lists as its underlying database,
-it does not provide a special facility for iterating over trajectories.
-Though ``Sequence`` also accepts trajectory iterators, and ``flowtracks.io``
-provides you with iterators if asked, the working memory used in actuality 
-may still be large and the access times are much slower than the equivalent
-times achieved by the specialized HDF5 classes.
+Similarly to the :class:`~flowtracks.scene.DualScene` class used with the 
+HDF5 format, the :class:`~flowtracks.sequence.Sequence` class tracks two 
+sets of particles and allows iterating by frame. Since this class relies 
+on :class:`~flowtracks.trajectory.Trajectory` lists as its underlying 
+database, it does not provide a special facility for iterating over 
+trajectories.
 
-Corresponding to the ``flowtracks.analysis`` module, ``Sequence`` provides
-the ``map_trajectories`` method for applying callback functions on an entire
-scene, frame by frame.
+Though :class:`~flowtracks.sequence.Sequence` also accepts trajectory 
+iterators, and :mod:`flowtracks.io` provides you with iterators if asked, 
+the working memory used in actuality may still be large and the access times 
+are much slower than the equivalent times achieved by the specialized HDF5 
+classes.
+
+Corresponding to the :mod:`flowtracks.analysis` module, 
+:class:`~flowtracks.sequence.Sequence` provides the 
+:meth:`~flowtracks.sequence.Sequence.map_trajectories` method for applying 
+callback functions on an entire scene, frame by frame.
 
 Examples
 ========

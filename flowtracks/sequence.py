@@ -7,6 +7,11 @@ from .trajectory import take_snapshot, trajectories_in_frame, Frame
 from ConfigParser import SafeConfigParser
 
 class Sequence(object):
+    """
+    Tracks a dual particles database (for both inertial particles and 
+    tracers), allowing a number of underlying formats. Provides segment
+    iteration and trajectory-mapping.
+    """
     def __init__(self, frange, frate, particle, part_tmpl, tracer_tmpl,
                  smooth_tracers=False, traj_min_len=0.):
         """
@@ -15,10 +20,11 @@ class Sequence(object):
         frate - the frame rate at which the scene was shot.
         particle - a Particle object representing the suspended particles'
             properties.
-        part_tmpl, tracer_tmpl - the templates for filenames of particles and
-            tracers respectively. Should contain one %d for the frame number.
-        smoothe_tracers - if True, uses trajectory smoothing on the tracer
-            trajectories when iterating over frames.
+        part_tmpl, tracer_tmpl - the filenames for particle- and tracer-
+            databases respectively. Names must be as understood by
+            :func:`flowtracks.io.trajectories'.
+        smooth_tracers - if True, uses trajectory smoothing on the tracer
+            trajectories when iterating over frames. Possibly out of date.
         traj_min_len - when reading trajectories (tracers and particles) 
             discard trajectories shorter than this many frames.
         """
@@ -41,12 +47,22 @@ class Sequence(object):
         self._trfmt = infer_format(tracer_tmpl)
     
     def part_fname(self):
+        """
+        Returns the file name used for reading inertial particles database.
+        """
         return self._ptmpl
     
     def part_format(self):
+        """
+        Returns the format inferred for the inertial particles database.
+        """
         return self._pfmt
     
     def range(self):
+        """
+        Returns the frame number range set for the object, as a tuple (first,
+        last).
+        """
         return self._rng
         
     def subrange(self):
@@ -71,8 +87,9 @@ class Sequence(object):
         Sets a filter on the particle trajectories used in sequencing.
         
         Arguments:
-        selector - a function which receives a list of Trajectory objects and
-            returns a sublit thereof.
+        selector - a function which receives a list of 
+            :class:`~flowtracks.trajectory.Trajectory` objects and returns 
+            a sublist thereof.
         """
         self._psel = selector
         self.__ptraj = None
@@ -82,16 +99,18 @@ class Sequence(object):
         Sets a filter on the tracer trajectories used in sequencing.
         
         Arguments:
-        selector - a function which receives a list of Trajectory objects and
-            returns a sublit thereof.
+        selector - a function which receives a list of 
+            :class:`~flowtracks.trajectory.Trajectory` objects and returns 
+            a sublist thereof.
         """
         self._tsel = selector
         self.__ttraj = None
             
     def particle_trajectories(self):
         """
-        Return (and possibly generate and cache) the list of Trajectory objects
-        as selected by the particle selector.
+        Return (and possibly generate and cache) the list of 
+        :class:`~flowtracks.trajectory.Trajectory` objects as selected by 
+        the particle selector.
         """
         if (self.__ptraj is not None):
             return self.__ptraj
@@ -108,8 +127,9 @@ class Sequence(object):
     
     def tracer_trajectories(self):
         """
-        Return (and possibly generate and cache) the list of Trajectory objects
-        corresponding to tracers.
+        Return (and possibly generate and cache) the list of 
+        :class:`~flowtracks.trajectory.Trajectory` objects corresponding to 
+        tracers.
         """
         if (self.__ttraj is not None):
             return self.__ttraj
@@ -132,7 +152,12 @@ class Sequence(object):
     def __iter__(self):
         """
         Iterate over frames. For each frame return the data for the tracers and
-        particles in it.
+        particles in it, as a tuple containing two 
+        :class:`~flowtracks.trajectory.ParticleSnapshot` objects 
+        corresponding to the current frame data and the next frame's.
+        
+        Returns:
+        A Python iteraor.
         """
         if not hasattr(self, '_act_rng'):
             self._act_rng = self._rng
@@ -153,6 +178,17 @@ class Sequence(object):
         return self
     
     def iter_subrange(self, first, last):
+        """
+        The same as :meth:`__iter__`, except it changes the frame range for 
+        the duration of the iteration.
+        
+        Arguments:
+        first, last - frame numbers of the first and last frames in the 
+        acting range of frames from the sequence.
+        
+        Returns:
+        A Python iteraor.
+        """
         self._act_rng = (first, last)
         return self
     
