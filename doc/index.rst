@@ -25,6 +25,7 @@ Contents:
    io
    particle
    interpolation
+   graphics
 
 Getting Started
 ===============
@@ -143,7 +144,7 @@ The :mod:`flowtracks.interpolation` module provides an object-oriented approach
 to interpolating the data. It offers some built-in interpolation methods, and
 is hoped to be extensible to other methods without much effort.
 
-Some plotting support is provided by ``flowtracks.graphics``. Functions 
+Some plotting support is provided by :mod:`flowtracks.graphics`. Functions 
 therein allow users to generate probability distributions from data and to
 plot them using Matplotlib, and a function is provided that plots 3D vector 
 data as 3 subplots of components.

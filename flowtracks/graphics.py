@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
+# Created on Sun Sep 22 16:11:34 2013
+
 """
-Various specialized graphing routines collected from scripts that do the same 
-thing for different data.
+Various specialized graphing routines. The Probability Density Function 
+graphing is best accessed by calling :func:`pdf_graph` on the raw data, but
+you can generate the PDF from the data separately (e.g. using 
+:func:`pdf_bins`) and calling :func:`generalized_histogram_disp` on the 
+result.
 
-Created on Sun Sep 22 16:11:34 2013
-
-@author: yosef
+The other facility here is a function to plot a time-dependent 3D vector as
+3 component subplots, which is another customary presentation in fluid 
+dynamics circles. See :func:`plot_vectors`.
 """
 
 import numpy as np, matplotlib.pyplot as pl
