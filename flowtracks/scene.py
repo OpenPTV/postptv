@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
+#Created on Sun Aug 10 11:28:42 2014
+#
+# Private references:
+# [1] https://docs.python.org/2/library/itertools.html
 """
-A class for manipulating PTV analyses saved as HDF5 files in the flowtracks 
-format. Allows reading the file by iterating over frames or over trajectories.
+A module for manipulating PTV analyses saved as HDF5 files in the flowtracks 
+format. Allows reading the data by iterating over frames or over trajectories.
 
 Main design goals: 
+
 1. Keep as little as possible in memory.
-2. Minimize separate file accesses by allowing reading by frames instead of 
+2. Minimize separate file accesses by allowing reading by frames instead of \
    only by trajectories as in the old code.
 
-Created on Sun Aug 10 11:28:42 2014
-
-@author: yosef
-
-References:
-[1] https://docs.python.org/2/library/itertools.html
 """
 
 import itertools as it, tables, numpy as np
@@ -35,7 +34,18 @@ def pairwise(iterable):
     return it.izip(a, b)
 
 class Scene(object):
+    """
+    This class is the programmer's interface to an HDF files containing 
+    particle trajectory data. It manages access by frames or trajectories,
+    as well as by segments. 
+    """
     def __init__(self, file_name, frame_range=None):
+        """
+        Arguments:
+        file_name - path to the HDF file hilding the data.
+        frame_range - use only frames in this range for iterating the data.
+            the default is None, meaning to use all present frams.
+        """
         self._file = tables.open_file(file_name)
         self._table = self._file.get_node('/particles')
         self._trids = np.unique(self._table.col('trajid'))
@@ -220,12 +230,21 @@ class DualScene(object):
         self._rng = frame_range # for restoring it after iteration.
     
     def get_particles_path(self):
+        """
+        Returns the path to the HDF file holding inertial particle data
+        """
         return self._paths[1]
     
     def get_particles(self):
+        """
+        Returns the :class:`Scene` that manages inertial particles' data. 
+        """
         return self._particles
     
     def get_range(self):
+        """
+        Returns the frame renge set for the dual scene.
+        """
         return self._rng
     
     def iter_frames(self, frame_range=-1):

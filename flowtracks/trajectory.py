@@ -4,6 +4,12 @@ import types, numpy as np
 import scipy.interpolate as interp
 
 class Frame(object):
+    """
+    This is basically a structure with no fancy behaviour. When it is 
+    returned from a Flowtracks function, it has two attributes, ``particles``
+    and ``tracers`` - each pointing to a :class:`ParticleSnapshot` object 
+    holding data for particles of the respective type.
+    """
     pass
 
 class ParticleSet(object):

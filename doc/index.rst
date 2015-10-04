@@ -28,6 +28,7 @@ Contents:
    graphics
    smoothing
    pairs
+   scene
 
 Getting Started
 ===============
@@ -161,24 +162,27 @@ Above the layer of basic data structures, Flowtracks provides a generalized
 view of a scene, containing several trajectories across a number of frames. 
 This view is iterable in several ways and provides general metadata access.
 
-The ``Scene`` class is the most basic form of this view. It is tied to one
-HDF5 file exactly, which holds the database. This file may be iterated by
-trajectory, by frame, or by /segments/, a concept introduced by Flowtracks
-for easier time-derived analyses requiring the next time-point to be also
-know.
+The :class:`~flowtracks.scene.Scene` class is the most basic form of this 
+view. It is tied to one HDF5 file exactly, which holds the database. This 
+file may be iterated by trajectory, by frame, or by *segments*, a concept 
+introduced by Flowtracks for easier time-derived analyses requiring the next 
+time-point to be also known.
 
-A segment, in the context of iterating a ``Scene`` is a tuple containing two
-``ParticleSnapshot`` objects, one for the current frame and one for the next.
-The next frame data is filtered to contain only particles that also appear in
-the current frame, unlike when iterating simply by frames.
+A segment, in the context of iterating a :class:`~flowtracks.scene.Scene`
+is a tuple containing two :func:`~flowtracks.trajectory.ParticleSnapshot` 
+objects, one for the current frame and one for the next. The next frame data 
+is filtered to contain only particles that also appear in the current frame, 
+unlike when iterating simply by frames.
 
-The ``DualScene`` class extends this by tying itself into two HDF5 files, 
-each representing a separate class of particles which coexist in the same 
-experiment. This has been useful for measuring tracers and inertial particles
-simultaneously, but other users are of course possible. Iterating by frames 
-is supported here, providing a ``Frame`` object on each iteration. Iterating
-by trajectories is ambiguous and not supported currently. Segments iteration,
-similarly to the frames iteration, returns two ``Frame`` objects.
+The :class:`~flowtracks.scene.DualScene` class extends this by tying itself 
+into two HDF5 files, each representing a separate class of particles which 
+coexist in the same experiment. This has been useful for measuring tracers 
+and inertial particles simultaneously, but other users are of course 
+possible. Iterating by frames is supported here, providing a 
+:class:`~flowtracks.trajectory.Frame` object on each iteration. Iterating by 
+trajectories is ambiguous and not supported currently. Segments iteration, 
+similarly to the frames iteration, returns two 
+:class:`~flowtracks.trajectory.Frame` objects.
 
 The ``flowtracks.analysis`` module provides a function for applying analyser
 classes sequentially to segments iterated over, and generetes a properly 
