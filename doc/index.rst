@@ -27,6 +27,7 @@ Contents:
    interpolation
    graphics
    smoothing
+   pairs
 
 Getting Started
 ===============
@@ -150,7 +151,8 @@ therein allow users to generate probability distributions from data and to
 plot them using Matplotlib, and a function is provided that plots 3D vector 
 data as 3 subplots of components.
 
-Other facilities (:mod:`Smoothing <flowtracks.smoothing>`, nearest-neighbour searches) are described in the
+Other facilities (:mod:`smoothing <flowtracks.smoothing>`, 
+:mod:`nearest-neighbour searches <flowtracks.pairs>`) are described in the 
 respective module's documentation.
 
 HDF5-based fast databases

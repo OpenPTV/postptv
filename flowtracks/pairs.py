@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
+#Created on Thu Aug 15 14:38:58 2013
+
 """
 Pair particles to closest tracers.
-
-Created on Thu Aug 15 14:38:58 2013
-
-@author: yosef
 """
 
 import numpy as np
