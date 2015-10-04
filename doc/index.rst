@@ -29,6 +29,7 @@ Contents:
    smoothing
    pairs
    scene
+   analysis
 
 Getting Started
 ===============
@@ -184,7 +185,7 @@ trajectories is ambiguous and not supported currently. Segments iteration,
 similarly to the frames iteration, returns two 
 :class:`~flowtracks.trajectory.Frame` objects.
 
-The ``flowtracks.analysis`` module provides a function for applying analyser
+The :mod:`flowtracks.analysis` module provides a function for applying analyser
 classes sequentially to segments iterated over, and generetes a properly 
 sized HDF5 file in the format of the input file.
 

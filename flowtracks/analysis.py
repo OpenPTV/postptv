@@ -1,15 +1,27 @@
 # -*- coding: utf-8 -*-
+# Created on Mon Aug 11 15:14:21 2014
 """
 Infrastructure for running a frame-by-frame analysis on a DualScene object.
+The main point of interest here is :func:`analysis`, which performs a segment
+iteration over a :class:`~flowtracks.scene.DualScene` and applies to each 
+a user-selected list of analyzers. Analysers are instances of a 
+:class:`GeneralAnalyser` subclass which implements the necessary methods, 
+as described in the base class documentation.
 
-Created on Mon Aug 11 15:14:21 2014
-
-@author: yosef
+There is one base class supplied here, :class:`FluidVelocitiesAnalyser`, 
+which ties in the :mod:`flowtracks.interpolation` module for analysing the 
+fluid velocity around a particle from its surrounding tracers.
 """
 
 import numpy as np, tables
 
 class GeneralAnalyser(object):
+    """
+    This is the parent class for all analysers to be used by :func:`analysis`.
+    It does not do anything but define and document the methods that must be
+    implenmented by the child class (in other words, this class is abstract).
+    Attempting to use its methods will result in a ``NotImplementedError``.
+    """
     def descr(self):
         """
         Need to return a list of tuples, each of the form 
@@ -32,6 +44,11 @@ class GeneralAnalyser(object):
         raise NotImplementedError
 
 class FluidVelocitiesAnalyser(GeneralAnalyser):
+    """
+    Finds, for each particle in the ``particles`` set of a frame, the 
+    so-called *undisturbed* fluid velocity at the particle's position, by
+    interpolating from nearby particles in the ``tracers`` set.
+    """
     def __init__(self, interp):
         """
         Arguments:
@@ -66,14 +83,11 @@ class FluidVelocitiesAnalyser(GeneralAnalyser):
     
 def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
     """
-    Simplified version of ``generate_reconstructions()`` with all the crap 
-    removed and using HDF5 files only.
-    
     Generate the analysis table for a given scene with separate data for 
     inertial particles and tracers.
     
     Arguments:
-    scene - a dualScene object representing an experiment with coordinated 
+    scene - a DualScene object representing an experiment with coordinated 
         particles and tracers data streams.
     analysis_file - path to the file where analysis should be saved. If the 
         file exists, it will be cloberred.
@@ -81,7 +95,7 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
     analysers - a list of GeneralAnalyser subclasses that do the actual
         analysis work and know all that is needed about output shape.
     frame_range - if -1 no adjustment is necessary, otherwise see 
-        Scene.dual_scene_iterator()
+        :meth:`DualScene.iter_segments() <flowtracks.scene.DualScene.iter_segments>`
     """
     # Structure the output file:
     descr = [('trajid', int, 1), ('time', int, 1)]
