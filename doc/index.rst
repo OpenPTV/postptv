@@ -92,7 +92,7 @@ Alternatively, the documentation is pre-built and available online on
 ReadTheDocs_.
 
 .. _Sphinx: http://sphinx-doc.org/
-.. _ReadTheDocs: http://postptv.readthedocs.org
+.. _ReadTheDocs: http://flowtracks.readthedocs.org
 
 Examples
 --------
