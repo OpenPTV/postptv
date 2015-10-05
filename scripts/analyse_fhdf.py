@@ -1,3 +1,4 @@
+#! /usr/bin/python
 # -*- coding: utf-8 -*-
 """
 Runs an analysis of a tracer/inertial scene encoded by two FHDF files.

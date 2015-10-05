@@ -67,14 +67,72 @@ Note that you may need administrative privileges on the machine you are
 using.
 
 The install script will install the Python package in the default place for 
-your platform. Additionally, it will install example scripts in the default
-executable location, and a the documentation in the default package root. 
-For information on where these directories are on your platform (and how to
-change them), refer to the `Python documentation`_. Other standard features 
-of the setup script are also described therein.
+your platform. Additionally, it will install example scripts in a 
+subdirectory ``flowtracks-examples/`` under the default executable location, 
+and a the documentation in the default package root. For information on where
+these directories are on your platform (and how to change them), refer to 
+the `Python documentation`_. Other standard features of the setup script are 
+also described therein.
 
 .. _`Python documentation`: https://docs.python.org/2/install/index.html
 
+Documentation
+-------------
+This documentation is available in the source directory under the ``docs/``
+subdirectory. It is maintained as a `Sphinx`_ project, so that you can build
+the documentation in one of several output formats, including HTML and PDF.
+To build, install Sphinx, then use 
+
+.. code::sh
+   sphinx-build -b html docs/
+
+or replace ``html`` with any other builder supported by Sphinx.
+
+Alternatively, the documentation is pre-built and available online on 
+ReadTheDocs_.
+
+.. _Sphinx: http://sphinx-doc.org/
+.. _ReadTheDocs: http://postptv.readthedocs.org
+
+Examples
+--------
+The ``examples/`` subdirectory in the source distribution contains two 
+IPython notebooks, both available as HTML for direct viewing:
+
+* a tutorial to the basic HDF5 analysis workflow 
+  (:download:`HTML <_static/hdf5_scene_analysis.html>`).
+* a demonstration of using the ``flowtracks.interpolation`` module 
+  (:download:`HTML <_static/repeated_interpolation.html>`).
+
+Analysis Script
+---------------
+The script ``analyse_fhdf.py`` is installed by default. for instruction on
+its usage, run::
+
+  analyse_fhdf.py --help
+
+As the help message printed informs, there are two mandatory command-line
+arguments. One is the data file for processing, the other is a config file
+with some rudimentary metadata. Examples for both are supplied in the ``data/``
+subdirectory of this package. A config file accepted by the script looks 
+something like this:
+
+.. code:: INI
+   
+   [Particle]
+   density = 1450
+   diameter = 500e-6
+   
+   [Scene]
+   particles file = particles.h5
+   tracers file = tracers.h5
+   first frame = 10001
+   last frame = 10200
+   frame rate = 500
+
+the file above may be used for producing an analysis from the files in the
+``data/`` subdirectory, when it is the current directory. this has been done
+in both IPython examples mentioned above, where the usage is shown.
 
 General Facilities
 ==================
@@ -218,15 +276,6 @@ Corresponding to the :mod:`flowtracks.analysis` module,
 :meth:`~flowtracks.sequence.Sequence.map_trajectories` method for applying 
 callback functions on an entire scene, frame by frame.
 
-Examples
-========
-The ``examples/`` subdirectory in the source distribution contains two 
-IPython notebooks, both available as HTML for direct viewing:
-
-* a tutorial to the basic HDF5 analysis workflow 
-  (:download:`HTML <_static/hdf5_scene_analysis.html>`).
-* a demonstration of using the ``flowtracks.interpolation`` module 
-  (:download:`HTML <_static/repeated_interpolation.html>`).
 
 Indices and tables
 ==================

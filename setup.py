@@ -15,6 +15,6 @@ setup(name='flowtracks',
     author_email='yosefmel2post.tau.ac.il',
     url='https://github.com/OpenPTV/postptv',
     packages=['flowtracks'],
-    data_files=[('flowtracks-doc', glob('doc/*'))],
+    data_files=[('flowtracks-examples', glob('examples/*'))],
     scripts=['scripts/analyse_fhdf.py']
 )
