@@ -4,9 +4,24 @@ import types, numpy as np
 import scipy.interpolate as interp
 
 class Frame(object):
+    """
+    This is basically a structure with no fancy behaviour. When it is 
+    returned from a Flowtracks function, it has two attributes, ``particles``
+    and ``tracers`` - each pointing to a :class:`ParticleSnapshot` object 
+    holding data for particles of the respective type.
+    """
     pass
 
 class ParticleSet(object):
+    """
+    A base class for manipulting particle data. Knows how many particles it
+    has, and holds a varying number of particle properties, each given for
+    the entire set. Properties may be created at construction time or later.
+    
+    When a property is created, it gets a setter method of the same name and
+    a getter method prefixed with ``set_``. This applies also for mandatory
+    properties.
+    """
     def __init__(self, pos, velocity, **kwds):
         """
         Arguments:
@@ -84,7 +99,7 @@ class ParticleSet(object):
     
     def ext_schema(self):
         """
-        Extended schema. Like schema() but the values of the returned 
+        Extended schema. Like :meth:`schema` but the values of the returned 
         dictionary are a tuple (type, shape). The shape is scalar, so it only 
         supports 1D or 0D items.
         """
@@ -105,9 +120,16 @@ class ParticleSet(object):
             for propname in self._check_attr)
     
     def __len__(self):
+        """Return the number of particles in the set."""
         return self._pos.shape[0]
     
 class Trajectory(ParticleSet):
+    """
+    This is one of the two main classes used for iteration over a scene. It
+    inherits from :class:`ParticleSet` with the added demand that a scalar
+    trajectory ID (an integer unique amond the scene's trajectories) and a
+    ``time`` property.
+    """
     def __init__(self, pos, velocity, time, trajid, **kwds):
         """
         Arguments:
@@ -147,10 +169,10 @@ class Trajectory(ParticleSet):
         
         Arguments:
         smoothness - strength of smoothing, larger is smoother. See 
-            scipy.interpolate.splprep()'s s parameter.
+            ``scipy.interpolate.splprep()``'s ``s`` parameter.
         
         Returns:
-        a new Trajectory object with the interpolated positions and 
+        a new :class:`Trajectory` object with the interpolated positions and 
         velocities. If the length of the trajectory < 4, returns self.
         """
         k = 5
@@ -168,6 +190,12 @@ class Trajectory(ParticleSet):
             accel=new_accel)
 
 class ParticleSnapshot(ParticleSet):
+    """
+    This is one of the two main classes used for iteration over a scene. It
+    inherits from :class:`ParticleSet` with the added demand for a scalar
+    time and a ``trajid`` property for trajectory ID (an integer unique 
+    among the scene's trajectories).
+    """
     def __init__(self, pos, velocity, time, trajid, **kwds):
         """
         Arguments:
@@ -216,10 +244,10 @@ def trajectories_in_frame(trajects, frame_num,
     extraction.
     
     Arguments:
-    trajects - a list of Trajectory objects to filter.
+    trajects - a list of :class:Trajectory objects to filter.
     frame_num - the time value (as found in trajectory.time()) at which the
         trajectory should be active.
-    start_times, end_times - each a len(trajects) array containing the 
+    start_times, end_times - each a ``len(trajects)`` array containing the 
         corresponding start/end frame number of each trajectory, respectively.
     segs - true if the trajectory should be active also in the following frame.
     
@@ -253,14 +281,14 @@ def take_snapshot(trajects, frame, schema):
     time point. If the trajectory list is empty, creates an empty snapshot.
     
     Arguments:
-    trajects - a list of Trajectory objects to query.
+    trajects - a list of :class:Trajectory objects to query.
     frame - the frame number to which snapshot data belongs.
-    schema - a dict, {propname: shape tuple}, as given by Trajectopry.schema().
-        This is only needed for consistency in the case of an empty trajectory
-        list resulting in an empty snapshot.
+    schema - a dict, ``{propname: shape tuple}``, as given by the trajectory's
+        :meth:`~.ParticleSet.schema`. This is only needed for consistency in 
+        the case of an empty trajectory list resulting in an empty snapshot.
     
     Returns:
-    a ParticleSnapshot object with all the particles in the given frame.
+    a :class:`ParticleSnapshot` object with all the particles in the given frame.
     """
     if len(trajects) == 0:
         kwds = dict((k, np.empty((0,) + v)) for k, v in schema.iteritems())

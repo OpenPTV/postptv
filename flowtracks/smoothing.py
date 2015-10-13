@@ -1,58 +1,57 @@
 # -*- coding: utf-8 -*-
+#Created on Thu Nov 14 11:41:53 2013
+
 """
 Trajectory smoothing routines. These are routines that are out of the 
 Trajectory object because they precompute values that are dependent only on the
 smoothing method, and not on the trajectory itself, so they may be shared for
 processing a whole list of trajectories.
-
-Created on Thu Nov 14 11:41:53 2013
-
-@author: yosef
 """
 
 from flowtracks.trajectory import Trajectory
 import numpy as np
 
 def savitzky_golay(trajs, fps, window_size, order, deriv=0, rate=1):
-    r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
+    """
+    Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
     The Savitzky-Golay filter removes high frequency noise from data.
     It has the advantage of preserving the original shape and
     features of the signal better than other types of filtering
     approaches, such as moving averages techniques.
     
-    Parameters
-    ----------
-    trajs : a list of Trajectory objects
-    window_size : int
+    Parameters:
+    trajs - a list of Trajectory objects
+    window_size - int,
         the length of the window. Must be an odd integer number.
-    fps : frames per second, used for calculating velocity and acceleration.
-    order : int
+    fps - frames per second, used for calculating velocity and acceleration.
+    order - int,
         the order of the polynomial used in the filtering.
         Must be less then `window_size` - 1.
-    deriv: int
+    deriv - int,
         the order of the derivative to compute (default = 0 means only smoothing)
     
-    Returns
-    -------
-    new_trajs : a list of Trajectory objects representing the smoothed 
+    Returns:
+    new_trajs - a list of Trajectory objects representing the smoothed 
         trajectories. Trajectories shorter than the window size are discarded.
-    Notes
-    -----
+    
+    Notes:
     The Savitzky-Golay is a type of low-pass filter, particularly
     suited for smoothing noisy data. The main idea behind this
     approach is to make for each point a least-square fit with a
     polynomial of high order over a odd-sized window centered at
     the point.
 
-    References
-    ----------
-    .. [1] A. Savitzky, M. J. E. Golay, Smoothing and Differentiation of
-       Data by Simplified Least Squares Procedures. Analytical
+    References:
+
+    .. [#] A. Savitzky, M. J. E. Golay, Smoothing and Differentiation of \
+       Data by Simplified Least Squares Procedures. Analytical \
        Chemistry, 1964, 36 (8), pp 1627-1639.
-    .. [2] Numerical Recipes 3rd Edition: The Art of Scientific Computing
-       W.H. Press, S.A. Teukolsky, W.T. Vetterling, B.P. Flannery
+
+    .. [#] Numerical Recipes 3rd Edition: The Art of Scientific Computing \
+       W.H. Press, S.A. Teukolsky, W.T. Vetterling, B.P. Flannery \
        Cambridge University Press ISBN-13: 9780521880688
-    .. [3] http://wiki.scipy.org/Cookbook/SavitzkyGolay
+
+    .. [#] http://wiki.scipy.org/Cookbook/SavitzkyGolay
     """
     from math import factorial
 

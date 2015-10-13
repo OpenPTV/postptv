@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Some classes needed for modeling a flow scene.
+This class is needed for modeling the dynamics of a particle in a flow scene.
 """
 
 import numpy as np

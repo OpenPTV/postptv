@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-A class for accessing data and analyses of a scene analysed and saved in the 
-format used by flowtracks.analysis.analyse().
-
-Created on Sun Aug 31 11:18:54 2014
-
-@author: yosef
-"""
 
 import tables, itertools as it, numpy as np
 from .scene import read_dual_scene
 
 class AnalysedScene(object):
+    """
+    A class for accessing data and analyses of a scene analysed and saved in 
+    the format used by flowtracks.analysis.analyse().
+    """
+    
     def __init__(self, analysis_file):
         """
         Initializes the objects according to config and data-source metadata
@@ -51,7 +48,7 @@ class AnalysedScene(object):
     def shapes(self):
         """
         Return the number of components per item of each key in the order 
-        returned by ``keys()``.
+        returned by :meth:`keys`.
         """
         return self._scene.get_particles().shapes() + self._shapes
         
@@ -82,7 +79,7 @@ class AnalysedScene(object):
             range is between min and max. Otherwise it is anywhere except that.
         
         Returns:
-        a list of arrays, in the order of 'keys'.
+        a list of arrays, in the order of ``keys``.
         """
         # Divide the where condition into the trajectory conditions and 
         # analysis conditions.

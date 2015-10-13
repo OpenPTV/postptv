@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
+#Created on Tue May 28 10:27:15 2013
+
 """
 Interpolation routines.
 
-Created on Tue May 28 10:27:15 2013
+.. rubric:: References
 
-@author: yosef
+.. [#IDW] http://en.wikipedia.org/wiki/Inverse_distance_weighting
 
-References:
-[1] Lüthi, Beat. Some Aspects of Strain, Vorticity and Material Element 
-    Dynamics as Measured with 3D Particle Tracking Velocimetry in a Turbulent 
-    Flow. PhD Thesis, ETH-Zürich (2002).
+.. [#BL] Lüthi, Beat. Some Aspects of Strain, Vorticity and Material Element \
+   Dynamics as Measured with 3D Particle Tracking Velocimetry in a \
+   Turbulent Flow. PhD Thesis, ETH-Zürich (2002).
 
+.. [#RBF] http://en.wikipedia.org/wiki/Radial_basis_function
+
+.. rubric:: Documentation
 """
 
 import numpy as np, warnings
@@ -34,8 +38,8 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
     Returns:
     dists - (m,n) array, the distance from each interpolation point to each
         tracer.
-    use_parts - (m,n) boolean array, True where tracer j=1...n is a neighbour
-        of interpolation point i=1...m.
+    use_parts - (m,n) boolean array, True where tracer :math:`j=1...n` is a 
+        neighbour of interpolation point :math:`i=1...m`.
     """
     dists =  np.linalg.norm(tracer_pos[None,:,:] - interp_points[:,None,:],
         axis=2)
@@ -64,7 +68,7 @@ def inv_dist_interp(dists, use_parts, velocity, p=1):
     """
     For each of n particle, generate the velocity interpolated to its 
     position from all neighbours as selected by caller. Interpolation method is
-    inverse-distance weighting, [1]
+    inverse-distance weighting, [#IDW]_
     
     Arguments:
     dists - (m,n) array, the distance of interpolation_point i=1...m from 
@@ -93,12 +97,12 @@ def corrfun_interp(dists, use_parts, data, corrs_hist, corrs_bins):
     For each of n particle, generate the velocity interpolated to its 
     position from all neighbours as selected by caller. The weighting of 
     neighbours is by the correlation function, e.g. if the distance at 
-    neighbor i is r_i, then it adds \rho(r_i)*v_i to the interpolated velocity.
-    This is done for each component separately.
+    neighbor i is :math:`r_i`, then it adds :math:`\\rho(r_i)*v_i` to the 
+    interpolated velocity. This is done for each component separately.
     
     Arguemnts:
-    dists - (m,n) array, the distance of interpolation_point i=1...m from 
-        tracer j=1...n, for (row,col) (i,j) [m] 
+    dists - (m,n) array, the distance of interpolation_point :math:`i=1...m`
+        from tracer :math:`j=1...n`, for (row,col) (i,j) [m] 
     use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
         particle i, same indexing as ``dists``.
     data - (n,d) array, the d components of the data that is interpolated from,
@@ -126,12 +130,12 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     weights are independent of interpolation point, among other differences.
     
     Arguments:
-    tracer_dists - (n,n) array, the distance of tracer i=1...n from tracer 
-        j=1...n, for (row,col) (i,j) [m]
-    dists - (m,n) array, the distance from interpolation point i=1...m to
-        tracer j. [m]
-    use_parts - (m,n) boolean array, True where tracer j=1...n is a neighbour
-        of interpolation point i=1...m.
+    tracer_dists - (n,n) array, the distance of tracer :math:`i=1...n` from 
+        tracer :math:`j=1...n`, for (row,col) (i,j) [m]
+    dists - (m,n) array, the distance from interpolation point 
+        :math:`i=1...m` to tracer j. [m]
+    use_parts - (m,n) boolean array, True where tracer :math:`j=1...n` is a 
+        neighbour of interpolation point :math:`i=1...m`.
     data - (n,d) array, the d components of the data for each of n tracers.
     
     Returns:
@@ -155,7 +159,7 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
 class Interpolant(object):
     """
     Holds all parameters necessary for performing an interpolation. Use is as
-    a callable object after initialization, see __call__().
+    a callable object after initialization, see :meth:`__call__`.
     """
     def __init__(self, method, num_neighbs=None, radius=None, param=None):
         """
@@ -260,8 +264,9 @@ class Interpolant(object):
         interpolation point, given the current scene as set by set_scene().
         
         Returns:
-        (m,n) boolean array, True where tracer j=1...n is a neighbour of 
-        interpolation point i=1...m under the reigning selection criteria.
+        (m,n) boolean array, True where tracer :math:`j=1...n` is a neighbour
+        of interpolation point :math:`i=1...m` under the reigning selection 
+        criteria.
         """
         if self.__active_neighbs is None:
             self._forego_laziness()
@@ -280,7 +285,7 @@ class Interpolant(object):
         
         Arguments:
         subset - a neighbours selection array, such as returned from 
-            ``which_neighbours()``, to replace the recorded selection. Default
+            :meth:`which_neighbours`, to replace the recorded selection. Default
             value (None) uses the recorded selection. The recorded selection
             is not changed, so ``subset`` is forgotten after the call.
         
