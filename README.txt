@@ -13,6 +13,9 @@ sources in the doc/ directory. It is also available online:
 Please refer to that documentation for the full information on installing,
 reference documentation and usage examples contained in the package.
 
+The program is distributed under the terms of the GNU General Public 
+License, version 3.0. For details, see the LICENSE.txt file.
+
 
 Getting Started
 ===============
@@ -33,7 +36,7 @@ Dependencies:
 * Some features depend on the Matplotlib package. Users which need those 
   features may get Matplotlib at http://matplotlib.org/
 
-Instalation
+Installation
 -----------
 
 To install this package, follow the standard procedure for installing 
