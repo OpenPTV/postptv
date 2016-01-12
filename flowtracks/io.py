@@ -285,7 +285,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         traj_min_len = def_tr_len
 
     frames = []
-    if '%d' in fname:
+    if re.search('%\d*?d', fname) is not None:
         frm_iter = FramesIterator(fname, fmt, skip, first, last)
     else:
         frm_iter = SingleFileIterator(fname, fmt)
