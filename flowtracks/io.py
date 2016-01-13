@@ -413,7 +413,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             
             # Add forward-difference acceleration:
             accel = np.empty_like(traj.velocity())
-            accel[[-2,-1],:] = 0.
+            accel[:-3:-1,:] = 0.
             accel[:-2] = (traj.velocity()[1:-1] - traj.velocity()[:-2]) * frate
             traj.create_property('accel', accel)
             
