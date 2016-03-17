@@ -33,6 +33,36 @@ def pairwise(iterable):
     next(b, None)
     return it.izip(a, b)
 
+def gen_query_string(key, range_spec):
+    """
+    A small utility to create query string suitable for PyTables' 
+    ``read_where()`` from a range specification.
+    
+    Arguments:
+    key - name of search field.
+    range_spec - a tuple (min, max, invert). If ``invert`` is false, the search 
+        range is between min and max. Otherwise it is anywhere except that.
+        In regular ranges, the max boundary is excluded as usual in Python. In
+        inverted range, consequentlt, it is the min boundary that's excluded.
+    
+    Returns:
+    A string representing all boolean conditions necessary for representing the
+    given range.
+    
+    Example:
+    >>> gen_query_string('example', (-1, 1, False))
+    '((example >= -1) & (example < 1))'
+    
+    >>> gen_query_string('example', (-1, 1, True))
+    '((example < -1) | (example >= 1))'
+    """
+    smin, smax, invert = range_spec
+    cop1, cop2, lop = ('<','>=','|') if invert else ('>=','<','&')
+    cond_string = "((%s %s %g) %s (%s %s %g))" % \
+        (key, cop1, smin, lop, key, cop2, smax)
+    
+    return cond_string
+    
 class Scene(object):
     """
     This class is the programmer's interface to an HDF files containing 
@@ -202,6 +232,21 @@ class Scene(object):
             
             yield frame, next_frame
     
+    def collect(self, keys, where=None):
+        """
+        Get values of given keys, either all of them or the ones corresponding
+        to a selection given by 'where'.
+        
+        Arguments:
+        keys - a list of keys to take from the data
+        where - a dictionary of particle property names, with a tuple 
+            (min,max,invert) as values. If ``invert`` is false, the search 
+            range is between min and max. Otherwise it is anywhere except that.
+        
+        Returns:
+        a list of arrays, in the order of ``keys``.
+        """
+        
 
 class DualScene(object):
     """

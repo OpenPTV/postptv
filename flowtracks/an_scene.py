@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import tables, itertools as it, numpy as np
-from .scene import read_dual_scene
+from .scene import read_dual_scene, gen_query_string
 
 class AnalysedScene(object):
     """
@@ -92,10 +92,7 @@ class AnalysedScene(object):
             an_cond_add = []
             
             for key, rng in where.iteritems():
-                cop1, cop2, lop = ('<','>=','|') if rng[2] else ('>=','<','&')
-                cond_string = "((%s %s %g) %s (%s %s %g))" % \
-                    (key, cop1, rng[0], lop, key, cop2, rng[1])
-                
+                cond_string = gen_query_string(key, rng)                
                 if key in pkeys:
                     pc_add.append(cond_string)
                 else:
