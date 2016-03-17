@@ -101,6 +101,15 @@ class TestScene(unittest.TestCase):
             nptest.assert_array_almost_equal(frm.accel(), correct.accel())
             nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
             self.failUnlessEqual(frm.time(), correct.time())
+    
+    def test_collect(self):
+        """Slicing the file by keys or expressions"""
+        v = self.scene.collect(['velocity'])[0]
+        self.failUnlessEqual(v.shape, (12,3))
+        
+        v = v.reshape(3,4,3)
+        nptest.assert_array_almost_equal(v[0,:,0], v[1,:,1])
+        nptest.assert_array_almost_equal(v[0,:,0], v[2,:,2])
 
 class TestUtils(unittest.TestCase):
     def test_query_string(self):
