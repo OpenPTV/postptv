@@ -16,6 +16,11 @@ reference documentation and usage examples contained in the package.
 The program is distributed under the terms of the GNU General Public 
 License, version 3.0. For details, see the LICENSE.txt file.
 
+How to cite this work
+=====================
+
+Meller, Y and Liberzon, A 2016 Particle Data Management Software for 3DParticle Tracking Velocimetry and Related Applications – The Flowtracks Package. Journal of Open Research Software, 4: e23, DOI: <http://dx.doi.org/10.5334/jors.101> 
+
 
 Getting Started
 ===============
