@@ -371,24 +371,29 @@ class Interpolant(object):
             raise NotImplementedError("Interpolation method %s not supported" \
                 % self._method)
             
-    def eulerian_jacobian(self, tracer_pos, interp_points, data, local_interp):
+    def eulerian_jacobian(self, local_interp=None, eps=100e-6):
         """
-        Temporary measure to calculate the velocity derivatives, should be
-        replaced by a rewrite of interpolation that stores intermediate 
-        calculations such as weights.
+        A general way to calculate the velocity derivatives. It could be
+        enhanced in the future by specific analytical derivatives of the
+        different interpolation methods. The Jacobian is calculated for the
+        current scene, as recorded with ``set_scene()``
         
         Arguments:
-        all arguments of __call__(), and
         local_interp - results of interpolation already performed at the 
-            position where derivatives are wanted.
+            position where derivatives are wanted. If not given, an 
+            interpolation of recorded scene data is automatically performed.
+        eps - the dx in each direction.
         
         Returns: (m,3,3) array, for m interpolation points, [i,j] = du_i/dx_j
         """
-        eps = 100e-6
-        ret = np.empty((interp_points.shape[0], 3, 3))
-        ret[:,:,0] = self(tracer_pos + np.r_[eps,0,0], interp_points, data) 
-        ret[:,:,1] = self(tracer_pos + np.r_[0,eps,0], interp_points, data) 
-        ret[:,:,2] = self(tracer_pos + np.r_[0,0,eps], interp_points, data)
+        if local_interp is None:
+            local_interp = self.interpolate()
+
+        ret = np.empty((self.__interp_pts.shape[0], 3, 3))
+        ret[:,:,0] = self(self.__tracers + np.r_[eps,0,0], 
+            self.__interp_pts, self.__data) 
+        ret[:,:,1] = self(self.__tracers + np.r_[0,eps,0], self.__interp_pts, self.__data) 
+        ret[:,:,2] = self(self.__tracers + np.r_[0,0,eps], self.__interp_pts, self.__data)
         ret = local_interp[:,:,None] - ret
         return ret
         

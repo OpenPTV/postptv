@@ -149,10 +149,11 @@ class TestJacobian(unittest.TestCase):
         interp_data = tracer_pos*2
         
         interp = interpolation.Interpolant('inv', 6, 3)
-        local = interp(tracer_pos, pos, interp_data)
+        interp.set_scene(tracer_pos, pos, interp_data)
+        local = interp.interpolate()
         np.testing.assert_array_equal(local, np.zeros((1,3)))
         
-        jac = interp.eulerian_jacobian(tracer_pos, pos, interp_data, local)
+        jac = interp.eulerian_jacobian()
         self.failUnless(np.all(jac[:, [0,1,2], [0,1,2]] != 0))
         jac[:, [0,1,2], [0,1,2]] = 0
         self.failUnless(np.all(jac == 0))
