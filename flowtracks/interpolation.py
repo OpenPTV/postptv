@@ -371,7 +371,27 @@ class Interpolant(object):
             raise NotImplementedError("Interpolation method %s not supported" \
                 % self._method)
             
-    
+    def eulerian_jacobian(self, tracer_pos, interp_points, data, local_interp):
+        """
+        Temporary measure to calculate the velocity derivatives, should be
+        replaced by a rewrite of interpolation that stores intermediate 
+        calculations such as weights.
+        
+        Arguments:
+        all arguments of __call__(), and
+        local_interp - results of interpolation already performed at the 
+            position where derivatives are wanted.
+        
+        Returns: (m,3,3) array, for m interpolation points, [i,j] = du_i/dx_j
+        """
+        eps = 100e-6
+        ret = np.empty((interp_points.shape[0], 3, 3))
+        ret[:,:,0] = self(tracer_pos + np.r_[eps,0,0], interp_points, data) 
+        ret[:,:,1] = self(tracer_pos + np.r_[0,eps,0], interp_points, data) 
+        ret[:,:,2] = self(tracer_pos + np.r_[0,0,eps], interp_points, data)
+        ret = local_interp[:,:,None] - ret
+        return ret
+        
     def neighb_dists(self, tracer_pos, interp_points):
         """
         The distance from each interpolation point to each data point of those
