@@ -506,7 +506,6 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
             traj = it
         else:
             traj = [t for t in it]
-        traj = trajectories_table(fname, first, last)
     
     if filter_needed:
         if traj_min_len is None:
