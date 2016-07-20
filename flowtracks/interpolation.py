@@ -390,11 +390,13 @@ class Interpolant(object):
             local_interp = self.interpolate()
 
         ret = np.empty((self.__interp_pts.shape[0], 3, 3))
-        ret[:,:,0] = self(self.__tracers + np.r_[eps,0,0], 
-            self.__interp_pts, self.__data) 
-        ret[:,:,1] = self(self.__tracers + np.r_[0,eps,0], self.__interp_pts, self.__data) 
-        ret[:,:,2] = self(self.__tracers + np.r_[0,0,eps], self.__interp_pts, self.__data)
-        ret = local_interp[:,:,None] - ret
+        ret[:,:,0] = self(self.__tracers,
+            self.__interp_pts + np.r_[eps,0,0], self.__data) 
+        ret[:,:,1] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,eps,0], self.__data) 
+        ret[:,:,2] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,0,eps], self.__data)
+        ret = (ret - local_interp[:,:,None]) / eps
         return ret
         
     def neighb_dists(self, tracer_pos, interp_points):
