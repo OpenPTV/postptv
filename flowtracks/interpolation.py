@@ -371,7 +371,34 @@ class Interpolant(object):
             raise NotImplementedError("Interpolation method %s not supported" \
                 % self._method)
             
-    
+    def eulerian_jacobian(self, local_interp=None, eps=100e-6):
+        """
+        A general way to calculate the velocity derivatives. It could be
+        enhanced in the future by specific analytical derivatives of the
+        different interpolation methods. The Jacobian is calculated for the
+        current scene, as recorded with ``set_scene()``
+        
+        Arguments:
+        local_interp - results of interpolation already performed at the 
+            position where derivatives are wanted. If not given, an 
+            interpolation of recorded scene data is automatically performed.
+        eps - the dx in each direction.
+        
+        Returns: (m,3,3) array, for m interpolation points, [i,j] = du_i/dx_j
+        """
+        if local_interp is None:
+            local_interp = self.interpolate()
+
+        ret = np.empty((self.__interp_pts.shape[0], 3, 3))
+        ret[:,:,0] = self(self.__tracers,
+            self.__interp_pts + np.r_[eps,0,0], self.__data) 
+        ret[:,:,1] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,eps,0], self.__data) 
+        ret[:,:,2] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,0,eps], self.__data)
+        ret = (ret - local_interp[:,:,None]) / eps
+        return ret
+        
     def neighb_dists(self, tracer_pos, interp_points):
         """
         The distance from each interpolation point to each data point of those

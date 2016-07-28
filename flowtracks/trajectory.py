@@ -162,29 +162,28 @@ class Trajectory(ParticleSet):
             self._time[selector][...,None], 
             np.ones(self._pos[selector].shape[:-1] + (1,))*self._id))
             
-    def smoothed(self, smoothness=3.0):
+    def smoothed(self, err_bound, order):
         """
         Creates a trajectory generated from this trajectory using cubic 
         B-spline interpolation.
         
         Arguments:
-        smoothness - strength of smoothing, larger is smoother. See 
-            ``scipy.interpolate.splprep()``'s ``s`` parameter.
+        err_bound - amount of deviation a particle is expeted to have around
+            its observed place. Determines strength of smoothing.
+        order - of the spline (odd, up to 5).
         
         Returns:
         a new :class:`Trajectory` object with the interpolated positions and 
         velocities. If the length of the trajectory < 4, returns self.
         """
-        k = 5
-        if len(self.time()) < k + 1: return self
+        if len(self.time()) < order + 1: return self
+        s = (len(self.time()) * err_bound)**2
         
-        spline, eval_prms = interp.splprep(list(self.pos().T), 
-            nest=-1, k=k)
+        spline, eval_prms = interp.splprep(list(self.pos().T), k=order, s=s)
         
         new_pos = np.array(interp.splev(eval_prms, spline)).T
         new_vel = np.array(interp.splev(eval_prms, spline, der=1)).T
         new_accel = np.array(interp.splev(eval_prms, spline, der=2)).T
-        new_accel = np.vstack( (new_accel, np.zeros(3)) )
         
         return Trajectory(new_pos, new_vel, self.time(), self.trajid(),
             accel=new_accel)

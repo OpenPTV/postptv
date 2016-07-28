@@ -15,7 +15,7 @@ The rest of the content of this module is composed of readers and writers for
 the various formats. They are documented here alongside the main entry points,
 so that users may access them directly if needed.
 """
-import os, os.path, re
+import os, os.path, re, itertools as itr
 from ConfigParser import SafeConfigParser
 from StringIO import StringIO
 
@@ -23,6 +23,7 @@ import numpy as np
 from scipy import io
 import tables
 
+from .scene import Scene
 from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
@@ -285,7 +286,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         traj_min_len = def_tr_len
 
     frames = []
-    if '%d' in fname:
+    if re.search('%\d*?d', fname) is not None:
         frm_iter = FramesIterator(fname, fmt, skip, first, last)
     else:
         frm_iter = SingleFileIterator(fname, fmt)
@@ -413,7 +414,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             
             # Add forward-difference acceleration:
             accel = np.empty_like(traj.velocity())
-            accel[[-2,-1],:] = 0.
+            accel[:-3:-1,:] = 0.
             accel[:-2] = (traj.velocity()[1:-1] - traj.velocity()[:-2]) * frate
             traj.create_property('accel', accel)
             
@@ -499,12 +500,21 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
             traj_min_len=traj_min_len)
     
     elif fmt == 'hdf':
-        traj = trajectories_table(fname, first, last)
+        scene = Scene(fname, (first, last))
+        it = scene.iter_trajectories()
+        if iter_allowed:
+            traj = it
+        else:
+            traj = [t for t in it]
     
     if filter_needed:
         if traj_min_len is None:
             traj_min_len = 2
-        traj = [tr for tr in traj if len(tr) >= traj_min_len]
+        
+        if iter_allowed:
+            traj = itr.ifilter(lambda tr: len(tr) >= traj_min_len, traj)
+        else:
+            traj = [tr for tr in traj if len(tr) >= traj_min_len]
     
     return traj
         

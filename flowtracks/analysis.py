@@ -75,8 +75,9 @@ class FluidVelocitiesAnalyser(GeneralAnalyser):
         particles in the current frame. 1st array - fluid velocity. 2nd array
         - relative velocity.
         """
-        vel_interp = self._interp(frame.tracers.pos(), frame.particles.pos(),
+        self._interp.set_scene(frame.tracers.pos(), frame.particles.pos(),
             frame.tracers.velocity())
+        vel_interp = self._interp.interpolate()
         rel_vel = frame.particles.velocity() - vel_interp
         
         return [vel_interp, rel_vel]

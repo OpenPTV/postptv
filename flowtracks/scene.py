@@ -33,6 +33,36 @@ def pairwise(iterable):
     next(b, None)
     return it.izip(a, b)
 
+def gen_query_string(key, range_spec):
+    """
+    A small utility to create query string suitable for PyTables' 
+    ``read_where()`` from a range specification.
+    
+    Arguments:
+    key - name of search field.
+    range_spec - a tuple (min, max, invert). If ``invert`` is false, the search 
+        range is between min and max. Otherwise it is anywhere except that.
+        In regular ranges, the max boundary is excluded as usual in Python. In
+        inverted range, consequentlt, it is the min boundary that's excluded.
+    
+    Returns:
+    A string representing all boolean conditions necessary for representing the
+    given range.
+    
+    Example:
+    >>> gen_query_string('example', (-1, 1, False))
+    '((example >= -1) & (example < 1))'
+    
+    >>> gen_query_string('example', (-1, 1, True))
+    '((example < -1) | (example >= 1))'
+    """
+    smin, smax, invert = range_spec
+    cop1, cop2, lop = ('<','>=','|') if invert else ('>=','<','&')
+    cond_string = "((%s %s %g) %s (%s %s %g))" % \
+        (key, cop1, smin, lop, key, cop2, smax)
+    
+    return cond_string
+    
 class Scene(object):
     """
     This class is the programmer's interface to an HDF files containing 
@@ -83,21 +113,22 @@ class Scene(object):
             return
         
         first, last = frame_range
+        rng_exprs = []
         if first is None:
             t = self._table.col('time')
             self._first = int(t.min())
         else:
             self._first = first
-            self._frame_limit += " & (time >= %d)" % first
+            rng_exprs.append("(time >= %d)" % first)
         
-        # Working on the assumptions that usually not both will be None 
-        # (then you can simply pass None), to simplify the code.
         if last is None:
             t = self._table.col('time')
             self._last = int(t.max()) + 1
         else:
             self._last = last
-            self._frame_limit += " & (time < %d)" % last
+            rng_exprs.append("(time < %d)" % last)
+        
+        self._frame_limit = ' & '.join(rng_exprs)
     
     def __del__(self):
         self._file.close()
@@ -123,7 +154,9 @@ class Scene(object):
         trajectory in the file (in no particular order, but the same order 
         every time on the same PyTables version) and yields it.
         """
-        query_string = '(trajid == trid)' +  self._frame_limit
+        query_string = '(trajid == trid)'
+        if self._frame_limit != '':
+            query_string += ' & ' + self._frame_limit
         
         for trid in self._trids:
             arr = self._table.read_where(query_string)
@@ -202,7 +235,45 @@ class Scene(object):
             
             yield frame, next_frame
     
-
+    def collect(self, keys, where=None):
+        """
+        Get values of given keys, either all of them or the ones corresponding
+        to a selection given by 'where'.
+        
+        Arguments:
+        keys - a list of keys to take from the data
+        where - a dictionary of particle property names, with a tuple 
+            (min,max,invert) as values. If ``invert`` is false, the search 
+            range is between min and max. Otherwise it is anywhere except that.
+        
+        Returns:
+        a list of arrays, in the order of ``keys``.
+        """
+        # Compose query to PyTables engine:
+        conds = [self._frame_limit]
+        if where is not None:
+            for key, rng in where.iteritems():
+                conds.append(gen_query_string(key, rng))
+        cond_string = ' & '.join(conds)
+        
+        # No frame range or user-defined conditions:
+        print cond_string
+        if cond_string == '':
+            return [self._table.col(k) for k in keys]
+        
+        # Single key is natively handled in PyTables.
+        if len(keys) == 1:
+            return [self._table.read_where(cond_string, field=keys[0])]
+        
+        # Otherwise do the extraction manually.
+        ret = []
+        raw = self._table.read_where(cond_string)
+        for k in keys:
+            ret.append(raw[k])
+        
+        return ret
+            
+        
 class DualScene(object):
     """
     Holds a scene orresponding to the dual-PTV systems, which shoot separate

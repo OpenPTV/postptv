@@ -45,13 +45,19 @@ Installation
 -----------
 
 To install this package, follow the standard procedure for installing 
-Python modules. Using a terminal, change directory into the root directory
-of theis program's source code, then run
+Python modules. The package may be installed either systemwide, in the default
+location, or for a single user, by changing the install location and updating
+environment variables in the standard way, as indicated by the Python 
+documentation [1]. 
+
+For a default systemwide installation: using a terminal, change directory into
+the root directory of theis program's source code, then run
 
   python setup.py install
 
-Note that you may need administrative privileges on the machine you are 
-using.
+Note that for the default install you may need administrative privileges on the
+machine you are using. Consult the Python documentation for the single-user 
+install procedure.
 
 The install script will install the Python package in the default place for 
 your platform. Additionally, it will install example scripts in a 
@@ -61,5 +67,11 @@ these directories are on your platform (and how to change them), refer to
 the Python documentation [1]. Other standard features of the setup script are 
 also described therein.
 
-[1] Python documentation: https://docs.python.org/2/install/index.html
+The examples are Jupyter notebooks [2], and can be previewed without any 
+special setup under the examples section of
 
+  http://flowtracks.readthedocs.org
+
+
+[1] Python documentation: https://docs.python.org/2/install/index.html
+[2] http://jupyter.org/

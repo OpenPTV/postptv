@@ -6,7 +6,7 @@ correct results.
 import unittest
 import numpy as np, numpy.testing as nptest
 
-from flowtracks.scene import Scene
+from flowtracks.scene import Scene, gen_query_string
 from flowtracks.trajectory import Trajectory, take_snapshot
 
 class TestScene(unittest.TestCase):
@@ -101,4 +101,19 @@ class TestScene(unittest.TestCase):
             nptest.assert_array_almost_equal(frm.accel(), correct.accel())
             nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
             self.failUnlessEqual(frm.time(), correct.time())
+    
+    def test_collect(self):
+        """Slicing the file by keys or expressions"""
+        v = self.scene.collect(['velocity'])[0]
+        self.failUnlessEqual(v.shape, (12,3))
+        
+        v = v.reshape(3,4,3)
+        nptest.assert_array_almost_equal(v[0,:,0], v[1,:,1])
+        nptest.assert_array_almost_equal(v[0,:,0], v[2,:,2])
 
+class TestUtils(unittest.TestCase):
+    def test_query_string(self):
+        self.failUnlessEqual(gen_query_string('example', (-1, 1, False)),
+            "((example >= -1) & (example < 1))")
+        self.failUnlessEqual(gen_query_string('example', (-1, 1, True)),
+            '((example < -1) | (example >= 1))')
