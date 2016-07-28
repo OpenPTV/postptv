@@ -164,7 +164,28 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     vel_interp = np.sum(rbf[...,None] * coeffs, axis=1)
     return vel_interp
 
-class Interpolant(object):
+def interpolant(method, num_neighbs=None, radius=None, param=None):
+    """
+    Factory function. Returns an object of the interpolant class that matches 
+    the given method. All classes are subclassed from GeneralInterpolant.
+    
+    Arguments:
+    method - interpolation method. Either 'inv' for inverse-distance 
+        weighting, 'rbf' for gaussian-kernel Radial Basis Function
+        method, or 'corrfun' for using a correlation function.
+    radius - of the search area for neighbours, [m]. If None, select 
+        closest ``neighbs``.
+    neighbs - number of closest neighbours to interpolate from. If None.
+        uses 4 neighbours for 'inv' method, and 7 for 'rbf', unless 
+        ``radius`` is not None, then ``neighbs`` is ignored.
+    param - the parameter adjusting the interpolation method. For IDW it is
+        the inverse power (default 1), for rbf it is epsilon (default 1e5).
+    """
+    return GeneralInterpolant(method, num_neighbs, radius, param)
+
+Interpolant = interpolant # B.C.
+
+class GeneralInterpolant(object):
     """
     Holds all parameters necessary for performing an interpolation. Use is as
     a callable object after initialization, see :meth:`__call__`.
@@ -488,4 +509,4 @@ def read_interpolant(conf_fname):
     if parser.has_option('Interpolant', 'param'):
         kwds['param'] = parser.getfloat('Interpolant', 'param')
     
-    return Interpolant(parser.get('Interpolant', 'method'), **kwds)
+    return interpolant(parser.get('Interpolant', 'method'), **kwds)

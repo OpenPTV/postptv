@@ -54,7 +54,7 @@ class TestRepeatedInterp(unittest.TestCase):
         interp_points = np.zeros((1,3))
         self.data = np.random.rand(tracer_pos.shape[0], 3)
         
-        self.interp = interpolation.Interpolant('inv', 4, param=1.5)
+        self.interp = interpolation.interpolant('inv', 4, param=1.5)
         self.interp.set_scene(tracer_pos, interp_points, self.data)
         
     def test_set_scene(self):
@@ -106,7 +106,7 @@ class MethodInterp(unittest.TestCase):
         interp_points = np.zeros((1,3))
         data = np.random.rand(tracer_pos.shape[0], 3)
         
-        interp = interpolation.Interpolant('rbf', 4, param=1e5)
+        interp = interpolation.interpolant('rbf', 4, param=1e5)
         interp.set_scene(tracer_pos, interp_points, data)
         
         interped = interp.interpolate()
@@ -125,7 +125,7 @@ class RadiusInterp(unittest.TestCase):
         interp_points = np.zeros((1,3))
         data = np.random.rand(tracer_pos.shape[0], 3)
         
-        interp = interpolation.Interpolant('inv', radius=0.0015, param=1.5)
+        interp = interpolation.interpolant('inv', radius=0.0015, param=1.5)
         interp.set_scene(tracer_pos, interp_points, data)
         
         interped = interp.interpolate()
@@ -148,7 +148,7 @@ class TestJacobian(unittest.TestCase):
         # change, because it's easy for me to visualize.
         interp_data = tracer_pos*2
         
-        interp = interpolation.Interpolant('inv', 6, 3)
+        interp = interpolation.interpolant('inv', 6, 3)
         interp.set_scene(tracer_pos, pos, interp_data)
         
         local = interp.interpolate()

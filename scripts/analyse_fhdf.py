@@ -12,7 +12,7 @@ from flowtracks.scene import read_dual_scene
 from flowtracks.analysis import analysis, FluidVelocitiesAnalyser
     
 if __name__ == "__main__":
-    from flowtracks.interpolation import Interpolant
+    from flowtracks.interpolation import interpolant
     
     import argparse
     parser = argparse.ArgumentParser()
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "parameter. Inverse power for inv, epsilon for RBF, filename for corrfun")
     args = parser.parse_args()
     
-    interp = Interpolant(args.method, args.neighbs, args.param)
+    interp = interpolant(args.method, args.neighbs, args.param)
     scene = read_dual_scene(args.config)
     analysers = [ FluidVelocitiesAnalyser(interp) ]
     analysis(scene, args.output, args.config, analysers)
