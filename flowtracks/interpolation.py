@@ -181,7 +181,10 @@ def interpolant(method, num_neighbs=None, radius=None, param=None):
     param - the parameter adjusting the interpolation method. For IDW it is
         the inverse power (default 1), for rbf it is epsilon (default 1e5).
     """
-    return GeneralInterpolant(method, num_neighbs, radius, param)
+    if method == 'inv':
+        return InverseDistanceWeighter(num_neighbs, radius, param)
+    else:
+        return GeneralInterpolant(method, num_neighbs, radius, param)
 
 Interpolant = interpolant # B.C.
 
@@ -315,6 +318,12 @@ class GeneralInterpolant(object):
                 
         return self.__dists
     
+    def current_data(self):
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+                
+        return self.__data
+    
     def interpolate(self, subset=None):
         """
         Performs an interpolation over the recorded scene.
@@ -329,25 +338,34 @@ class GeneralInterpolant(object):
         an (m,3) array with the interpolated value at the position of each 
         of m particles.
         """
+        # If for some reason tracking failed for a whole frame, 
+        # interpolation is impossible at that frame. This checks for frame 
+        # tracking failure.
+        if len(self.__tracers) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers in frame, interpolation returned zeros.")
+            ret_shape = self.__data.shape[-1] if self.__data.ndim > 1 else 1
+            return np.zeros((self.__interp_pts.shape[0], ret_shape))
+
         # Check that the cache is populated:
         if self.__active_neighbs is None:
             self._forego_laziness()
         
         act_neighbs = self.__active_neighbs if subset is None else subset
             
-        # If for some reason tracking failed for a whole frame, 
-        # interpolation is impossible at that frame. This checks for frame 
-        # tracking failure.
-        if len(self.__tracers) == 0:
-            # Temporary measure until I can safely discard frames.
-            warnings.warn("No tracers im frame, interpolation returned zeros.")
-            ret_shape = self.__data.shape[-1] if self.__data.ndim > 1 else 1
-            return np.zeros((self.__interp_pts.shape[0], ret_shape))
+        return self._meth_interp(act_neighbs)
+    
+    def _meth_interp(self, act_neighbs):
+        """
+        Implement the actual interpolation. Subclass this, not 
+        :meth:`interpolate`.
         
-        if self._method == 'inv':
-            return inv_dist_interp(self.__dists, act_neighbs, self.__data,
-                self._par)
-            
+        Arguments:
+        act_neighbs - a neighbours selection array, such as returned from 
+            :meth:`which_neighbours`, to replace the recorded selection. Default
+            value (None) uses the recorded selection. The recorded selection
+            is not changed, so ``subset`` is forgotten after the call.
+        """
         if self._method == 'rbf':
             return rbf_interp(self.__tracer_dists, self.__dists, act_neighbs,
                 self.__data, self._par)
@@ -487,6 +505,47 @@ class GeneralInterpolant(object):
         cfg.set('Interpolant', 'param', str(self._par))
         cfg.set('Interpolant', 'method', self._method)
 
+class InverseDistanceWeighter(GeneralInterpolant):
+    """
+    Holds all parameters necessary for performing an inverse-distance 
+    interpolation. Use is either as a callable object after initialization, 
+    see :meth:`__call__`, or by setting a scene for repeated interpolation,
+    see :meth:`set_scene` and :meth:`interpolate`
+    """
+    def __init__(self, num_neighbs=None, radius=None, param=None):
+        """
+        Arguments:
+        num_neighbs - number of closest neighbours to interpolate from. If None
+            uses 4 neighbours, unless ``radius`` is not None, then ``neighbs``
+            is ignored.
+        radius - of the search area for neighbours, [m]. If None, select 
+            closest ``neighbs``.
+        param - the inverse power of distance to use (default 1).
+        """
+        if num_neighbs is None:
+            num_neighbs = 4
+        if param is None: 
+            param = 1
+        
+        self._neighbs = num_neighbs
+        self._radius = radius
+        self._par = param
+        self._method = 'inv'
+    
+    def _meth_interp(self, act_neighbs):
+        """
+        Implement the actual interpolation. Subclass this, not 
+        :meth:`interpolate`.
+        
+        Arguments:
+        act_neighbs - a neighbours selection array, such as returned from 
+            :meth:`which_neighbours`, to replace the recorded selection. Default
+            value (None) uses the recorded selection. The recorded selection
+            is not changed, so ``subset`` is forgotten after the call.
+        """
+        return inv_dist_interp(self.current_dists(), act_neighbs, 
+            self.current_data(), self._par)
+        
 def read_interpolant(conf_fname):
     """
     Builds an Interpolant object based on values in an INI-formatted file.
