@@ -720,7 +720,7 @@ def save_particles_table(filename, trajects, trim=None):
         
         table.append(arr)
         bounds_tab.append([
-            (traj.trajid(), traj.time()[trim_len], traj.time()[-trim_len])])
+            (traj.trajid(), arr['time'][0], arr['time'][-1])])
     
     table.cols.trajid.createIndex()
     table.cols.time.createIndex()
