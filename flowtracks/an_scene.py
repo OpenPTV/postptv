@@ -2,6 +2,7 @@
 
 import tables, itertools as it, numpy as np
 from .scene import read_dual_scene, gen_query_string
+from .trajectory import Trajectory
 
 class AnalysedScene(object):
     """
@@ -141,3 +142,34 @@ class AnalysedScene(object):
         
         # stack and return.
         return [np.concatenate(res[k], axis=0) for k in keys]
+    
+    def iter_trajectories(self):
+        """
+        Iterator over inertial trajectories. Since the analysis is structured 
+        around the inertial particles of the internal DualScene, it is possible
+        to iterate those trajectories, adding the corresponding fields of 
+        analysis to the same object. Generates a Trajectory object for each 
+        inertial particle trajectory in the particles file (in no particular 
+        order, but the same order every time on the same PyTables version) and
+        yields it.
+        
+        Note: since analysis works on segments, it truncates the last point of 
+        each trajectory. 
+        """
+        for traj in self._scene.get_particles().iter_trajectories():
+            trid = traj.trajid()
+            
+            # Trim last point of trajectory to match analysis:
+            kwds = dict((k, v[:-1]) for k, v in traj.as_dict().iteritems())
+            kwds['trajid'] = trid
+            
+            # Fetch by foreign key from analysis:
+            query_string = '(trajid == trid)'
+            arr = self._table.read_where(query_string)
+            
+            # Update into the Trajectory object:
+            for field in arr.dtype.fields:
+                if field not in ['trajid', 'time']:
+                    kwds[field] = arr[field]
+            
+            yield Trajectory(**kwds)
