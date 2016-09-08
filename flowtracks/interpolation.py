@@ -417,7 +417,9 @@ class Interpolant(object):
         """
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
             None, self._neighbs)
-        ndists = np.zeros((interp_points.shape[0], self._neighbs))
+        
+        nearest_tracers_count = min(tracer_pos.shape[0], self._neighbs)
+        ndists = np.zeros((interp_points.shape[0], nearest_tracers_count))
         
         for pt in xrange(interp_points.shape[0]):
             # allow assignment of less than the desired number of neighbours.
