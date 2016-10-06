@@ -147,6 +147,29 @@ class Scene(object):
         returned by ``keys()``.
         """
         return self._shapes
+    
+    def trajecory_by_id(self, trid):
+        """
+        Get trajectory data by trajectory ID.
+        
+        Arguments:
+        trid - trajectory ID, a unique number assigned to each trajectory when
+            the scene file was written.
+        
+        Returns:
+        a Trajectory object.
+        """
+        # I just repeat most of the code in iter_trajectories(). It is not the
+        # pretties thing but trying to abstract these 5 lines would be uglier.
+        query_string = '(trajid == trid)'
+        if self._frame_limit != '':
+            query_string += ' & ' + self._frame_limit
+        
+        arr = self._table.read_where(query_string)
+        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            if field != 'trajid')
+        kwds['trajid'] = trid
+        return Trajectory(**kwds)
         
     def iter_trajectories(self):
         """
