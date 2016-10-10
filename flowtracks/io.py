@@ -694,7 +694,7 @@ def save_particles_table(filename, trajects, trim=None):
     table = None
     trim_len = 0 if trim is None else trim * 2
     
-    outfile = tables.openFile(filename, mode='w')
+    outfile = tables.open_file(filename, mode='w')
     bounds_tab = outfile.createTable('/', 'bounds', 
         np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
     
