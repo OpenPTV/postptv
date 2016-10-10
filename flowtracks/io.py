@@ -338,7 +338,8 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         cont = table['prev'] - count_base > -1
         traj = np.empty(table['prev'].shape)
         
-        if  frames[-1] is not None:
+        has_history = (len(frames) > 0) and (frames[-1] is not None)
+        if has_history:
             prev_ix = table['prev'][cont] - count_base
             traj[cont] = frames[-1][:,-1][prev_ix]
         
@@ -360,7 +361,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             vel = np.zeros_like(pos)
         
         frame = np.hstack((pos, vel, t, traj[:,None]))
-        if 'vel' not in fmt.fields and frames[-1] is not None:
+        if 'vel' not in fmt.fields and has_history:
             # Update velocity of previous frame's continuing particles
             frames[-1][prev_ix,3:6] = \
                 (pos[cont] - frames[-1][prev_ix,:3]) * frate
@@ -397,7 +398,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         
         # Discard frames that only have trajectories that ended.
         cont_trids = frame[~ending,-1]
-        if not cont_trids.any():
+        if len(cont_trids) == 0:
             new_start = fix
         else:
             new_start = min([traj_starts[trid] for trid in cont_trids])
