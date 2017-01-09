@@ -280,7 +280,6 @@ class Scene(object):
         cond_string = ' & '.join(conds)
         
         # No frame range or user-defined conditions:
-        print cond_string
         if cond_string == '':
             return [self._table.col(k) for k in keys]
         
