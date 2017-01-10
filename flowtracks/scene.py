@@ -155,7 +155,7 @@ class Scene(object):
         """
         return self._trids
     
-    def trajecory_by_id(self, trid):
+    def trajectory_by_id(self, trid):
         """
         Get trajectory data by trajectory ID.
         
