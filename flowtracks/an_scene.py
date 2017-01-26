@@ -143,6 +143,34 @@ class AnalysedScene(object):
         # stack and return.
         return [np.concatenate(res[k], axis=0) for k in keys]
     
+    def trajectory_by_id(self, trid):
+        """
+        Retrieves an inertial trajectory with the respective analysis.
+        See ``iter_trajectories`` for the full documentation.
+        
+        Arguments:
+        trid - trajectory ID to fetch.
+        
+        Returns:
+        a Trajectory object with analysis keys added.
+        """
+        traj = self._scene.get_particles().trajectory_by_id(trid)
+        
+        # Trim last point of trajectory to match analysis:
+        kwds = dict((k, v[:-1]) for k, v in traj.as_dict().iteritems())
+        kwds['trajid'] = trid
+        
+        # Fetch by foreign key from analysis:
+        query_string = '(trajid == trid)'
+        arr = self._table.read_where(query_string)
+        
+        # Update into the Trajectory object:
+        for field in arr.dtype.fields:
+            if field not in ['trajid', 'time']:
+                kwds[field] = arr[field]
+        
+        return Trajectory(**kwds)
+        
     def iter_trajectories(self):
         """
         Iterator over inertial trajectories. Since the analysis is structured 
@@ -156,20 +184,5 @@ class AnalysedScene(object):
         Note: since analysis works on segments, it truncates the last point of 
         each trajectory. 
         """
-        for traj in self._scene.get_particles().iter_trajectories():
-            trid = traj.trajid()
-            
-            # Trim last point of trajectory to match analysis:
-            kwds = dict((k, v[:-1]) for k, v in traj.as_dict().iteritems())
-            kwds['trajid'] = trid
-            
-            # Fetch by foreign key from analysis:
-            query_string = '(trajid == trid)'
-            arr = self._table.read_where(query_string)
-            
-            # Update into the Trajectory object:
-            for field in arr.dtype.fields:
-                if field not in ['trajid', 'time']:
-                    kwds[field] = arr[field]
-            
-            yield Trajectory(**kwds)
+        for trid in self._scene.get_particles().trajectory_ids():
+            yield self.trajectory_by_id(trid)
