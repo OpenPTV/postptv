@@ -90,7 +90,7 @@ def pdf_graph(data, num_bins, log=False, log_density=False, marker='o'):
         marker='-' + marker)
 
 def plot_vectors(vecs, indep, xlabel, fig=None, marker='-', 
-    ytick_dens=None, yticks_format=None, unit_str=""):
+    ytick_dens=None, yticks_format=None, unit_str="", common_scale=None):
     """
     Plot 3D vectors as 3 subplots sharing the same independent axis.
     
@@ -121,6 +121,8 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
         if yticks_format is not None:
              pl.gca().get_yaxis().set_major_formatter(yticks_format)
         
+        if common_scale is not None:
+            pl.ylim(np.r_[-common_scale, common_scale] + vecs[:,subplt].mean())
         if ytick_dens is not None:
             loc, _ = pl.yticks()
             pl.yticks(np.linspace(vecs[:,subplt].min(), vecs[:,subplt].max(), 
