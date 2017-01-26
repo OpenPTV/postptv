@@ -78,10 +78,11 @@ class Scene(object):
         """
         self._file = tables.open_file(file_name)
         self._table = self._file.get_node('/particles')
-        self._trids = np.unique(self._table.col('trajid'))
+        traj_tags = self._file.get_node('/bounds')
+        self._trids = traj_tags.col('trajid')
         self.set_frame_range(frame_range)
         
-        # Cache data on user-visible columsn:
+        # Cache data on user-visible columns:
         filt = ('trajid', 'time')
         self._keys = []
         self._shapes = []
@@ -148,7 +149,13 @@ class Scene(object):
         """
         return self._shapes
     
-    def trajecory_by_id(self, trid):
+    def trajectory_ids(self):
+        """
+        Returns all trajectory IDs in the scene as an array.
+        """
+        return self._trids
+    
+    def trajectory_by_id(self, trid):
         """
         Get trajectory data by trajectory ID.
         
