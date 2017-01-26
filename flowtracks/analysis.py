@@ -75,8 +75,13 @@ class FluidVelocitiesAnalyser(GeneralAnalyser):
         particles in the current frame. 1st array - fluid velocity. 2nd array
         - relative velocity.
         """
+        if frame.particles.has_property('companion'):
+            comp = np.nonzero(
+                frame.tracers.trajid()[:,None] == frame.particles.companion() )[0]
+        else:
+            comp = None
         self._interp.set_scene(frame.tracers.pos(), frame.particles.pos(),
-            frame.tracers.velocity())
+            frame.tracers.velocity(), comp)
         vel_interp = self._interp.interpolate()
         rel_vel = frame.particles.velocity() - vel_interp
         
