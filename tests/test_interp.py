@@ -165,5 +165,28 @@ class TestJacobian(unittest.TestCase):
         # Non-diagonal elements:
         jac[:, [0,1,2], [0,1,2]] = 0
         self.failUnless(np.all(jac == 0))
+
+class TestCompanion(unittest.TestCase):
+    def test_select(self):
+        """Selecting neighbours excludes correct companions"""
+        tracer_pos = np.array([
+            [ 0.001, 0, 0],
+            [-0.001, 0, 0],
+            [0,  0.001, 0],
+            [0, -0.001, 0],
+            [0, 0,  0.001],
+            [0, 0, -0.001]
+        ])
+        pos = np.array([
+            [0,  0.0009, 0],
+            [0, -0.0009, 0],
+        ])
+        companions = np.r_[2, 3]
         
+        dist, use_parts = interpolation.select_neighbs(
+            tracer_pos, pos, num_neighbs=4, companionship=companions)
         
+        np.testing.assert_array_equal(use_parts, np.array([
+            [True, True, False, False, True, True],
+            [True, True, False, False, True, True]
+        ]))
