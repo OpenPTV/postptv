@@ -51,7 +51,8 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
     
     dists[dists <= 0] = np.inf # Only for selection phase,later changed back.
     if companionship is not None:
-        dists[np.arange(len(interp_points)), companionship] = np.inf
+        cif = companionship >= 0. # companion in frame
+        dists[np.nonzero(cif)[0], companionship[cif]] = np.inf
     
     if radius is None:
         if num_neighbs is None:

@@ -15,6 +15,16 @@ fluid velocity around a particle from its surrounding tracers.
 
 import numpy as np, tables
 
+def companion_indices(trids, companions):
+    """
+    Return an array giving for each companion its respective index in the 
+    trajectory ID array, or a negative number if not found.
+    """
+    comp = np.full_like(companions, -1)
+    idx = np.nonzero(trids[:,None] == companions)
+    comp[idx[1]] = idx[0]
+    return comp
+                
 class GeneralAnalyser(object):
     """
     This is the parent class for all analysers to be used by :func:`analysis`.
@@ -76,8 +86,8 @@ class FluidVelocitiesAnalyser(GeneralAnalyser):
         - relative velocity.
         """
         if frame.particles.has_property('companion'):
-            comp = np.nonzero(
-                frame.tracers.trajid()[:,None] == frame.particles.companion() )[0]
+            comp = companion_indices(
+                frame.tracers.trajid(), frame.particles.companion())
         else:
             comp = None
         self._interp.set_scene(frame.tracers.pos(), frame.particles.pos(),
