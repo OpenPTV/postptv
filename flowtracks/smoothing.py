@@ -62,6 +62,11 @@ def savitzky_golay(trajs, fps, window_size, order):
     order_range = range(order+1)
     half_window = (window_size -1) // 2
     
+    # Properties that should not be copied from the old trajectory because
+    # they are obtained otherwise (or copied elsewhere).
+    smoothed_keys = ['pos', 'velocity', 'accel', 'acc_pp', 'time', 
+        'trajid']
+    
     # precompute coefficients
     b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
     m = np.linalg.pinv(b).A
@@ -107,7 +112,14 @@ def savitzky_golay(trajs, fps, window_size, order):
         nextvel = np.vstack((np.zeros(3), newvel + newacc/fps + jerk/2./fps**2))[:-1]
         nextacc = np.vstack((np.zeros(3), newacc + jerk/fps))[:-1]
         
-        new_trajs.append(Trajectory(newpos, newvel, traj.time(), traj.trajid(),
-            accel=newacc, vel_pp=nextvel, acc_pp = nextacc))
+        newtraj = Trajectory(newpos, newvel, traj.time(), traj.trajid(),
+            accel=newacc, vel_pp=nextvel, acc_pp = nextacc)
+        
+        # Copy unsmoothed properties from old trajectory:
+        for k, v in traj.as_dict().iteritems():
+            if k not in smoothed_keys:
+                newtraj.create_property(k, v)
+        
+        new_trajs.append(newtraj)
     
     return new_trajs
