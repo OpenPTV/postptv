@@ -318,6 +318,12 @@ class GeneralInterpolant(object):
                 
         return self.__dists
     
+    def current_active_neighbs(self):
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+                
+        return self.__active_neighbs
+    
     def current_data(self):
         if self.__active_neighbs is None:
             self._forego_laziness()
@@ -545,7 +551,42 @@ class InverseDistanceWeighter(GeneralInterpolant):
         """
         return inv_dist_interp(self.current_dists(), act_neighbs, 
             self.current_data(), self._par)
+    
+    def eulerian_jacobian(self, local_interp=None, eps=None):
+        """
+        Velocity derivatives. The Jacobian is calculated for the
+        current scene, as recorded with ``set_scene()``
         
+        Arguments:
+        local_interp - results of interpolation already performed at the 
+            position where derivatives are wanted. If not given, an 
+            interpolation of recorded scene data is automatically performed.
+        eps - unused, here for compatibility with base class.
+        
+        Returns: (m,3,3) array, for m interpolation points, [i,j] = du_i/dx_j
+        """
+        if local_interp is None:
+            local_interp = self.interpolate()
+        
+        dists = self.current_dists()
+        use_parts = self.current_active_neighbs()
+        
+        weights = np.zeros_like(dists)
+        weights[use_parts] = dists[use_parts]**-self._par
+        der_inv_dists = np.zeros_like(dists)
+        der_inv_dists[use_parts] = dists[use_parts]**-(self._par + 2)
+        
+        # stopped here.
+        ret = np.empty((self.__interp_pts.shape[0], 3, 3))
+        ret[:,:,0] = self(self.__tracers,
+            self.__interp_pts + np.r_[eps,0,0], self.__data) 
+        ret[:,:,1] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,eps,0], self.__data) 
+        ret[:,:,2] = self(self.__tracers, 
+            self.__interp_pts + np.r_[0,0,eps], self.__data)
+        ret = (ret - local_interp[:,:,None]) / eps
+        return ret
+    
 def read_interpolant(conf_fname):
     """
     Builds an Interpolant object based on values in an INI-formatted file.
