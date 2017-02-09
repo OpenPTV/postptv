@@ -90,7 +90,8 @@ def pdf_graph(data, num_bins, log=False, log_density=False, marker='o'):
         marker='-' + marker)
 
 def plot_vectors(vecs, indep, xlabel, fig=None, marker='-', 
-    ytick_dens=None, yticks_format=None, unit_str="", common_scale=None):
+    ytick_dens=None, yticks_format=None, unit_str="", common_scale=None,
+    arrows=None, arrow_color=None):
     """
     Plot 3D vectors as 3 subplots sharing the same independent axis.
     
@@ -104,11 +105,15 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
         of the automatic tick marks.
     yticks_format - a pyplot formatter object.
     unit_str - a string to add to the Y labels representing the vector's units.
+    arrows - an (n,3) array of values to represent as vertical arrows attached 
+        to each trajectory point.
+    arrow_color - a matplotlib color spec for the arrow bodies.
     
     Returns:
     fig - the figure object used for plotting.
     """
     fig = pl.figure(None if fig is None else fig.number)
+    u = np.zeros(vecs.shape[0])
     
     labels = ("X " + unit_str, "Y" + unit_str, "Z" + unit_str)
     for subplt in xrange(3):
@@ -127,6 +132,10 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
             loc, _ = pl.yticks()
             pl.yticks(np.linspace(vecs[:,subplt].min(), vecs[:,subplt].max(), 
                     ytick_dens))
+        
+        if arrows is not None:
+            pl.quiver(indep, vecs[:,subplt], u, arrows[:,subplt], 
+                scale=30, width=1e-3, color=arrow_color)
     
     pl.gca().get_xaxis().set_visible(True)
     pl.xlabel(xlabel)
