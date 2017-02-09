@@ -78,8 +78,12 @@ class Scene(object):
         """
         self._file = tables.open_file(file_name)
         self._table = self._file.get_node('/particles')
-        traj_tags = self._file.get_node('/bounds')
-        self._trids = traj_tags.col('trajid')
+        try:
+            traj_tags = self._file.get_node('/bounds')
+            self._trids = traj_tags.col('trajid')
+        except:
+            self._trids = np.unique(self._table.col('trajid'))
+        
         self.set_frame_range(frame_range)
         
         # Cache data on user-visible columns:

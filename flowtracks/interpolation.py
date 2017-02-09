@@ -20,7 +20,8 @@ Interpolation routines.
 import numpy as np, warnings
 from ConfigParser import SafeConfigParser
 
-def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
+def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
+    companionship=None):
     """
     For each of m interpolation points, find its distance to all tracers. Use
     result to decide which tracers are the neighbours of each interpolation
@@ -34,6 +35,10 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
         num_neighbs.
     num_neighbs - number of closest neighbours to interpolate from. If None.
         uses all neighbours in a given radius. ``radius`` has precedence.
+    companionship - an optional array denoting for each interpolation point the
+        index of a tracer that should be excluded from it ("companion tracer"),
+        useful esp. for interpolating tracers unto themselves and for analysing
+        a simulated particle that started from a true tracer.
     
     Returns:
     dists - (m,n) array, the distance from each interpolation point to each
@@ -45,6 +50,9 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None):
         axis=2)
     
     dists[dists <= 0] = np.inf # Only for selection phase,later changed back.
+    if companionship is not None:
+        cif = companionship >= 0. # companion in frame
+        dists[np.nonzero(cif)[0], companionship[cif]] = np.inf
     
     if radius is None:
         if num_neighbs is None:
@@ -212,7 +220,7 @@ class Interpolant(object):
     def radius(self):
         return self._radius
     
-    def set_scene(self, tracer_pos, interp_points, data):
+    def set_scene(self, tracer_pos, interp_points, data, companionship=None):
         """
         Records scene data for future interpolation using the same scene.
         
@@ -224,10 +232,15 @@ class Interpolant(object):
         data - (n,d) array, the for the d-dimensional data for tracer n. For 
             example, in velocity interpolation this would be (n,3), each tracer
             having 3 components of velocity.
+        companionship - an optional array denoting for each interpolation point
+            the index of a tracer that should be excluded from it ("companion 
+            tracer"), useful esp. for analysing a simulated particle that 
+            started from a true tracer.
         """
         self.__tracers = tracer_pos
         self.__interp_pts = interp_points
         self.__data = data
+        self.__comp = companionship
         
         # empty the neighbours cache:
         self.__dists = None
@@ -252,11 +265,13 @@ class Interpolant(object):
         Populate the neighbours cache.
         """
         self.__dists, self.__active_neighbs = select_neighbs(
-            self.__tracers, self.__interp_pts, self._radius, self._neighbs)
+            self.__tracers, self.__interp_pts, self._radius, self._neighbs,
+            self.__comp)
             
         if self._method == 'rbf':
             self.__tracer_dists, _ = select_neighbs(
-                self.__tracers, self.__tracers, self._radius, self._neighbs)
+                self.__tracers, self.__tracers, self._radius, self._neighbs,
+                self.__comp)
                 
     def which_neighbours(self):
         """
@@ -324,7 +339,7 @@ class Interpolant(object):
         raise NotImplementedError("Interpolation method %s not supported" \
             % self._method)
     
-    def __call__(self, tracer_pos, interp_points, data):
+    def __call__(self, tracer_pos, interp_points, data, companionship=None):
         """
         Sets up the necessary parameters, and performs the interpolation.
         Does not change the scene set by set_scene if any, so may be used
@@ -338,6 +353,10 @@ class Interpolant(object):
         data - (n,d) array, the for the d-dimensional data for tracer n. For 
             example, in velocity interpolation this would be (n,3), each tracer
             having 3 components of velocity.
+        companionship - an optional array denoting for each interpolation point
+            the index of a tracer that should be excluded from it ("companion 
+            tracer"), useful esp. for analysing a simulated particle that 
+            started from a true tracer.
         
         Returns:
         vel_interp - an (m,3) array with the interpolated value at the position
@@ -352,14 +371,14 @@ class Interpolant(object):
             return np.zeros((interp_points.shape[0], ret_shape))
             
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
-            self._radius, self._neighbs)
+            self._radius, self._neighbs, companionship)
         
         if self._method == 'inv':
             return inv_dist_interp(dists, use_parts, data, self._par)
             
         elif self._method == 'rbf':
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
-                self._radius, self._neighbs)[0]
+                self._radius, self._neighbs, companionship)[0]
             return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
         
         elif self._method == 'corrfun':
@@ -399,7 +418,7 @@ class Interpolant(object):
         ret = (ret - local_interp[:,:,None]) / eps
         return ret
         
-    def neighb_dists(self, tracer_pos, interp_points):
+    def neighb_dists(self, tracer_pos, interp_points, companionship=None):
         """
         The distance from each interpolation point to each data point of those
         used for interpolation. Assumes, for now, a constant number of
@@ -410,13 +429,17 @@ class Interpolant(object):
             in [m]
         interp_points - (m,3) array, coordinates of points where interpolation 
             will be done.
+        companionship - an optional array denoting for each interpolation point
+            the index of a tracer that should be excluded from it ("companion 
+            tracer"), useful esp. for analysing a simulated particle that 
+            started from a true tracer.
         
         Returns:
         ndists - an (m,c) array, for c closest neighbours as defined during
             object construction.
         """
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
-            None, self._neighbs)
+            None, self._neighbs, companionship)
         
         nearest_tracers_count = min(tracer_pos.shape[0], self._neighbs)
         ndists = np.zeros((interp_points.shape[0], nearest_tracers_count))
