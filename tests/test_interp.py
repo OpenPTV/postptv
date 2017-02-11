@@ -162,6 +162,11 @@ class TestJacobian(unittest.TestCase):
         np.testing.assert_array_equal(np.sign(jac[:, [0,1,2], [0,1,2]]),
             np.ones((1, 3)))
         
+        # Check compared to numeric:
+        numeric = interpolation.GeneralInterpolant.eulerian_jacobian(
+            interp, eps=1e-6)
+        np.testing.assert_array_almost_equal(jac, numeric)
+        
         # Non-diagonal elements:
         jac[:, [0,1,2], [0,1,2]] = 0
         self.failUnless(np.all(jac == 0))

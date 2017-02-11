@@ -267,6 +267,7 @@ class GeneralInterpolant(object):
         self.__comp = companionship
         
         # empty the neighbours cache:
+        self.__rel_pos = None
         self.__dists = None
         self.__active_neighbs = None
     
@@ -288,6 +289,7 @@ class GeneralInterpolant(object):
         """
         Populate the neighbours cache.
         """
+        self.__rel_pos = self.__tracers[None,:,:] - self.__interp_pts[:,None,:]
         self.__dists, self.__active_neighbs = select_neighbs(
             self.__tracers, self.__interp_pts, self._radius, self._neighbs,
             self.__comp)
@@ -311,6 +313,13 @@ class GeneralInterpolant(object):
             self._forego_laziness()
                 
         return self.__active_neighbs
+    
+    def current_relative_positions(self):
+        """
+        Returns an (m,n,3) array, the distance between interpolation point m
+        and tracer n an each axis.
+        """
+        return self.__rel_pos
     
     def current_dists(self):
         if self.__active_neighbs is None:
@@ -563,29 +572,29 @@ class InverseDistanceWeighter(GeneralInterpolant):
             interpolation of recorded scene data is automatically performed.
         eps - unused, here for compatibility with base class.
         
-        Returns: (m,3,3) array, for m interpolation points, [i,j] = du_i/dx_j
+        Returns: 
+        (m,d,3) array, for m interpolation points and d interpolation 
+        dimentions. For each point, [i,j] = du_i/dx_j
         """
         if local_interp is None:
             local_interp = self.interpolate()
         
         dists = self.current_dists()
         use_parts = self.current_active_neighbs()
+        rel_pos = self.current_relative_positions()
+        data = self.current_data().copy()
         
         weights = np.zeros_like(dists)
         weights[use_parts] = dists[use_parts]**-self._par
         der_inv_dists = np.zeros_like(dists)
         der_inv_dists[use_parts] = dists[use_parts]**-(self._par + 2)
         
-        # stopped here.
-        ret = np.empty((self.__interp_pts.shape[0], 3, 3))
-        ret[:,:,0] = self(self.__tracers,
-            self.__interp_pts + np.r_[eps,0,0], self.__data) 
-        ret[:,:,1] = self(self.__tracers, 
-            self.__interp_pts + np.r_[0,eps,0], self.__data) 
-        ret[:,:,2] = self(self.__tracers, 
-            self.__interp_pts + np.r_[0,0,eps], self.__data)
-        ret = (ret - local_interp[:,:,None]) / eps
-        return ret
+        vel_diffs = (data[None,:,:] - local_interp[:,None,:]) # m x n x d
+        jac = self._par/weights.sum(axis=1) * \
+            np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
+                   vel_diffs[...,None], axis=1)
+        
+        return jac
     
 def read_interpolant(conf_fname):
     """
