@@ -227,10 +227,18 @@ class GeneralInterpolant(object):
             tracer"), useful esp. for analysing a simulated particle that 
             started from a true tracer.
         """
-        self.__tracers = tracer_pos
-        self.__interp_pts = interp_points
-        self.__data = data
-        self.__comp = companionship
+        self.__tracers = np.atleast_2d(tracer_pos)
+        self.__interp_pts = np.atleast_2d(interp_points)
+        if companionship is None:
+            self.__comp = None
+        else:
+            self.__comp = np.atleast_1d(companionship)
+        
+        # Data can be 1d because it needs to be (1,d) or because it's (n,1),
+        if tracer_pos.shape[0] > 1:
+            self.__data = np.atleast_2d(data)
+        else:
+            self.__data = np.atleast_1d(data)
         
         # empty the neighbours cache:
         self.__rel_pos = None
