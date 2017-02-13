@@ -210,7 +210,8 @@ class GeneralInterpolant(object):
     def radius(self):
         return self._radius
     
-    def set_scene(self, tracer_pos, interp_points, data, companionship=None):
+    def set_scene(self, tracer_pos, interp_points,
+        data=None, companionship=None):
         """
         Records scene data for future interpolation using the same scene.
         
@@ -229,21 +230,39 @@ class GeneralInterpolant(object):
         """
         self.__tracers = np.atleast_2d(tracer_pos)
         self.__interp_pts = np.atleast_2d(interp_points)
+        
+        if data is not None:
+            self.set_data_on_current_field(data)
+        
         if companionship is None:
             self.__comp = None
         else:
             self.__comp = np.atleast_1d(companionship)
         
-        # Data can be 1d because it needs to be (1,d) or because it's (n,1),
-        if tracer_pos.shape[0] > 1:
-            self.__data = np.atleast_2d(data)
-        else:
-            self.__data = np.atleast_1d(data)
-        
         # empty the neighbours cache:
         self.__rel_pos = None
         self.__dists = None
         self.__active_neighbs = None
+    
+    def set_data_on_current_field(self, data):
+        """
+        Change the data on the existing interpolation points. This enables
+        redoing an interpolation on a scene without recalculating weights, 
+        when weights are only dependent on position, as they are for most 
+        interpolation methods.
+        
+        Arguments:
+        data - (n,d) array, the for the d-dimensional data for n tracers. For 
+            example, in velocity interpolation this would be (n,3), each tracer
+            having 3 components of velocity.
+        """
+        # Data can be 1d because it needs to be (1,d) or because it's (n,1),
+        if data.ndim < 2:
+            if data.shape[0] == self.__tracers.shape[0]:
+                data = data[:,None]
+            else:
+                data = data[None,:]
+        self.__data = data
     
     def trim_points(self, which):
         """
@@ -537,6 +556,28 @@ class InverseDistanceWeighter(GeneralInterpolant):
         weights[use_parts] = dists[use_parts]**-self._par
         return weights
     
+    def set_scene(self, tracer_pos, interp_points, 
+        data=None, companionship=None):
+        """
+        Adds to the base class only a precalculation of weights.
+        """
+        GeneralInterpolant.set_scene(self, tracer_pos, interp_points, data,
+            companionship)
+        self._forego_laziness()
+        self.__weights = self.weights(self.current_dists(), 
+            self.current_active_neighbs())
+    
+    def trim_points(self, which):
+        """
+        Remove interpolation points from the scene.
+        
+        Arguments:
+        which - a boolean array, length is number of current particle list
+            (as given in set_scene), True to trim a point, False to keep.
+        """
+        GeneralInterpolant.trim_points(self, which)
+        self.__weights = self.__weights[~which]
+        
     def _apply_weights(self, weights, data):
         """
         Do the actual interpolation after weights have been determined.
@@ -583,8 +624,8 @@ class InverseDistanceWeighter(GeneralInterpolant):
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
             self._radius, self._neighbs, companionship)
         
-        self.__weights = self.weights(dists, use_parts)
-        return self._apply_weights(self.__weights, data)
+        weights = self.weights(dists, use_parts)
+        return self._apply_weights(weights, data)
         
     def _meth_interp(self, act_neighbs):
         """
@@ -597,8 +638,11 @@ class InverseDistanceWeighter(GeneralInterpolant):
             value (None) uses the recorded selection. The recorded selection
             is not changed, so ``subset`` is forgotten after the call.
         """
-        self.__weights = self.weights(self.current_dists(), act_neighbs)
-        return self._apply_weights(self.__weights, self.current_data())
+        if act_neighbs is not self.current_active_neighbs():
+            weights = self.weights(self.current_dists(), act_neighbs)
+        else:
+            weights = self.__weights
+        return self._apply_weights(weights, self.current_data())
     
     def eulerian_jacobian(self, local_interp=None, eps=None):
         """

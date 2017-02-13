@@ -81,7 +81,7 @@ class TestRepeatedInterp(unittest.TestCase):
     
     def test_interp_subset(self):
         """Interpolate using a temporary neighbour selection."""
-        use_parts = self.interp.which_neighbours()
+        use_parts = self.interp.which_neighbours().copy()
         use_parts[:,::3] = ~use_parts[:,::3]
         interped = self.interp.interpolate(use_parts)
         
