@@ -71,34 +71,6 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
     
     dists[np.isinf(dists)] = 0.
     return dists, use_parts
-    
-def inv_dist_interp(dists, use_parts, velocity, p=1):
-    """
-    For each of n particle, generate the velocity interpolated to its 
-    position from all neighbours as selected by caller. Interpolation method is
-    inverse-distance weighting, [#IDW]_
-    
-    Arguments:
-    dists - (m,n) array, the distance of interpolation_point i=1...m from 
-        tracer j=1...n, for (row,col) (i,j) [m] 
-    use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
-        particle i, same indexing as ``dists``.
-    velocity - (n,3) array, the u,v,w velocity components for each of n
-        tracers, [m/s]
-    p - the power of inverse distance weight, w = r^(-p). default 1. Use 0 for
-        simple averaging.
-    
-    Returns:
-    vel_avg - an (m,3) array with the interpolated velocity at each 
-        interpolation point, [m/s].
-    """
-    weights = np.zeros_like(dists)
-    weights[use_parts] = 1./dists[use_parts]**p
-    
-    vel_avg = (weights[...,None] * velocity[None,...]).sum(axis=1) / \
-        weights.sum(axis=1)[:,None]
-
-    return vel_avg
 
 def corrfun_interp(dists, use_parts, data, corrs_hist, corrs_bins):
     """
@@ -164,7 +136,31 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     vel_interp = np.sum(rbf[...,None] * coeffs, axis=1)
     return vel_interp
 
-class Interpolant(object):
+def interpolant(method, num_neighbs=None, radius=None, param=None):
+    """
+    Factory function. Returns an object of the interpolant class that matches 
+    the given method. All classes are subclassed from GeneralInterpolant.
+    
+    Arguments:
+    method - interpolation method. Either 'inv' for inverse-distance 
+        weighting, 'rbf' for gaussian-kernel Radial Basis Function
+        method, or 'corrfun' for using a correlation function.
+    radius - of the search area for neighbours, [m]. If None, select 
+        closest ``neighbs``.
+    neighbs - number of closest neighbours to interpolate from. If None.
+        uses 4 neighbours for 'inv' method, and 7 for 'rbf', unless 
+        ``radius`` is not None, then ``neighbs`` is ignored.
+    param - the parameter adjusting the interpolation method. For IDW it is
+        the inverse power (default 1), for rbf it is epsilon (default 1e5).
+    """
+    if method == 'inv':
+        return InverseDistanceWeighter(num_neighbs, radius, param)
+    else:
+        return GeneralInterpolant(method, num_neighbs, radius, param)
+
+Interpolant = interpolant # B.C.
+
+class GeneralInterpolant(object):
     """
     Holds all parameters necessary for performing an interpolation. Use is as
     a callable object after initialization, see :meth:`__call__`.
@@ -183,13 +179,7 @@ class Interpolant(object):
         param - the parameter adjusting the interpolation method. For IDW it is
             the inverse power (default 1), for rbf it is epsilon (default 1e5).
         """        
-        if method == 'inv':
-            if num_neighbs is None:
-                num_neighbs = 4
-            if param is None: 
-                param = 1
-        
-        elif method == 'rbf':
+        if method == 'rbf':
             if num_neighbs is None:
                 num_neighbs = 7
             if param is None:
@@ -220,7 +210,8 @@ class Interpolant(object):
     def radius(self):
         return self._radius
     
-    def set_scene(self, tracer_pos, interp_points, data, companionship=None):
+    def set_scene(self, tracer_pos, interp_points,
+        data=None, companionship=None):
         """
         Records scene data for future interpolation using the same scene.
         
@@ -237,14 +228,41 @@ class Interpolant(object):
             tracer"), useful esp. for analysing a simulated particle that 
             started from a true tracer.
         """
-        self.__tracers = tracer_pos
-        self.__interp_pts = interp_points
-        self.__data = data
-        self.__comp = companionship
+        self.__tracers = np.atleast_2d(tracer_pos)
+        self.__interp_pts = np.atleast_2d(interp_points)
+        
+        if data is not None:
+            self.set_data_on_current_field(data)
+        
+        if companionship is None:
+            self.__comp = None
+        else:
+            self.__comp = np.atleast_1d(companionship)
         
         # empty the neighbours cache:
+        self.__rel_pos = None
         self.__dists = None
         self.__active_neighbs = None
+    
+    def set_data_on_current_field(self, data):
+        """
+        Change the data on the existing interpolation points. This enables
+        redoing an interpolation on a scene without recalculating weights, 
+        when weights are only dependent on position, as they are for most 
+        interpolation methods.
+        
+        Arguments:
+        data - (n,d) array, the for the d-dimensional data for n tracers. For 
+            example, in velocity interpolation this would be (n,3), each tracer
+            having 3 components of velocity.
+        """
+        # Data can be 1d because it needs to be (1,d) or because it's (n,1),
+        if data.ndim < 2:
+            if data.shape[0] == self.__tracers.shape[0]:
+                data = data[:,None]
+            else:
+                data = data[None,:]
+        self.__data = data
     
     def trim_points(self, which):
         """
@@ -264,6 +282,7 @@ class Interpolant(object):
         """
         Populate the neighbours cache.
         """
+        self.__rel_pos = self.__tracers[None,:,:] - self.__interp_pts[:,None,:]
         self.__dists, self.__active_neighbs = select_neighbs(
             self.__tracers, self.__interp_pts, self._radius, self._neighbs,
             self.__comp)
@@ -288,11 +307,30 @@ class Interpolant(object):
                 
         return self.__active_neighbs
     
+    def current_relative_positions(self):
+        """
+        Returns an (m,n,3) array, the distance between interpolation point m
+        and tracer n an each axis.
+        """
+        return self.__rel_pos
+    
     def current_dists(self):
         if self.__active_neighbs is None:
             self._forego_laziness()
                 
         return self.__dists
+    
+    def current_active_neighbs(self):
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+                
+        return self.__active_neighbs
+    
+    def current_data(self):
+        if self.__active_neighbs is None:
+            self._forego_laziness()
+                
+        return self.__data
     
     def interpolate(self, subset=None):
         """
@@ -308,25 +346,34 @@ class Interpolant(object):
         an (m,3) array with the interpolated value at the position of each 
         of m particles.
         """
+        # If for some reason tracking failed for a whole frame, 
+        # interpolation is impossible at that frame. This checks for frame 
+        # tracking failure.
+        if len(self.__tracers) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers in frame, interpolation returned zeros.")
+            ret_shape = self.__data.shape[-1] if self.__data.ndim > 1 else 1
+            return np.zeros((self.__interp_pts.shape[0], ret_shape))
+
         # Check that the cache is populated:
         if self.__active_neighbs is None:
             self._forego_laziness()
         
         act_neighbs = self.__active_neighbs if subset is None else subset
             
-        # If for some reason tracking failed for a whole frame, 
-        # interpolation is impossible at that frame. This checks for frame 
-        # tracking failure.
-        if len(self.__tracers) == 0:
-            # Temporary measure until I can safely discard frames.
-            warnings.warn("No tracers im frame, interpolation returned zeros.")
-            ret_shape = self.__data.shape[-1] if self.__data.ndim > 1 else 1
-            return np.zeros((self.__interp_pts.shape[0], ret_shape))
+        return self._meth_interp(act_neighbs)
+    
+    def _meth_interp(self, act_neighbs):
+        """
+        Implement the actual interpolation. Subclass this, not 
+        :meth:`interpolate`.
         
-        if self._method == 'inv':
-            return inv_dist_interp(self.__dists, act_neighbs, self.__data,
-                self._par)
-            
+        Arguments:
+        act_neighbs - a neighbours selection array, such as returned from 
+            :meth:`which_neighbours`, to replace the recorded selection. Default
+            value (None) uses the recorded selection. The recorded selection
+            is not changed, so ``subset`` is forgotten after the call.
+        """
         if self._method == 'rbf':
             return rbf_interp(self.__tracer_dists, self.__dists, act_neighbs,
                 self.__data, self._par)
@@ -373,10 +420,7 @@ class Interpolant(object):
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
             self._radius, self._neighbs, companionship)
         
-        if self._method == 'inv':
-            return inv_dist_interp(dists, use_parts, data, self._par)
-            
-        elif self._method == 'rbf':
+        if self._method == 'rbf':
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
                 self._radius, self._neighbs, companionship)[0]
             return rbf_interp(tracer_dists, dists, use_parts, data, self._par)
@@ -466,6 +510,173 @@ class Interpolant(object):
         cfg.set('Interpolant', 'param', str(self._par))
         cfg.set('Interpolant', 'method', self._method)
 
+class InverseDistanceWeighter(GeneralInterpolant):
+    """
+    Holds all parameters necessary for performing an inverse-distance 
+    interpolation [#IDW]_. Use is either as a callable object after 
+    initialization, see :meth:`__call__`, or by setting a scene for repeated 
+    interpolation, see :meth:`set_scene` and :meth:`interpolate`
+    """
+    def __init__(self, num_neighbs=None, radius=None, param=None):
+        """
+        Arguments:
+        num_neighbs - number of closest neighbours to interpolate from. If None
+            uses 4 neighbours, unless ``radius`` is not None, then ``neighbs``
+            is ignored.
+        radius - of the search area for neighbours, [m]. If None, select 
+            closest ``neighbs``.
+        param - the inverse power of distance to use (default 1).
+        """
+        if num_neighbs is None:
+            num_neighbs = 4
+        if param is None: 
+            param = 1
+        
+        self._neighbs = num_neighbs
+        self._radius = radius
+        self._par = param
+        self._method = 'inv'
+    
+    def weights(self, dists, use_parts):
+        """
+        Calculate the respective weight of each tracer j=1..n in the 
+        interpolation point i=1..m. The actual weight is normalized to the sum
+        of weights in the interpolation, not here.
+    
+        Arguments:
+        dists - (m,n) array, the distance of interpolation_point i=1...m from 
+            tracer j=1...n, for (row,col) (i,j) [m] 
+        use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
+            particle i, same indexing as ``dists``.
+        
+        Returns:
+        weights - an (m,n) array.
+        """
+        weights = np.zeros_like(dists)
+        weights[use_parts] = dists[use_parts]**-self._par
+        return weights
+    
+    def set_scene(self, tracer_pos, interp_points, 
+        data=None, companionship=None):
+        """
+        Adds to the base class only a precalculation of weights.
+        """
+        GeneralInterpolant.set_scene(self, tracer_pos, interp_points, data,
+            companionship)
+        self._forego_laziness()
+        self.__weights = self.weights(self.current_dists(), 
+            self.current_active_neighbs())
+    
+    def trim_points(self, which):
+        """
+        Remove interpolation points from the scene.
+        
+        Arguments:
+        which - a boolean array, length is number of current particle list
+            (as given in set_scene), True to trim a point, False to keep.
+        """
+        GeneralInterpolant.trim_points(self, which)
+        self.__weights = self.__weights[~which]
+        
+    def _apply_weights(self, weights, data):
+        """
+        Do the actual interpolation after weights have been determined.
+        
+        Arguments:
+        weights - an (m,n) array, the respective non-normalized weight of each 
+            tracer j=1..n in the interpolation point i=1..m.
+        data - an (n,d) array, for n data points to interpolate from.
+        """
+        return (weights[...,None] * data[None,...]).sum(axis=1) / \
+            weights.sum(axis=1)[:,None]
+    
+    def __call__(self, tracer_pos, interp_points, data, companionship=None):
+        """
+        Sets up the necessary parameters, and performs the interpolation.
+        Does not change the scene set by set_scene if any, so may be used
+        for any off-scene interpolation.
+        
+        Arguments:
+        tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, 
+            in [m]
+        interp_points - (m,3) array, coordinates of points where interpolation 
+            will be done.
+        data - (n,d) array, the for the d-dimensional data for tracer n. For 
+            example, in velocity interpolation this would be (n,3), each tracer
+            having 3 components of velocity.
+        companionship - an optional array denoting for each interpolation point
+            the index of a tracer that should be excluded from it ("companion 
+            tracer"), useful esp. for analysing a simulated particle that 
+            started from a true tracer.
+        
+        Returns:
+        vel_interp - an (m,3) array with the interpolated value at the position
+            of each particle, [m/s].
+        """
+        # If for some reason tracking failed for a whole frame, interpolation 
+        # is impossible at that frame. This checks for frame tracking failure.
+        if len(tracer_pos) == 0:
+            # Temporary measure until I can safely discard frames.
+            warnings.warn("No tracers im frame, interpolation returned zeros.")
+            ret_shape = data.shape[-1] if data.ndim > 1 else 1
+            return np.zeros((interp_points.shape[0], ret_shape))
+            
+        dists, use_parts = select_neighbs(tracer_pos, interp_points, 
+            self._radius, self._neighbs, companionship)
+        
+        weights = self.weights(dists, use_parts)
+        return self._apply_weights(weights, data)
+        
+    def _meth_interp(self, act_neighbs):
+        """
+        Implement the actual interpolation. Subclass this, not 
+        :meth:`interpolate`.
+        
+        Arguments:
+        act_neighbs - a neighbours selection array, such as returned from 
+            :meth:`which_neighbours`, to replace the recorded selection. Default
+            value (None) uses the recorded selection. The recorded selection
+            is not changed, so ``subset`` is forgotten after the call.
+        """
+        if act_neighbs is not self.current_active_neighbs():
+            weights = self.weights(self.current_dists(), act_neighbs)
+        else:
+            weights = self.__weights
+        return self._apply_weights(weights, self.current_data())
+    
+    def eulerian_jacobian(self, local_interp=None, eps=None):
+        """
+        Velocity derivatives. The Jacobian is calculated for the
+        current scene, as recorded with ``set_scene()``
+        
+        Arguments:
+        local_interp - results of interpolation already performed at the 
+            position where derivatives are wanted. If not given, an 
+            interpolation of recorded scene data is automatically performed.
+        eps - unused, here for compatibility with base class.
+        
+        Returns: 
+        (m,d,3) array, for m interpolation points and d interpolation 
+        dimentions. For each point, [i,j] = du_i/dx_j
+        """
+        if local_interp is None:
+            local_interp = self.interpolate()
+        
+        dists = self.current_dists()
+        use_parts = self.current_active_neighbs()
+        rel_pos = self.current_relative_positions()
+        data = self.current_data().copy()
+        
+        der_inv_dists = np.zeros_like(dists)
+        der_inv_dists[use_parts] = dists[use_parts]**-(self._par + 2)
+        
+        vel_diffs = (data[None,:,:] - local_interp[:,None,:]) # m x n x d
+        jac = self._par/self.__weights.sum(axis=1) * \
+            np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
+                   vel_diffs[...,None], axis=1)
+        
+        return jac
+    
 def read_interpolant(conf_fname):
     """
     Builds an Interpolant object based on values in an INI-formatted file.
@@ -488,4 +699,4 @@ def read_interpolant(conf_fname):
     if parser.has_option('Interpolant', 'param'):
         kwds['param'] = parser.getfloat('Interpolant', 'param')
     
-    return Interpolant(parser.get('Interpolant', 'method'), **kwds)
+    return interpolant(parser.get('Interpolant', 'method'), **kwds)
