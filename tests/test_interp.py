@@ -56,7 +56,7 @@ class TestRepeatedInterp(unittest.TestCase):
         
         self.interp = interpolation.interpolant('inv', 4, param=1.5)
         self.interp.set_scene(tracer_pos, interp_points, self.data)
-        
+            
     def test_set_scene(self):
         """Scene data recorded and dists/use_parts selected"""
         
@@ -64,24 +64,25 @@ class TestRepeatedInterp(unittest.TestCase):
         # The test_case has 8 almost equally spaced closest neighbs,
         # so the final 4 are selected based on floating-point jitter. Don't
         # fret about it.
-        use_parts = self.interp.which_neighbours()
-        correct_use_parts = np.zeros((1,self.num_tracers))
-        correct_use_parts[0,[0,3,-3,-6]] = True
-        np.testing.assert_array_equal(use_parts, correct_use_parts)
+        use_parts = self.interp.current_active_neighbs()
+        correct_use_parts = np.array([[0, 3, 6, 9, 12, 15, 18, 21]])
+        used_in_correct = use_parts[:,None,:] == correct_use_parts[:,:,None]
+        self.failUnlessEqual(
+            used_in_correct.any(axis=2).sum(axis=1), self.interp.num_neighbs())
     
     def test_interp_once(self):
         """Interpolating a recorded scene"""
         interped = self.interp.interpolate()
         
         # Since all are equally spaced, 
-        use_parts = self.interp.which_neighbours()
+        use_parts = self.interp.current_active_neighbs()
         correct_interped = self.data[use_parts[0]].mean(axis=0)
         
         np.testing.assert_array_almost_equal(interped[0], correct_interped)
     
     def test_interp_subset(self):
         """Interpolate using a temporary neighbour selection."""
-        use_parts = self.interp.which_neighbours().copy()
+        use_parts = self.interp.current_active_neighbs().copy()
         use_parts[:,::3] = ~use_parts[:,::3]
         interped = self.interp.interpolate(use_parts)
         
@@ -110,7 +111,7 @@ class MethodInterp(unittest.TestCase):
         interp.set_scene(tracer_pos, interp_points, data)
         
         interped = interp.interpolate()
-        use_parts = interp.which_neighbours()
+        use_parts = interp.current_active_neighbs()
         # If we reached this line, we tested what we wanted.
     
 class RadiusInterp(unittest.TestCase):
@@ -125,7 +126,8 @@ class RadiusInterp(unittest.TestCase):
         interp_points = np.zeros((1,3))
         data = np.random.rand(tracer_pos.shape[0], 3)
         
-        interp = interpolation.interpolant('inv', radius=0.0015, param=1.5)
+        interp = interpolation.interpolant(
+            'inv', num_neighbs=8, radius=0.0015, param=1.5)
         interp.set_scene(tracer_pos, interp_points, data)
         
         interped = interp.interpolate()
