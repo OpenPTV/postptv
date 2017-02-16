@@ -339,7 +339,7 @@ class GeneralInterpolant(object):
         trim = self.__dists <= 0.
         
         if self.__comp is not None:
-            trim &= self.__active_neighbs == self.__comp[:,None]
+            trim |= self.__active_neighbs == self.__comp[:,None]
         
         trim[~np.any(trim, axis=1),-1] = True
         keep = ~trim
