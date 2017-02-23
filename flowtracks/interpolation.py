@@ -18,6 +18,7 @@ Interpolation routines.
 """
 
 import numpy as np, warnings
+from scipy.spatial import cKDTree
 from ConfigParser import SafeConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
@@ -178,8 +179,11 @@ class GeneralInterpolant(object):
             ``radius`` is not None, then ``neighbs`` is ignored.
         param - the parameter adjusting the interpolation method. For IDW it is
             the inverse power (default 1), for rbf it is epsilon (default 1e5).
-        """        
-        if method == 'rbf':
+        """
+        if method == 'subclass':
+            pass
+        
+        elif method == 'rbf':
             if num_neighbs is None:
                 num_neighbs = 7
             if param is None:
@@ -201,8 +205,15 @@ class GeneralInterpolant(object):
             
         self._method = method
         self._neighbs = num_neighbs
-        self._radius = radius
         self._par = param
+        
+        # What's actually used is the upper bound distance (upb) rather than 
+        # _radius.
+        self._radius = radius
+        if self._radius is None:
+            self._upb = np.inf
+        else:
+            self._upb = self._radius
     
     def num_neighbs(self):
         return self._neighbs
@@ -228,21 +239,58 @@ class GeneralInterpolant(object):
             tracer"), useful esp. for analysing a simulated particle that 
             started from a true tracer.
         """
-        self.__tracers = np.atleast_2d(tracer_pos)
-        self.__interp_pts = np.atleast_2d(interp_points)
+        self.set_field_positions(tracer_pos)
+        self.set_interp_points(interp_points, companionship)
         
         if data is not None:
             self.set_data_on_current_field(data)
         
+    def _drop_neighbours_cache(self):
+        """
+        Clear cached results of nearest-neighbours calculations.
+        """
+        self.__rel_pos = None
+        self.__dists = None
+        self.__active_neighbs = None
+        self.__matched_data = None
+        
+    def set_field_positions(self, positions):
+        """
+        Sets the positions of points where there is data for interpolation.
+        This sets up the structures for efficiently finding distances etc.
+        
+        Arguments:
+        positions - (n,3) array, for position of n points in 3D space.
+        """
+        # Keep the original data, for B.C purposes mostly.
+        self.__tracers = np.atleast_2d(positions)
+        if len(self.__tracers) == 0:
+            return
+        self.__field_tree = cKDTree(positions)
+        self._drop_neighbours_cache()
+    
+    def field_positions(self):
+        return self.__tracers
+    
+    def set_interp_points(self, points, companionship=None):
+        """
+        Sets the points into which interpolation will be done. It is possible
+        to set this once and then do interpolation of several datasets into 
+        these points.
+        
+        Arguments:
+        positions - (m,3) array, for position of m target points in 3D space.
+        companionship - an optional array denoting for each interpolation point
+            the index of a tracer that should be excluded from it ("companion 
+            tracer"), useful esp. for analysing a simulated particle that 
+            started from a true tracer.
+        """
+        self.__interp_pts = np.atleast_2d(points)
         if companionship is None:
             self.__comp = None
         else:
             self.__comp = np.atleast_1d(companionship)
-        
-        # empty the neighbours cache:
-        self.__rel_pos = None
-        self.__dists = None
-        self.__active_neighbs = None
+        self._drop_neighbours_cache()
     
     def set_data_on_current_field(self, data):
         """
@@ -282,35 +330,39 @@ class GeneralInterpolant(object):
         """
         Populate the neighbours cache.
         """
-        self.__rel_pos = self.__tracers[None,:,:] - self.__interp_pts[:,None,:]
-        self.__dists, self.__active_neighbs = select_neighbs(
-            self.__tracers, self.__interp_pts, self._radius, self._neighbs,
-            self.__comp)
-            
+        # Take one more neighbour because one will be removed, either for 
+        # being in the same position as the interp points or being its 
+        # companion (worst case, the extra farthest neighbour is removed).
+        self.__dists, self.__active_neighbs = self.__field_tree.query(
+            self.__interp_pts, self._neighbs + 1,
+            distance_upper_bound=self._upb)
+        trim = self.__dists <= 0.
+        
+        if self.__comp is not None:
+            trim |= self.__active_neighbs == self.__comp[:,None]
+        
+        trim[~np.any(trim, axis=1),-1] = True
+        keep = ~trim
+        self.__dists = self.__dists[keep].reshape(-1, self._neighbs)
+        self.__active_neighbs = self.__active_neighbs[keep].reshape(
+            -1, self._neighbs)
+        
+        self.__has_data = self.__active_neighbs < self.__tracers.shape[0]
+        matched_pos = np.empty(
+            self.__active_neighbs.shape + (self.__tracers.shape[1],))
+        matched_pos[self.__has_data] = \
+            self.__tracers[self.__active_neighbs[self.__has_data]]
+        self.__rel_pos = matched_pos - self.__interp_pts[:,None,:]
+        
         if self._method == 'rbf':
             self.__tracer_dists, _ = select_neighbs(
                 self.__tracers, self.__tracers, self._radius, self._neighbs,
                 self.__comp)
                 
-    def which_neighbours(self):
-        """
-        Finds the neighbours that would be selected for use at each 
-        interpolation point, given the current scene as set by set_scene().
-        
-        Returns:
-        (m,n) boolean array, True where tracer :math:`j=1...n` is a neighbour
-        of interpolation point :math:`i=1...m` under the reigning selection 
-        criteria.
-        """
-        if self.__active_neighbs is None:
-            self._forego_laziness()
-                
-        return self.__active_neighbs
-    
     def current_relative_positions(self):
         """
-        Returns an (m,n,3) array, the distance between interpolation point m
-        and tracer n an each axis.
+        Returns an (m,k,3) array, the distance between interpolation point m
+        and each of k nearest neighbours on each axis.
         """
         return self.__rel_pos
     
@@ -327,11 +379,19 @@ class GeneralInterpolant(object):
         return self.__active_neighbs
     
     def current_data(self):
-        if self.__active_neighbs is None:
-            self._forego_laziness()
-                
         return self.__data
     
+    def _ensure_matched_data(self):
+        """
+        Calculate or retrieve cache of data in (m,k,d) structure.
+        """
+        if self.__matched_data is None:
+            self.__matched_data = np.empty(
+                self.__active_neighbs.shape + (self.__tracers.shape[1],))
+            self.__matched_data[self.__has_data] = \
+            self.__data[self.__active_neighbs[self.__has_data]]
+        return self.__matched_data
+        
     def interpolate(self, subset=None):
         """
         Performs an interpolation over the recorded scene.
@@ -527,14 +587,14 @@ class InverseDistanceWeighter(GeneralInterpolant):
             closest ``neighbs``.
         param - the inverse power of distance to use (default 1).
         """
+        # Defaults:
         if num_neighbs is None:
             num_neighbs = 4
         if param is None: 
             param = 1
         
-        self._neighbs = num_neighbs
-        self._radius = radius
-        self._par = param
+        GeneralInterpolant.__init__(
+            self, 'subclass', num_neighbs, radius, param)
         self._method = 'inv'
     
     def weights(self, dists, use_parts):
@@ -545,15 +605,16 @@ class InverseDistanceWeighter(GeneralInterpolant):
     
         Arguments:
         dists - (m,n) array, the distance of interpolation_point i=1...m from 
-            tracer j=1...n, for (row,col) (i,j) [m] 
+            tracer j=1...n, for (row,col) (i,j) [m] where n is the number of 
+            nearest neighbours.
         use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
             particle i, same indexing as ``dists``.
         
         Returns:
         weights - an (m,n) array.
         """
-        weights = np.zeros_like(dists)
-        weights[use_parts] = dists[use_parts]**-self._par
+        weights = dists**-self._par
+        weights[use_parts == self._neighbs] = 0.
         return weights
     
     def set_scene(self, tracer_pos, interp_points, 
@@ -563,6 +624,12 @@ class InverseDistanceWeighter(GeneralInterpolant):
         """
         GeneralInterpolant.set_scene(self, tracer_pos, interp_points, data,
             companionship)
+    
+    def set_interp_points(self, points, companionship=None):
+        GeneralInterpolant.set_interp_points(self, points, companionship)
+        if len(self.field_positions()) == 0:
+            return
+        
         self._forego_laziness()
         self.__weights = self.weights(self.current_dists(), 
             self.current_active_neighbs())
@@ -583,12 +650,12 @@ class InverseDistanceWeighter(GeneralInterpolant):
         Do the actual interpolation after weights have been determined.
         
         Arguments:
-        weights - an (m,n) array, the respective non-normalized weight of each 
-            tracer j=1..n in the interpolation point i=1..m.
-        data - an (n,d) array, for n data points to interpolate from.
+        weights - an (m,k) array, the respective non-normalized weight of each 
+            of k nearest neighbours of each of m interpolation points.
+        data - an (m,k,d) array, for n data points to interpolate from.
         """
-        return (weights[...,None] * data[None,...]).sum(axis=1) / \
-            weights.sum(axis=1)[:,None]
+        return (weights[...,None] * data).sum(axis=1) \
+            / weights.sum(axis=1)[:,None]
     
     def __call__(self, tracer_pos, interp_points, data, companionship=None):
         """
@@ -627,22 +694,31 @@ class InverseDistanceWeighter(GeneralInterpolant):
         weights = self.weights(dists, use_parts)
         return self._apply_weights(weights, data)
         
-    def _meth_interp(self, act_neighbs):
+    def _meth_interp(self, act_neighbs=None):
         """
         Implement the actual interpolation. Subclass this, not 
         :meth:`interpolate`.
         
         Arguments:
         act_neighbs - a neighbours selection array, such as returned from 
-            :meth:`which_neighbours`, to replace the recorded selection. Default
-            value (None) uses the recorded selection. The recorded selection
-            is not changed, so ``subset`` is forgotten after the call.
+            :meth:`current_active_neighbs`, to replace the recorded selection. 
+            Default value (None) uses the recorded selection. The recorded 
+            selection is not changed, so ``subset`` is forgotten after the call.
         """
+        if act_neighbs is None:
+            act_neighbs = self.current_active_neighbs()
+            matched_data = self._ensure_matched_data()
+        else:
+            data = self.current_data()
+            matched_data = np.empty(act_neighbs.shape + (data.shape[1],))
+            has_data = act_neighbs < data.shape[0]
+            matched_data[has_data] = data[act_neighbs[has_data]]
+        
         if act_neighbs is not self.current_active_neighbs():
             weights = self.weights(self.current_dists(), act_neighbs)
         else:
             weights = self.__weights
-        return self._apply_weights(weights, self.current_data())
+        return self._apply_weights(weights, matched_data)
     
     def eulerian_jacobian(self, local_interp=None, eps=None):
         """
@@ -665,12 +741,12 @@ class InverseDistanceWeighter(GeneralInterpolant):
         dists = self.current_dists()
         use_parts = self.current_active_neighbs()
         rel_pos = self.current_relative_positions()
-        data = self.current_data().copy()
+        matched_data = self._ensure_matched_data()
         
-        der_inv_dists = np.zeros_like(dists)
-        der_inv_dists[use_parts] = dists[use_parts]**-(self._par + 2)
+        der_inv_dists = dists**-(self._par + 2) # m x k
+        der_inv_dists[use_parts == self._neighbs] = 0.
         
-        vel_diffs = (data[None,:,:] - local_interp[:,None,:]) # m x n x d
+        vel_diffs = (matched_data - local_interp[:,None,:]) # m x k x d
         jac = self._par/self.__weights.sum(axis=1) * \
             np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
                    vel_diffs[...,None], axis=1)
