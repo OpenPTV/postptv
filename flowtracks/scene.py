@@ -224,6 +224,25 @@ class Scene(object):
             
         for t in xrange(self._first, self._last):
             yield t, self._table.read_where(query_string)
+    
+    def frame_by_time(self, time):
+        """
+        Get a Frame object for data occuring at time t. Assumes that the time 
+        exists in the data, and does not check range.
+        
+        Arguments:
+        time - the frame count at the requested frame.
+        
+        Returns:
+        a ParticleSnapshot object.
+        """
+        query_string = '(time == t)'
+        arr = self._table.read_where(query_string)
+        
+        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            if field != 'time')
+        kwds['time'] = time
+        return ParticleSnapshot(**kwds)
         
     def iter_segments(self):
         """
