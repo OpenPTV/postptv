@@ -363,6 +363,12 @@ class DualScene(object):
         Returns the :class:`Scene` that manages inertial particles' data. 
         """
         return self._particles
+        
+    def get_tracers(self):
+        """
+        Returns the :class:`Scene` that manages tracer data. 
+        """
+        return self._tracers
     
     def get_range(self):
         """
