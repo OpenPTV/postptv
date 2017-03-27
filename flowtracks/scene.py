@@ -224,6 +224,25 @@ class Scene(object):
             
         for t in xrange(self._first, self._last):
             yield t, self._table.read_where(query_string)
+    
+    def frame_by_time(self, t):
+        """
+        Get a Frame object for data occuring at time t. Assumes that the time 
+        exists in the data, and does not check range.
+        
+        Arguments:
+        t - the frame count at the requested frame.
+        
+        Returns:
+        a ParticleSnapshot object.
+        """
+        query_string = '(time == t)'
+        arr = self._table.read_where(query_string)
+        
+        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            if field != 'time')
+        kwds['time'] = t
+        return ParticleSnapshot(**kwds)
         
     def iter_segments(self):
         """
@@ -344,6 +363,12 @@ class DualScene(object):
         Returns the :class:`Scene` that manages inertial particles' data. 
         """
         return self._particles
+        
+    def get_tracers(self):
+        """
+        Returns the :class:`Scene` that manages tracer data. 
+        """
+        return self._tracers
     
     def get_range(self):
         """
