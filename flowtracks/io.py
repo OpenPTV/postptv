@@ -730,6 +730,63 @@ def save_particles_table(filename, trajects, trim=None):
     outfile.flush()
     outfile.close()
 
+def save_frames_hdf(filename, frames):
+    """
+    Save scene data as a table of particle properties, with added columns for 
+    time (frame number) and trajid - the last one may be indexed. Any extra
+    per-frame data should be added to the frames beforehand.
+    
+    Arguments:
+    filename - name of output PyTables HDF5 file to create. The 'h5' extension
+        is recommended so that ``infer_format()`` knows what to do with it.
+    frames - an iterable sequence of ParticleSnapshot objects to save.
+    """
+    table = None
+    outfile = tables.open_file(filename, mode='w')
+    
+    ongoing_trajects = {}
+    for frame in frames:
+        if len(frame) <= 0:
+            continue
+        
+        # First frame creates the table:
+        if table is None:
+            # Format of records in a frame array:
+            fields = [('time', int, 1)] + [(field,) + desc \
+                for field, desc in frame.ext_schema().iteritems()]
+            dtype = np.dtype(fields)
+            table = outfile.createTable('/', 'particles', dtype)
+        
+        arr = np.empty(len(frame), dtype=dtype)
+        arr['time'] = frame.time()
+        
+        for k, v in frame.as_dict().iteritems():
+            arr[k] = v
+        table.append(arr)
+        
+        # Keep track of trajectory starts/ends for the bounds table. 
+        # Allowing for holes forces us to keep the entire bounds table in 
+        # memory, but it's not a such big chunk, so I don't worry too much.
+        for trid in frame.trajid():
+            if trid in ongoing_trajects:
+                # This allows for "hole frames". Otherwise we'd just wait for
+                # the trajectory to disappear then record its end in time - 1.
+                ongoing_trajects[trid][1] = frame.time()
+            else:
+                ongoing_trajects[trid] = np.r_[frame.time(), frame.time()]
+    
+    table.cols.trajid.createIndex()
+    table.cols.time.createIndex()          
+    
+    bounds_tab = outfile.createTable('/', 'bounds', 
+        np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
+    for trid, bounds in ongoing_trajects.iteritems():
+        bounds_tab.append([(trid, bounds[0], bounds[1])])
+    bounds_tab.cols.trajid.create_index()
+    
+    outfile.flush()
+    outfile.close()
+
 def trajectories_table(fname, first=None, last=None):
     """
     Reads trajectories from a PyTables HDF5 file, as saved by
