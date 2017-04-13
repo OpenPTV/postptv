@@ -336,13 +336,12 @@ class GeneralInterpolant(object):
         self.__dists, self.__active_neighbs = self.__field_tree.query(
             self.__interp_pts, self._neighbs + 1,
             distance_upper_bound=self._upb)
-        trim = self.__dists <= 0.
+        keep = self.__dists > 0.
         
         if self.__comp is not None:
-            trim |= self.__active_neighbs == self.__comp[:,None]
+            keep &= self.__active_neighbs != self.__comp[:,None]
         
-        trim[~np.any(trim, axis=1),-1] = True
-        keep = ~trim
+        keep[np.all(keep, axis=1),-1] = False
         self.__dists = self.__dists[keep].reshape(-1, self._neighbs)
         self.__active_neighbs = self.__active_neighbs[keep].reshape(
             -1, self._neighbs)
@@ -747,8 +746,9 @@ class InverseDistanceWeighter(GeneralInterpolant):
         der_inv_dists[use_parts == self._neighbs] = 0.
         
         vel_diffs = (matched_data - local_interp[:,None,:]) # m x k x d
-        jac = self._par/self.__weights.sum(axis=1) * \
-            np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
+        jac = self._par/self.__weights.sum(
+                axis=1, keepdims=True)[:,None,None] \
+            * np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
                    vel_diffs[...,None], axis=1)
         
         return jac

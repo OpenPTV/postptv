@@ -135,6 +135,9 @@ class Scene(object):
         
         self._frame_limit = ' & '.join(rng_exprs)
     
+    def frame_range(self):
+        return self._first, self._last
+    
     def __del__(self):
         self._file.close()
     
