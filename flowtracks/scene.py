@@ -327,6 +327,22 @@ class Scene(object):
             ret.append(raw[k])
         
         return ret
+    
+    def bounding_box(self):
+        """
+        Gets the min and max positions in the data - either from file 
+        attributes if present, or from a brute-force collect().
+        
+        Returns:
+        min_pos, max_pos - each a (3,) array.
+        """
+        if 'min_pos' in self._table._v_attrs._f_list():
+            min_pos = self._table._v_attrs.min_pos
+            max_pos = self._table._v_attrs.max_pos
+        else:
+            poses = self.collect(['pos'])[0]
+            min_pos, max_pos = poses.min(axis=0), poses.max(axis=0)
+        return min_pos, max_pos
             
         
 class DualScene(object):

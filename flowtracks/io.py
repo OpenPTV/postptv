@@ -743,6 +743,8 @@ def save_frames_hdf(filename, frames):
     """
     table = None
     outfile = tables.open_file(filename, mode='w')
+    min_pos = np.full(3, np.inf)
+    max_pos = np.full(3, -np.inf)
     
     ongoing_trajects = {}
     for frame in frames:
@@ -756,6 +758,9 @@ def save_frames_hdf(filename, frames):
                 for field, desc in frame.ext_schema().iteritems()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
+        
+        min_pos = np.min(np.vstack((min_pos, frame.pos())), axis=0)
+        max_pos = np.max(np.vstack((max_pos, frame.pos())), axis=0)
         
         arr = np.empty(len(frame), dtype=dtype)
         arr['time'] = frame.time()
@@ -774,6 +779,9 @@ def save_frames_hdf(filename, frames):
                 ongoing_trajects[trid][1] = frame.time()
             else:
                 ongoing_trajects[trid] = np.r_[frame.time(), frame.time()]
+    
+    table._v_attrs.min_pos = min_pos
+    table._v_attrs.max_pos = max_pos
     
     table.cols.trajid.create_index()
     table.cols.time.create_index()          
