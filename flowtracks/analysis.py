@@ -119,7 +119,7 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
         descr.extend(analyser.descr())
     descr = np.dtype(descr)
     
-    outfile = tables.openFile(analysis_file, "w", title="Analysis results.")
+    outfile = tables.open_file(analysis_file, "w", title="Analysis results.")
     table = outfile.create_table('/', 'analysis', descr)
     table.attrs['config'] = conf_file
     table.attrs['trajects'] = scene.get_particles_path()
