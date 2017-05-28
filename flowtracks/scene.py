@@ -99,6 +99,12 @@ class Scene(object):
             shape = desc[name].shape
             self._shapes.append(1 if len(shape) == 0 else shape[0])
     
+    def trajectory_tags(self):
+        tags = self._file.get_node('/bounds')
+        return np.hstack([tags.col(name)[:,None] for name in ['trajid', 'first', 'last']])
+            
+        return np.array([np.int(row[:]) for row in self._file.get_node('/bounds').read()])
+    
     def set_frame_range(self, frame_range):
         """
         Prepare a query part that limits the frame numbers is needed.
@@ -134,6 +140,9 @@ class Scene(object):
             rng_exprs.append("(time < %d)" % last)
         
         self._frame_limit = ' & '.join(rng_exprs)
+    
+    def frame_range(self):
+        return self._first, self._last
     
     def __del__(self):
         self._file.close()
@@ -324,6 +333,22 @@ class Scene(object):
             ret.append(raw[k])
         
         return ret
+    
+    def bounding_box(self):
+        """
+        Gets the min and max positions in the data - either from file 
+        attributes if present, or from a brute-force collect().
+        
+        Returns:
+        min_pos, max_pos - each a (3,) array.
+        """
+        if 'min_pos' in self._table._v_attrs._f_list():
+            min_pos = self._table._v_attrs.min_pos
+            max_pos = self._table._v_attrs.max_pos
+        else:
+            poses = self.collect(['pos'])[0]
+            min_pos, max_pos = poses.min(axis=0), poses.max(axis=0)
+        return min_pos, max_pos
             
         
 class DualScene(object):

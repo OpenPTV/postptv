@@ -326,6 +326,35 @@ class GeneralInterpolant(object):
             self.__dists = self.__dists[keep]
             self.__active_neighbs = self.__active_neighbs[keep]
     
+    def _select_neighbs(self, interp_pts, comp=None):
+        """
+        Find the respective nearest neighbours for each interpolation point,
+        and the respective distances to them.
+        
+        Arguments:
+        interp_pts - (m,d) array for m interpolation points of dimension d.
+        comp - optional (m,) array, the companion trajectory id.
+        
+        Returns:
+        dists - (m,k) array, the distance to each of k nearest neighbours.
+            missing neighbours (not enough of them in radius) have infinite 
+            distance.
+        use_part - (m,k) array, the respective indices. Missing neighbours are
+            represented by the total number of data points.
+        """
+        dists, active_neighbs = self.__field_tree.query(
+            interp_pts, self._neighbs + 1, distance_upper_bound=self._upb)
+        keep = dists > 0.
+        
+        if comp is not None:
+            keep &= active_neighbs != comp[:,None]
+        
+        keep[np.all(keep, axis=1),-1] = False
+        dists = dists[keep].reshape(-1, self._neighbs)
+        active_neighbs = active_neighbs[keep].reshape(-1, self._neighbs)
+        
+        return dists, active_neighbs
+        
     def _forego_laziness(self):
         """
         Populate the neighbours cache.
@@ -333,19 +362,8 @@ class GeneralInterpolant(object):
         # Take one more neighbour because one will be removed, either for 
         # being in the same position as the interp points or being its 
         # companion (worst case, the extra farthest neighbour is removed).
-        self.__dists, self.__active_neighbs = self.__field_tree.query(
-            self.__interp_pts, self._neighbs + 1,
-            distance_upper_bound=self._upb)
-        trim = self.__dists <= 0.
-        
-        if self.__comp is not None:
-            trim |= self.__active_neighbs == self.__comp[:,None]
-        
-        trim[~np.any(trim, axis=1),-1] = True
-        keep = ~trim
-        self.__dists = self.__dists[keep].reshape(-1, self._neighbs)
-        self.__active_neighbs = self.__active_neighbs[keep].reshape(
-            -1, self._neighbs)
+        self.__dists, self.__active_neighbs = self._select_neighbs(
+            self.__interp_pts, self.__comp)
         
         self.__has_data = self.__active_neighbs < self.__tracers.shape[0]
         matched_pos = np.empty(
@@ -597,24 +615,26 @@ class InverseDistanceWeighter(GeneralInterpolant):
             self, 'subclass', num_neighbs, radius, param)
         self._method = 'inv'
     
-    def weights(self, dists, use_parts):
+    def weights(self, dists, use_parts, unused_marker=None):
         """
         Calculate the respective weight of each tracer j=1..n in the 
         interpolation point i=1..m. The actual weight is normalized to the sum
         of weights in the interpolation, not here.
     
         Arguments:
-        dists - (m,n) array, the distance of interpolation_point i=1...m from 
-            tracer j=1...n, for (row,col) (i,j) [m] where n is the number of 
-            nearest neighbours.
-        use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
-            particle i, same indexing as ``dists``.
+        dists - an (m,k) array, the respective distance to each 
+            of k nearest neighbours of each of m interpolation points.
+        use_parts - (m,k) boolean array, the index of neighbour 1..k to 
+            interpolation point 1..m.
         
         Returns:
         weights - an (m,n) array.
         """
+        if unused_marker is None:
+            unused_marker = self.field_positions().shape[0]
+        
         weights = dists**-self._par
-        weights[use_parts == self._neighbs] = 0.
+        weights[use_parts == unused_marker] = 0.
         return weights
     
     def set_scene(self, tracer_pos, interp_points, 
@@ -680,19 +700,7 @@ class InverseDistanceWeighter(GeneralInterpolant):
         vel_interp - an (m,3) array with the interpolated value at the position
             of each particle, [m/s].
         """
-        # If for some reason tracking failed for a whole frame, interpolation 
-        # is impossible at that frame. This checks for frame tracking failure.
-        if len(tracer_pos) == 0:
-            # Temporary measure until I can safely discard frames.
-            warnings.warn("No tracers im frame, interpolation returned zeros.")
-            ret_shape = data.shape[-1] if data.ndim > 1 else 1
-            return np.zeros((interp_points.shape[0], ret_shape))
-            
-        dists, use_parts = select_neighbs(tracer_pos, interp_points, 
-            self._radius, self._neighbs, companionship)
-        
-        weights = self.weights(dists, use_parts)
-        return self._apply_weights(weights, data)
+        raise NotImplementedError()
         
     def _meth_interp(self, act_neighbs=None):
         """
@@ -744,11 +752,12 @@ class InverseDistanceWeighter(GeneralInterpolant):
         matched_data = self._ensure_matched_data()
         
         der_inv_dists = dists**-(self._par + 2) # m x k
-        der_inv_dists[use_parts == self._neighbs] = 0.
+        der_inv_dists[use_parts == self.field_positions().shape[0]] = 0.
         
         vel_diffs = (matched_data - local_interp[:,None,:]) # m x k x d
-        jac = self._par/self.__weights.sum(axis=1) * \
-            np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
+        jac = self._par/self.__weights.sum(
+                axis=1, keepdims=True)[:,None,None] \
+            * np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
                    vel_diffs[...,None], axis=1)
         
         return jac

@@ -695,7 +695,7 @@ def save_particles_table(filename, trajects, trim=None):
     trim_len = 0 if trim is None else trim * 2
     
     outfile = tables.open_file(filename, mode='w')
-    bounds_tab = outfile.createTable('/', 'bounds', 
+    bounds_tab = outfile.create_table('/', 'bounds', 
         np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
     
     for traj in trajects:
@@ -708,7 +708,7 @@ def save_particles_table(filename, trajects, trim=None):
             fields = [('trajid', int, 1)] + [(field,) + desc \
                 for field, desc in traj.ext_schema().iteritems()]
             dtype = np.dtype(fields)
-            table = outfile.createTable('/', 'particles', dtype)
+            table = outfile.create_table('/', 'particles', dtype)
 
         arr = np.empty(len(traj) - trim_len, dtype=dtype)
         arr['trajid'] = traj.trajid()
@@ -723,8 +723,8 @@ def save_particles_table(filename, trajects, trim=None):
         bounds_tab.append([
             (traj.trajid(), arr['time'][0], arr['time'][-1])])
     
-    table.cols.trajid.createIndex()
-    table.cols.time.createIndex()
+    table.cols.trajid.create_index()
+    table.cols.time.create_index()
     bounds_tab.cols.trajid.create_index()
     
     outfile.flush()
@@ -743,6 +743,8 @@ def save_frames_hdf(filename, frames):
     """
     table = None
     outfile = tables.open_file(filename, mode='w')
+    min_pos = np.full(3, np.inf)
+    max_pos = np.full(3, -np.inf)
     
     ongoing_trajects = {}
     for frame in frames:
@@ -755,7 +757,10 @@ def save_frames_hdf(filename, frames):
             fields = [('time', int, 1)] + [(field,) + desc \
                 for field, desc in frame.ext_schema().iteritems()]
             dtype = np.dtype(fields)
-            table = outfile.createTable('/', 'particles', dtype)
+            table = outfile.create_table('/', 'particles', dtype)
+        
+        min_pos = np.min(np.vstack((min_pos, frame.pos())), axis=0)
+        max_pos = np.max(np.vstack((max_pos, frame.pos())), axis=0)
         
         arr = np.empty(len(frame), dtype=dtype)
         arr['time'] = frame.time()
@@ -775,10 +780,13 @@ def save_frames_hdf(filename, frames):
             else:
                 ongoing_trajects[trid] = np.r_[frame.time(), frame.time()]
     
-    table.cols.trajid.createIndex()
-    table.cols.time.createIndex()          
+    table._v_attrs.min_pos = min_pos
+    table._v_attrs.max_pos = max_pos
     
-    bounds_tab = outfile.createTable('/', 'bounds', 
+    table.cols.trajid.create_index()
+    table.cols.time.create_index()          
+    
+    bounds_tab = outfile.create_table('/', 'bounds', 
         np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
     for trid, bounds in ongoing_trajects.iteritems():
         bounds_tab.append([(trid, bounds[0], bounds[1])])
