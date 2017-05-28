@@ -99,6 +99,12 @@ class Scene(object):
             shape = desc[name].shape
             self._shapes.append(1 if len(shape) == 0 else shape[0])
     
+    def trajectory_tags(self):
+        tags = self._file.get_node('/bounds')
+        return np.hstack([tags.col(name)[:,None] for name in ['trajid', 'first', 'last']])
+            
+        return np.array([np.int(row[:]) for row in self._file.get_node('/bounds').read()])
+    
     def set_frame_range(self, frame_range):
         """
         Prepare a query part that limits the frame numbers is needed.
