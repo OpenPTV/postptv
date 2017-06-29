@@ -52,6 +52,10 @@ Dependencies:
 * Some features depend on the Matplotlib package. Users which need those 
   features may get Matplotlib at http://matplotlib.org/
 
+* Some features depend on the PyTables package. Users which need those 
+  features may get PyTables at http://www.pytables.org
+  
+
 Installation
 -----------
 
