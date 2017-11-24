@@ -16,8 +16,15 @@ the various formats. They are documented here alongside the main entry points,
 so that users may access them directly if needed.
 """
 import os, os.path, re, itertools as itr
-from ConfigParser import SafeConfigParser
-from StringIO import StringIO
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
+
+try:    
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 import numpy as np
 from scipy import io
