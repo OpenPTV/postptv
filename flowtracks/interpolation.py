@@ -19,7 +19,10 @@ Interpolation routines.
 
 import numpy as np, warnings
 from scipy.spatial import cKDTree
-from ConfigParser import SafeConfigParser
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
     companionship=None):
