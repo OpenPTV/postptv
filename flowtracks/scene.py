@@ -16,10 +16,14 @@ Main design goals:
 """
 
 import itertools as it, tables, numpy as np
-import configparser
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
 
 from .trajectory import Trajectory, ParticleSnapshot
 from .particle import Particle
+from past.builtins import xrange
 
 class Frame(object):
     pass
@@ -482,7 +486,7 @@ def read_dual_scene(conf_fname):
     Returns:
     a DualScene object initialized with the configuration values found.
     """
-    parser = configparser.SafeConfigParser()
+    parser = SafeConfigParser()
     parser.read(conf_fname)
 
     particle = Particle(
