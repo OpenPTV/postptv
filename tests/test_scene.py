@@ -9,6 +9,8 @@ import numpy as np, numpy.testing as nptest
 from flowtracks.scene import Scene, gen_query_string
 from flowtracks.trajectory import Trajectory, take_snapshot
 
+from past.builtins import xrange
+
 class TestScene(unittest.TestCase):
     def setUp(self):
         """

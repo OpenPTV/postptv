@@ -16,10 +16,14 @@ Main design goals:
 """
 
 import itertools as it, tables, numpy as np
-from ConfigParser import SafeConfigParser
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
 
 from .trajectory import Trajectory, ParticleSnapshot
 from .particle import Particle
+from past.builtins import xrange
 
 class Frame(object):
     pass
