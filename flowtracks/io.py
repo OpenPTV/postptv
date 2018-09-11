@@ -807,9 +807,6 @@ def trajectories_table(fname, first=None, last=None):
     Returns:
     trajects - a list of Trajectory objects, each trimmed to the frame range.
     """
-    # see issue 
-    # outfile = tables.openFile(fname, mode='r')
-    # table = outfile.getNode('/particles')
     outfile = tables.open_file(fname, mode='r')
     table = outfile.get_node('/particles')
     
