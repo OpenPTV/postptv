@@ -130,7 +130,7 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     
     # Determine the set of coefficients for each particle:
     coeffs = np.zeros(dists.shape + (data.shape[-1],))
-    for pix in xrange(dists.shape[0]):
+    for pix in range(dists.shape[0]):
         neighbs = np.nonzero(use_parts[pix])[0]
         K = kernel[np.ix_(neighbs, neighbs)]
         
@@ -569,7 +569,7 @@ class GeneralInterpolant(object):
         nearest_tracers_count = min(tracer_pos.shape[0], self._neighbs)
         ndists = np.zeros((interp_points.shape[0], nearest_tracers_count))
         
-        for pt in xrange(interp_points.shape[0]):
+        for pt in range(interp_points.shape[0]):
             # allow assignment of less than the desired number of neighbours.
             ndists[pt] = dists[pt, use_parts[pt]]
         

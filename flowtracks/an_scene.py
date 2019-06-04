@@ -65,7 +65,7 @@ class AnalysedScene(object):
         if cond is not None:
             query_string = '&'.join([query_string, cond])
             
-        for t in xrange(*self._scene.get_range()):
+        for t in range(*self._scene.get_range()):
             yield t, self._table.read_where(query_string)
     
     def collect(self, keys, where=None):
