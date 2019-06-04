@@ -677,15 +677,15 @@ def save_trajectories(output_dir, trajects, per_traject_adds, **kwds):
     
     for traj in trajects:
         save_data = dict(('traj:' + k, v) \
-            for k, v in traj.as_dict().iteritems())
-        for k, v in per_traject_adds.iteritems():
+            for k, v in traj.as_dict().items())
+        for k, v in per_traject_adds.items():
             save_data[k] = v[traj.trajid()]
         
         np.savez(os.path.join(output_dir, 'traj_%d' % traj.trajid()),
             **save_data)
     
     # Save non-trajectory arrays:
-    for k, v in kwds.iteritems():
+    for k, v in kwds.items():
         np.save(os.path.join(output_dir, k), v)
     
 def save_particles_table(filename, trajects, trim=None):
@@ -723,7 +723,7 @@ def save_particles_table(filename, trajects, trim=None):
         arr = np.empty(len(traj) - trim_len, dtype=dtype)
         arr['trajid'] = traj.trajid()
         
-        for k, v in traj.as_dict().iteritems():
+        for k, v in traj.as_dict().items():
             if trim is None:
                 arr[k] = v
             else:
@@ -765,7 +765,7 @@ def save_frames_hdf(filename, frames):
         if table is None:
             # Format of records in a frame array:
             fields = [('time', int, 1)] + [(field,) + desc \
-                for field, desc in frame.ext_schema().iteritems()]
+                for field, desc in frame.ext_schema().items()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
         
@@ -775,7 +775,7 @@ def save_frames_hdf(filename, frames):
         arr = np.empty(len(frame), dtype=dtype)
         arr['time'] = frame.time()
         
-        for k, v in frame.as_dict().iteritems():
+        for k, v in frame.as_dict().items():
             arr[k] = v
         table.append(arr)
         
@@ -798,7 +798,7 @@ def save_frames_hdf(filename, frames):
     
     bounds_tab = outfile.create_table('/', 'bounds', 
         np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
-    for trid, bounds in ongoing_trajects.iteritems():
+    for trid, bounds in ongoing_trajects.items():
         bounds_tab.append([(trid, bounds[0], bounds[1])])
     bounds_tab.cols.trajid.create_index()
     

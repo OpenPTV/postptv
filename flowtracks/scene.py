@@ -318,7 +318,7 @@ class Scene(object):
         # Compose query to PyTables engine:
         conds = [self._frame_limit]
         if where is not None:
-            for key, rng in where.iteritems():
+            for key, rng in where.items():
                 conds.append(gen_query_string(key, rng))
         cond_string = ' & '.join(conds)
         

@@ -274,7 +274,7 @@ class Sequence(object):
                 fargs = (self, frame, next_frame) + args
             frm_res = func(*fargs)
             
-            for k, v in frm_res.iteritems():
+            for k, v in frm_res.items():
                 res[k][frame_counters[k]] = v
                 frame_counters[k] += 1
         
