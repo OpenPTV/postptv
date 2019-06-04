@@ -8,11 +8,7 @@ Created on Tue Feb  4 11:52:38 2014
 """
 
 import unittest, os, numpy as np
-try:
-    from ConfigParser import SafeConfigParser
-except ImportError:
-    from configparser import SafeConfigParser
-    
+from configparser import SafeConfigParser
 from flowtracks import interpolation
 
 class TestReadWrite(unittest.TestCase):
