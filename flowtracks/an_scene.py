@@ -65,7 +65,7 @@ class AnalysedScene(object):
         if cond is not None:
             query_string = '&'.join([query_string, cond])
             
-        for t in xrange(*self._scene.get_range()):
+        for t in range(*self._scene.get_range()):
             yield t, self._table.read_where(query_string)
     
     def collect(self, keys, where=None):
@@ -92,7 +92,7 @@ class AnalysedScene(object):
             pc_add = []
             an_cond_add = []
             
-            for key, rng in where.iteritems():
+            for key, rng in where.items():
                 cond_string = gen_query_string(key, rng)                
                 if key in pkeys:
                     pc_add.append(cond_string)
@@ -157,7 +157,7 @@ class AnalysedScene(object):
         traj = self._scene.get_particles().trajectory_by_id(trid)
         
         # Trim last point of trajectory to match analysis:
-        kwds = dict((k, v[:-1]) for k, v in traj.as_dict().iteritems())
+        kwds = dict((k, v[:-1]) for k, v in traj.as_dict().items())
         kwds['trajid'] = trid
         
         # Fetch by foreign key from analysis:

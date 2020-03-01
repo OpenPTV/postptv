@@ -116,7 +116,7 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
     u = np.zeros(vecs.shape[0])
     
     labels = ("X " + unit_str, "Y" + unit_str, "Z" + unit_str)
-    for subplt in xrange(3):
+    for subplt in range(3):
         pl.subplot(3,1,subplt + 1)
         pl.plot(indep, vecs[:,subplt], marker)
         pl.gca().get_xaxis().set_visible(False)
