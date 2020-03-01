@@ -4,7 +4,7 @@ import numpy as np
 from .io import trajectories, infer_format
 from .particle import Particle
 from .trajectory import take_snapshot, trajectories_in_frame, Frame
-from ConfigParser import SafeConfigParser
+from configparser import SafeConfigParser
 
 class Sequence(object):
     """
