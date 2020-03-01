@@ -16,20 +16,8 @@ the various formats. They are documented here alongside the main entry points,
 so that users may access them directly if needed.
 """
 import os, os.path, re, itertools as itr
-<<<<<<< HEAD
 from configparser import SafeConfigParser
 from io import StringIO
-=======
-try:
-    from ConfigParser import SafeConfigParser
-except ImportError:
-    from configparser import SafeConfigParser
-
-try:    
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
->>>>>>> 8b70921ee239a5d3d0122c4eb6a2c46091be6f34
 
 import numpy as np
 from scipy import io
@@ -40,7 +28,7 @@ from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
 
-from future.utils import iteritems
+from future.utils import items
 
 
 class FramesIterator(object):
@@ -721,7 +709,7 @@ def save_particles_table(filename, trajects, trim=None):
         if table is None:
             # Format of records in a trajectory array :
             fields = [('trajid', int, 1)] + [(field,) + desc \
-                for field, desc in iteritems(traj.ext_schema())]
+                for field, desc in items(traj.ext_schema())]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
 

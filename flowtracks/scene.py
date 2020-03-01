@@ -16,14 +16,7 @@ Main design goals:
 """
 
 import itertools as it, tables, numpy as np
-<<<<<<< HEAD
 from configparser import SafeConfigParser
-=======
-try:
-    from ConfigParser import SafeConfigParser
-except ImportError:
-    from configparser import SafeConfigParser
->>>>>>> 8b70921ee239a5d3d0122c4eb6a2c46091be6f34
 
 from .trajectory import Trajectory, ParticleSnapshot
 from .particle import Particle

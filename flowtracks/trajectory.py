@@ -2,7 +2,6 @@
 
 import types, numpy as np
 import scipy.interpolate as interp
-from future.utils import iteritems
 from builtins import object
 
 class Frame(object):
@@ -41,7 +40,7 @@ class ParticleSet(object):
         base_vals.update(kwds)
         
         self._check_attr = [] # Attrs to look for when concatenating bundles
-        for n, v in iteritems(base_vals):
+        for n, v in items(base_vals):
             self.create_property(n, v)
     
     def create_property(self, propname, init_val):
@@ -292,14 +291,14 @@ def take_snapshot(trajects, frame, schema):
     a :class:`ParticleSnapshot` object with all the particles in the given frame.
     """
     if len(trajects) == 0:
-        kwds = dict((k, np.empty((0,) + v)) for k, v in iteritems(schema))
+        kwds = dict((k, np.empty((0,) + v)) for k, v in items(schema))
         kwds['time'] = frame
         return ParticleSnapshot(trajid=np.empty(0), **kwds)
     
     kwds = dict((k, np.empty(
         (len(trajects),) + v, 
         dtype=trajects[0].__dict__['_' + k].dtype)) \
-        for k, v in iteritems(schema))
+        for k, v in items(schema))
     copy_keys = kwds.keys()
     kwds['trajid'] = np.empty(len(trajects), dtype=np.int_)
     
