@@ -7,7 +7,8 @@ Created on Tue Feb  4 11:52:38 2014
 @author: yosef
 """
 
-import unittest, os, ConfigParser, numpy as np
+import unittest, os, numpy as np
+from configparser import SafeConfigParser
 from flowtracks import interpolation
 
 class TestReadWrite(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/interpolant.cfg')
         interp = interpolation.read_interpolant(fname)
                 
-        cfg = ConfigParser.SafeConfigParser()
+        cfg = SafeConfigParser()
         interp.save_config(cfg)
         nfname = os.path.join(fdir, 'testing_fodder/analysis.cfg')
         with open(nfname, 'w') as fobj:
