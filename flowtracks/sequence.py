@@ -4,7 +4,7 @@ import numpy as np
 from .io import trajectories, infer_format
 from .particle import Particle
 from .trajectory import take_snapshot, trajectories_in_frame, Frame
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 
 class Sequence(object):
     """
@@ -322,7 +322,7 @@ def read_sequence(conf_fname, smooth=None, traj_min_len=None):
     Returns:
     a Sequence object initialized with the configuration values found.
     """
-    parser = SafeConfigParser()
+    parser = ConfigParser()
     parser.read(conf_fname)
 
     particle = Particle(

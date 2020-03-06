@@ -27,7 +27,7 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/sequence.cfg')
         seq = sequence.read_sequence(fname)
         
-        cfg = configparser.SafeConfigParser()
+        cfg = configparser.ConfigParser()
         seq.save_config(cfg)
         nfname = os.path.join(fdir, 'testing_fodder/analysis.cfg')
         with open(nfname, 'w') as fobj:

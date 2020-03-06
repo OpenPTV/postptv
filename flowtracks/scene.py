@@ -16,7 +16,7 @@ Main design goals:
 """
 
 import itertools as it, tables, numpy as np
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 
 from .trajectory import Trajectory, ParticleSnapshot
 from .particle import Particle
@@ -482,7 +482,7 @@ def read_dual_scene(conf_fname):
     Returns:
     a DualScene object initialized with the configuration values found.
     """
-    parser = SafeConfigParser()
+    parser = ConfigParser()
     parser.read(conf_fname)
 
     particle = Particle(

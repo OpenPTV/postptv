@@ -27,7 +27,7 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/interpolant.cfg')
         interp = interpolation.read_interpolant(fname)
                 
-        cfg = configparser.SafeConfigParser()
+        cfg = configparser.ConfigParser()
         interp.save_config(cfg)
         nfname = os.path.join(fdir, 'testing_fodder/analysis.cfg')
         with open(nfname, 'w') as fobj:

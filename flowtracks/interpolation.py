@@ -19,7 +19,7 @@ Interpolation routines.
 
 import numpy as np, warnings
 from scipy.spatial import cKDTree
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
     companionship=None):
@@ -772,7 +772,7 @@ def read_interpolant(conf_fname):
     Returns:
     an Interpolant object constructed from values in the configuration file.
     """
-    parser = SafeConfigParser()
+    parser = ConfigParser()
     parser.read(conf_fname)
     
     # Optional arguments:
