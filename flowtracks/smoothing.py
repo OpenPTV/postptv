@@ -116,7 +116,7 @@ def savitzky_golay(trajs, fps, window_size, order):
             accel=newacc, vel_pp=nextvel, acc_pp = nextacc)
         
         # Copy unsmoothed properties from old trajectory:
-        for k, v in traj.as_dict().iteritems():
+        for k, v in traj.as_dict().items():
             if k not in smoothed_keys:
                 newtraj.create_property(k, v)
         

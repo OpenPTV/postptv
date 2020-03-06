@@ -231,7 +231,7 @@ class Scene(object):
         if cond is not None:
             query_string = '&'.join(query_string, cond)
             
-        for t in xrange(self._first, self._last):
+        for t in range(self._first, self._last):
             yield t, self._table.read_where(query_string)
     
     def frame_by_time(self, t):
@@ -314,7 +314,7 @@ class Scene(object):
         # Compose query to PyTables engine:
         conds = [self._frame_limit]
         if where is not None:
-            for key, rng in where.iteritems():
+            for key, rng in where.items():
                 conds.append(gen_query_string(key, rng))
         cond_string = ' & '.join(conds)
         

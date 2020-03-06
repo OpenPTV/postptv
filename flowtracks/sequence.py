@@ -121,7 +121,7 @@ class Sequence(object):
         # Also caches the starts and ends of trajectories, so that accessing
         # only the ones relevant to a specific frame is easier.
         start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ptraj]
-        self.__pstarts, self.__pends =  map(np.array, zip(*start_end))
+        self.__pstarts, self.__pends =  list(map(np.array, list(zip(*start_end))))
         
         return self.__ptraj
     
@@ -145,7 +145,7 @@ class Sequence(object):
         # Also caches the starts and ends of trajectories, so that accessing
         # only the ones relevant to a specific frame is easier.
         start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ttraj]
-        self.__tstarts, self.__tends =  map(np.array, zip(*start_end))
+        self.__tstarts, self.__tends =  list(map(np.array, list(zip(*start_end))))
             
         return self.__ttraj
         
@@ -192,7 +192,7 @@ class Sequence(object):
         self._act_rng = (first, last)
         return self
     
-    def next(self):
+    def __next__(self):
         if self._frame == self._act_rng[1]:
             del self._act_rng
             raise StopIteration
@@ -271,11 +271,11 @@ class Sequence(object):
                 fargs = (self, frame, next_frame) + args
             frm_res = func(*fargs)
             
-            for k, v in frm_res.iteritems():
+            for k, v in frm_res.items():
                 res[k][frame_counters[k]] = v
                 frame_counters[k] += 1
         
-        for k in res.keys():
+        for k in list(res.keys()):
             res[k] = np.array(res[k])
         return res
     

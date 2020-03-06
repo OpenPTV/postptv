@@ -41,48 +41,48 @@ class TestScene(unittest.TestCase):
     def test_keys(self):
         """Reading known available keys with the needed exclusions"""
         correct_keys = ['velocity', 'pos', 'accel']
-        self.failUnlessEqual(self.scene.keys(), correct_keys)
+        self.assertEqual(list(self.scene.keys()), correct_keys)
         
     def test_iter_trajectories(self):
         """Iterating trajectories and getting correct Trajectory objects"""
         trjs = [tr for tr in self.scene.iter_trajectories()]
-        self.failUnlessEqual(len(trjs), len(self.correct))
+        self.assertEqual(len(trjs), len(self.correct))
         
         for trj, correct in zip(trjs, self.correct):
             nptest.assert_array_almost_equal(trj.pos(), correct.pos())
             nptest.assert_array_almost_equal(trj.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(trj.accel(), correct.accel())
             nptest.assert_array_almost_equal(trj.time(), correct.time())
-            self.failUnlessEqual(trj.trajid(), correct.trajid())
+            self.assertEqual(trj.trajid(), correct.trajid())
     
     def test_iter_trajectories_subrange(self):
         """Iterating trajectories in part of the frame range."""
         self.scene.set_frame_range((10002, 10004))
         trjs = [tr for tr in self.scene.iter_trajectories()]
-        self.failUnlessEqual(len(trjs), len(self.correct))
+        self.assertEqual(len(trjs), len(self.correct))
         
         for trj, correct in zip(trjs, self.correct):
             nptest.assert_array_almost_equal(trj.pos(), correct.pos()[1:-1])
             nptest.assert_array_almost_equal(trj.velocity(), correct.velocity()[1:-1])
             nptest.assert_array_almost_equal(trj.accel(), correct.accel()[1:-1])
             nptest.assert_array_almost_equal(trj.time(), correct.time()[1:-1])
-            self.failUnlessEqual(trj.trajid(), correct.trajid())
+            self.assertEqual(trj.trajid(), correct.trajid())
      
     def test_iter_frames(self):
         """Iterating the HDF files by frames, and getting correct ParticleSnapshot objects"""
         schm = self.correct[0].schema()
         correct_frames = [take_snapshot(self.correct, frm, schm) \
-            for frm in xrange(10001, 10005)]
+            for frm in range(10001, 10005)]
         
         frames = [frm for frm in self.scene.iter_frames()]
-        self.failUnlessEqual(len(frames), len(correct_frames))
+        self.assertEqual(len(frames), len(correct_frames))
         
         for frm, correct in zip(frames, correct_frames):
             nptest.assert_array_almost_equal(frm.pos(), correct.pos())
             nptest.assert_array_almost_equal(frm.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(frm.accel(), correct.accel())
             nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
-            self.failUnlessEqual(frm.time(), correct.time())
+            self.assertEqual(frm.time(), correct.time())
     
     def test_iter_frames_subrange(self):
         """Iterating frames subrange"""
@@ -90,22 +90,22 @@ class TestScene(unittest.TestCase):
         
         schm = self.correct[0].schema()
         correct_frames = [take_snapshot(self.correct, frm, schm) \
-            for frm in xrange(10002, 10004)]
+            for frm in range(10002, 10004)]
         
         frames = [frm for frm in self.scene.iter_frames()]
-        self.failUnlessEqual(len(frames), len(correct_frames))
+        self.assertEqual(len(frames), len(correct_frames))
         
         for frm, correct in zip(frames, correct_frames):
             nptest.assert_array_almost_equal(frm.pos(), correct.pos())
             nptest.assert_array_almost_equal(frm.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(frm.accel(), correct.accel())
             nptest.assert_array_almost_equal(frm.trajid(), correct.trajid())
-            self.failUnlessEqual(frm.time(), correct.time())
+            self.assertEqual(frm.time(), correct.time())
     
     def test_collect(self):
         """Slicing the file by keys or expressions"""
         v = self.scene.collect(['velocity'])[0]
-        self.failUnlessEqual(v.shape, (12,3))
+        self.assertEqual(v.shape, (12,3))
         
         v = v.reshape(3,4,3)
         nptest.assert_array_almost_equal(v[0,:,0], v[1,:,1])
@@ -113,7 +113,7 @@ class TestScene(unittest.TestCase):
 
 class TestUtils(unittest.TestCase):
     def test_query_string(self):
-        self.failUnlessEqual(gen_query_string('example', (-1, 1, False)),
+        self.assertEqual(gen_query_string('example', (-1, 1, False)),
             "((example >= -1) & (example < 1))")
-        self.failUnlessEqual(gen_query_string('example', (-1, 1, True)),
+        self.assertEqual(gen_query_string('example', (-1, 1, True)),
             '((example < -1) | (example >= 1))')

@@ -41,7 +41,7 @@ class TestPtvis(unittest.TestCase):
     
     def test_trajectories_ptvis(self):
         trjs = io.trajectories_ptvis(self.tmpl, self.first, self.last)
-        self.failUnlessEqual(len(trjs), len(self.correct))
+        self.assertEqual(len(trjs), len(self.correct))
         self.compare_trajectories(trjs, self.correct)
         
     def compare_trajectories(self, list1, list2):
@@ -53,16 +53,16 @@ class TestPtvis(unittest.TestCase):
             nptest.assert_array_almost_equal(trj.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(trj.accel(), correct.accel())
             nptest.assert_array_almost_equal(trj.time(), correct.time())
-            self.failUnlessEqual(trj.trajid(), correct.trajid())
+            self.assertEqual(trj.trajid(), correct.trajid())
             
     def test_iter_trajectories_ptvis_xuap(self):
     	inName = './data/particles/xuap.%d'
     	trjs = io.trajectories_ptvis(inName, xuap = True, traj_min_len = 2)
-    	self.failUnlessEqual(len(trjs), 332)
+    	self.assertEqual(len(trjs), 332)
     	
     	# here it fails due to the same problem with traj_min_len
     	trjs = io.trajectories_ptvis(inName, xuap = True, traj_min_len = None)
-    	self.failUnlessEqual(len(trjs), 332)
+    	self.assertEqual(len(trjs), 332)
     	
     def test_trajectories_hdf(self):
         """HDF reading works"""
