@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import types, numpy as np
+import types
+import numpy as np
 import scipy.interpolate as interp
+
 
 class Frame(object):
     """
@@ -38,7 +40,7 @@ class ParticleSet(object):
         }
         base_vals.update(kwds)
         
-        self._check_attr = [] # Attrs to look for when concatenating bundles
+        self._check_attr = []  # Attrs to look for when concatenating bundles
         for n, v in base_vals.items():
             self.create_property(n, v)
     

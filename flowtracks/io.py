@@ -44,7 +44,7 @@ class FramesIterator(object):
             np.loadtxt(fname_tmpl % fix, dtype=fmt, skiprows=skip))
         
         dirname, basename = os.path.split(fname_tmpl)
-        is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
+        is_data_file = re.compile(basename.replace('%d', r'(\d+)', 1))
 
         # Collect existing frames. This is necessary to ensure that frames are
         # processed in the correct order.
@@ -110,7 +110,7 @@ class SingleFileIterator(object):
         # Make the stringio object to be used by read_frame
         lines = []
         for line in self._f:
-            if re.match("^\s*$", line):
+            if re.match(r'^\s*$', line):
                 break
             lines.append(line)
         
@@ -222,7 +222,7 @@ def trajectories_acc(fname, first=None, last=None):
     """
     trajects = []
     dirname, basename = os.path.split(os.path.expanduser(fname))
-    is_data_file = re.compile(basename.replace('%d', '(\d+)', 1))
+    is_data_file = re.compile(basename.replace('%d', r'(\d+)', 1))
     
     for fname in os.listdir(dirname):
         match = is_data_file.match(fname)
@@ -286,7 +286,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         traj_min_len = def_tr_len
 
     frames = []
-    if re.search('%\d*?d', fname) is not None:
+    if re.search(r'%\d*?d', fname) is not None:
         frm_iter = FramesIterator(fname, fmt, skip, first, last)
     else:
         frm_iter = SingleFileIterator(fname, fmt)
@@ -696,7 +696,7 @@ def save_particles_table(filename, trajects, trim=None):
     
     outfile = tables.open_file(filename, mode='w')
     bounds_tab = outfile.create_table('/', 'bounds', 
-        np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
+        np.dtype([('trajid', int,), ('first', int), ('last', int)]))
     
     for traj in trajects:
         if len(traj) - trim_len <= 0:
@@ -705,7 +705,7 @@ def save_particles_table(filename, trajects, trim=None):
         # First trajectory creates the table:
         if table is None:
             # Format of records in a trajectory array :
-            fields = [('trajid', int, 1)] + [(field,) + desc \
+            fields = [('trajid', int)] + [(field,) + desc \
                 for field, desc in traj.ext_schema().items()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
