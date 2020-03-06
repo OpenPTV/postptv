@@ -7,7 +7,7 @@ Created on Tue Feb  4 11:52:38 2014
 @author: yosef
 """
 
-import unittest, os, ConfigParser, numpy as np
+import unittest, os, configparser, numpy as np
 from flowtracks import interpolation
 
 class TestReadWrite(unittest.TestCase):
@@ -17,9 +17,9 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/interpolant.cfg')
         interp = interpolation.read_interpolant(fname)
         
-        self.failUnlessEqual(interp.num_neighbs(), 4)
-        self.failUnlessEqual(interp._method, "inv")
-        self.failUnlessEqual(interp._par, 0.1)
+        self.assertEqual(interp.num_neighbs(), 4)
+        self.assertEqual(interp._method, "inv")
+        self.assertEqual(interp._par, 0.1)
     
     def test_write_sequence(self):
         """A test interpolant is faithfully reproduced from rewritten sequence"""
@@ -27,7 +27,7 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/interpolant.cfg')
         interp = interpolation.read_interpolant(fname)
                 
-        cfg = ConfigParser.SafeConfigParser()
+        cfg = configparser.SafeConfigParser()
         interp.save_config(cfg)
         nfname = os.path.join(fdir, 'testing_fodder/analysis.cfg')
         with open(nfname, 'w') as fobj:
@@ -35,9 +35,9 @@ class TestReadWrite(unittest.TestCase):
         
         # Round-trip check:
         ninterp = interpolation.read_interpolant(fname)
-        self.failUnlessEqual(interp.num_neighbs(), ninterp.num_neighbs())
-        self.failUnlessEqual(interp._method, ninterp._method)
-        self.failUnlessEqual(interp._par, ninterp._par)
+        self.assertEqual(interp.num_neighbs(), ninterp.num_neighbs())
+        self.assertEqual(interp._method, ninterp._method)
+        self.assertEqual(interp._par, ninterp._par)
         
         os.remove(nfname)
 
@@ -67,7 +67,7 @@ class TestRepeatedInterp(unittest.TestCase):
         use_parts = self.interp.current_active_neighbs()
         correct_use_parts = np.array([[0, 3, 6, 9, 12, 15, 18, 21]])
         used_in_correct = use_parts[:,None,:] == correct_use_parts[:,:,None]
-        self.failUnlessEqual(
+        self.assertEqual(
             used_in_correct.any(axis=2).sum(axis=1), self.interp.num_neighbs())
     
     def test_interp_once(self):
@@ -93,7 +93,7 @@ class TestRepeatedInterp(unittest.TestCase):
         """Dropping particles from the interpolated scene"""
         self.interp.trim_points(np.r_[True])
         # Now the scene is empty, so we expect empty arrays
-        self.failUnlessEqual(self.interp.interpolate().shape[0], 0.)
+        self.assertEqual(self.interp.interpolate().shape[0], 0.)
 
 class MethodInterp(unittest.TestCase):
     def test_interp_rbf(self):
@@ -157,7 +157,7 @@ class TestJacobian(unittest.TestCase):
         np.testing.assert_array_equal(local, np.zeros((1,3)))
         
         jac = interp.eulerian_jacobian()
-        self.failUnless(np.all(jac[:, [0,1,2], [0,1,2]] != 0))
+        self.assertTrue(np.all(jac[:, [0,1,2], [0,1,2]] != 0))
         
         # Above test is symmetric. This would catch derivation direction 
         # bugs:
@@ -171,7 +171,7 @@ class TestJacobian(unittest.TestCase):
         
         # Non-diagonal elements:
         jac[:, [0,1,2], [0,1,2]] = 0
-        self.failUnless(np.all(jac == 0))
+        self.assertTrue(np.all(jac == 0))
 
 class TestCompanion(unittest.TestCase):
     def test_select(self):
