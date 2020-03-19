@@ -24,7 +24,7 @@ def parse_docstring(app, what, name, obj, options, lines):
     place = 0
     section = []
     bullet = False
-    for place in xrange(len(lines)):
+    for place in range(len(lines)):
         line = lines[place]
         
         # End section: flush into out_lines.

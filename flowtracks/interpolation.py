@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#Created on Tue May 28 10:27:15 2013
+# Created on Tue May 28 10:27:15 2013
 
 """
 Interpolation routines.
@@ -17,17 +17,19 @@ Interpolation routines.
 .. rubric:: Documentation
 """
 
-import numpy as np, warnings
+import numpy as np
+import warnings
 from scipy.spatial import cKDTree
-from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
+
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
-    companionship=None):
+                   companionship=None):
     """
     For each of m interpolation points, find its distance to all tracers. Use
     result to decide which tracers are the neighbours of each interpolation
     point, based on either a fixed radius or the closest num_neighbs.
-    
+
     Arguments:
     tracer_pos - (n,3) array, the x,y,z coordinates of one tracer per row, [m]
     interp_points - (m,3) array, coordinates of points where interpolation will
@@ -40,51 +42,53 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
         index of a tracer that should be excluded from it ("companion tracer"),
         useful esp. for interpolating tracers unto themselves and for analysing
         a simulated particle that started from a true tracer.
-    
+
     Returns:
     dists - (m,n) array, the distance from each interpolation point to each
         tracer.
-    use_parts - (m,n) boolean array, True where tracer :math:`j=1...n` is a 
+    use_parts - (m,n) boolean array, True where tracer :math:`j=1...n` is a
         neighbour of interpolation point :math:`i=1...m`.
     """
-    dists =  np.linalg.norm(tracer_pos[None,:,:] - interp_points[:,None,:],
-        axis=2)
-    
-    dists[dists <= 0] = np.inf # Only for selection phase,later changed back.
+    dists = np.linalg.norm(tracer_pos[None, :, :]-interp_points[:, None, :],
+                           axis=2)
+
+    # Only for selection phase,later changed back.
+    dists[dists <= 0] = np.inf
     if companionship is not None:
-        cif = companionship >= 0. # companion in frame
+        cif = companionship >= 0.  # companion in frame
         dists[np.nonzero(cif)[0], companionship[cif]] = np.inf
-    
+
     if radius is None:
         if num_neighbs is None:
             raise ValueError("Either radius or num_neighbs must be given.")
-        
+
         dist_sort = np.argsort(dists, axis=1)
         use_parts = np.zeros(dists.shape, dtype=np.bool)
-        
+
         eff_num_neighbs = min(num_neighbs, tracer_pos.shape[0])
         use_parts[
             np.repeat(np.arange(interp_points.shape[0]), eff_num_neighbs),
-            dist_sort[:,:num_neighbs].flatten()] = True
-    
+            dist_sort[:, :num_neighbs].flatten()] = True
+
     else:
         use_parts = dists < radius
-    
+
     dists[np.isinf(dists)] = 0.
     return dists, use_parts
 
+
 def corrfun_interp(dists, use_parts, data, corrs_hist, corrs_bins):
     """
-    For each of n particle, generate the velocity interpolated to its 
-    position from all neighbours as selected by caller. The weighting of 
-    neighbours is by the correlation function, e.g. if the distance at 
-    neighbor i is :math:`r_i`, then it adds :math:`\\rho(r_i)*v_i` to the 
+    For each of n particle, generate the velocity interpolated to its
+    position from all neighbours as selected by caller. The weighting of
+    neighbours is by the correlation function, e.g. if the distance at
+    neighbor i is :math:`r_i`, then it adds :math:`\\rho(r_i)*v_i` to the
     interpolated velocity. This is done for each component separately.
-    
-    Arguemnts:
+
+    Arguments:
     dists - (m,n) array, the distance of interpolation_point :math:`i=1...m`
-        from tracer :math:`j=1...n`, for (row,col) (i,j) [m] 
-    use_parts - (m,n) boolean array, whether tracer j is a neighbour of 
+        from tracer :math:`j=1...n`, for (row,col) (i,j) [m]
+    use_parts - (m,n) boolean array, whether tracer j is a neighbor of
         particle i, same indexing as ``dists``.
     data - (n,d) array, the d components of the data that is interpolated from,
         for each of n tracers.
@@ -99,10 +103,11 @@ def corrfun_interp(dists, use_parts, data, corrs_hist, corrs_bins):
     weights[use_parts] = corrs_hist[
         np.digitize(dists[use_parts].flatten(), corrs_bins) - 1]
     
-    vel_avg = (weights * data[None,...]).sum(axis=1) / \
+    vel_avg = (weights * data[None, ...]).sum(axis=1) / \
         weights.sum(axis=1)
 
     return vel_avg
+
 
 def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     """
@@ -127,15 +132,16 @@ def rbf_interp(tracer_dists, dists, use_parts, data, epsilon=1e-2):
     
     # Determine the set of coefficients for each particle:
     coeffs = np.zeros(dists.shape + (data.shape[-1],))
-    for pix in xrange(dists.shape[0]):
+    for pix in range(dists.shape[0]):
         neighbs = np.nonzero(use_parts[pix])[0]
         K = kernel[np.ix_(neighbs, neighbs)]
         
         coeffs[pix, neighbs] = np.linalg.solve(K, data[neighbs])
     
     rbf = np.exp(-dists**2 * epsilon)
-    vel_interp = np.sum(rbf[...,None] * coeffs, axis=1)
+    vel_interp = np.sum(rbf[..., None] * coeffs, axis=1)
     return vel_interp
+
 
 def interpolant(method, num_neighbs=None, radius=None, param=None):
     """
@@ -159,7 +165,9 @@ def interpolant(method, num_neighbs=None, radius=None, param=None):
     else:
         return GeneralInterpolant(method, num_neighbs, radius, param)
 
-Interpolant = interpolant # B.C.
+
+Interpolant = interpolant  # B.C.
+
 
 class GeneralInterpolant(object):
     """
@@ -193,15 +201,16 @@ class GeneralInterpolant(object):
             if num_neighbs is None:
                 num_neighbs = 4
             if param is None: 
-                raise ValueError("'corrfun' method requires param to be "\
-                    "an NPZ file name containing the corrs and bins arrays.")
+                raise ValueError("'corrfun' method requires param to be "
+                                 "an NPZ file name containing the corrs and" 
+                                 "bins arrays.")
             c = np.load(param)
             self._corrs = c['corrs']
             self._bins = c['bins']
         
         else:
-            raise NotImplementedError("Interpolation method %s not supported" \
-                % method)
+            raise NotImplementedError("Interpolation method %s not supported" 
+                                      % method)
             
         self._method = method
         self._neighbs = num_neighbs
@@ -222,7 +231,7 @@ class GeneralInterpolant(object):
         return self._radius
     
     def set_scene(self, tracer_pos, interp_points,
-        data=None, companionship=None):
+                  data=None, companionship=None):
         """
         Records scene data for future interpolation using the same scene.
         
@@ -307,9 +316,9 @@ class GeneralInterpolant(object):
         # Data can be 1d because it needs to be (1,d) or because it's (n,1),
         if data.ndim < 2:
             if data.shape[0] == self.__tracers.shape[0]:
-                data = data[:,None]
+                data = data[:, None]
             else:
-                data = data[None,:]
+                data = data[None, :]
         self.__data = data
     
     def trim_points(self, which):
@@ -347,9 +356,9 @@ class GeneralInterpolant(object):
         keep = dists > 0.
         
         if comp is not None:
-            keep &= active_neighbs != comp[:,None]
+            keep &= active_neighbs != comp[:, None]
         
-        keep[np.all(keep, axis=1),-1] = False
+        keep[np.all(keep, axis=1), -1] = False
         dists = dists[keep].reshape(-1, self._neighbs)
         active_neighbs = active_neighbs[keep].reshape(-1, self._neighbs)
         
@@ -370,7 +379,7 @@ class GeneralInterpolant(object):
             self.__active_neighbs.shape + (self.__tracers.shape[1],))
         matched_pos[self.__has_data] = \
             self.__tracers[self.__active_neighbs[self.__has_data]]
-        self.__rel_pos = matched_pos - self.__interp_pts[:,None,:]
+        self.__rel_pos = matched_pos - self.__interp_pts[:, None, :]
         
         if self._method == 'rbf':
             self.__tracer_dists, _ = select_neighbs(
@@ -407,7 +416,7 @@ class GeneralInterpolant(object):
             self.__matched_data = np.empty(
                 self.__active_neighbs.shape + (self.__tracers.shape[1],))
             self.__matched_data[self.__has_data] = \
-            self.__data[self.__active_neighbs[self.__has_data]]
+                self.__data[self.__active_neighbs[self.__has_data]]
         return self.__matched_data
         
     def interpolate(self, subset=None):
@@ -415,17 +424,18 @@ class GeneralInterpolant(object):
         Performs an interpolation over the recorded scene.
         
         Arguments:
-        subset - a neighbours selection array, such as returned from 
-            :meth:`which_neighbours`, to replace the recorded selection. Default
-            value (None) uses the recorded selection. The recorded selection
-            is not changed, so ``subset`` is forgotten after the call.
+        subset - a neighbours selection array, such as returned from
+            :meth:`which_neighbours`, to replace the recorded selection.
+            Default value (None) uses the recorded selection. The recorded
+            selection is not changed, so ``subset`` is forgotten after the
+            call.
         
         Returns:
-        an (m,3) array with the interpolated value at the position of each 
+        an (m,3) array with the interpolated value at the position of each
         of m particles.
         """
         # If for some reason tracking failed for a whole frame, 
-        # interpolation is impossible at that frame. This checks for frame 
+        # interpolation is impossible at that frame. This checks for frame
         # tracking failure.
         if len(self.__tracers) == 0:
             # Temporary measure until I can safely discard frames.
@@ -443,26 +453,27 @@ class GeneralInterpolant(object):
     
     def _meth_interp(self, act_neighbs):
         """
-        Implement the actual interpolation. Subclass this, not 
+        Implement the actual interpolation. Subclass this, not
         :meth:`interpolate`.
         
         Arguments:
-        act_neighbs - a neighbours selection array, such as returned from 
-            :meth:`which_neighbours`, to replace the recorded selection. Default
-            value (None) uses the recorded selection. The recorded selection
-            is not changed, so ``subset`` is forgotten after the call.
+        act_neighbs - a neighbours selection array, such as returned from
+            :meth:`which_neighbours`, to replace the recorded selection.
+            Default value (None) uses the recorded selection. The recorded
+            selection is not changed, so ``subset`` is forgotten after the
+            call.
         """
         if self._method == 'rbf':
             return rbf_interp(self.__tracer_dists, self.__dists, act_neighbs,
-                self.__data, self._par)
+                              self.__data, self._par)
         
         if self._method == 'corrfun':
             return corrfun_interp(self.__dists, act_neighbs, self.__data, 
-                self._corrs, self._bins)
+                                  self._corrs, self._bins)
         
         # This isn't supposed to ever happen. The constructor should fail.
-        raise NotImplementedError("Interpolation method %s not supported" \
-            % self._method)
+        raise NotImplementedError("Interpolation method %s not supported" 
+                                  % self._method)
     
     def __call__(self, tracer_pos, interp_points, data, companionship=None):
         """
@@ -496,7 +507,8 @@ class GeneralInterpolant(object):
             return np.zeros((interp_points.shape[0], ret_shape))
             
         dists, use_parts = select_neighbs(tracer_pos, interp_points, 
-            self._radius, self._neighbs, companionship)
+                                          self._radius, self._neighbs, 
+                                          companionship)
         
         if self._method == 'rbf':
             tracer_dists = select_neighbs(tracer_pos, tracer_pos, 
@@ -566,7 +578,7 @@ class GeneralInterpolant(object):
         nearest_tracers_count = min(tracer_pos.shape[0], self._neighbs)
         ndists = np.zeros((interp_points.shape[0], nearest_tracers_count))
         
-        for pt in xrange(interp_points.shape[0]):
+        for pt in range(interp_points.shape[0]):
             # allow assignment of less than the desired number of neighbours.
             ndists[pt] = dists[pt, use_parts[pt]]
         
@@ -772,7 +784,7 @@ def read_interpolant(conf_fname):
     Returns:
     an Interpolant object constructed from values in the configuration file.
     """
-    parser = SafeConfigParser()
+    parser = ConfigParser()
     parser.read(conf_fname)
     
     # Optional arguments:
