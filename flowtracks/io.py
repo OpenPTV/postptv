@@ -705,9 +705,10 @@ def save_particles_table(filename, trajects, trim=None):
         # First trajectory creates the table:
         if table is None:
             # Format of records in a trajectory array :
-            fields = [('trajid', int)] + [(field,) + desc \
+            fields = [('trajid', int,)] + [(field,) + tuple([desc[0],(desc[1],)]) \
                 for field, desc in traj.ext_schema().items()]
             dtype = np.dtype(fields)
+            print(dtype)
             table = outfile.create_table('/', 'particles', dtype)
 
         arr = np.empty(len(traj) - trim_len, dtype=dtype)
@@ -754,7 +755,7 @@ def save_frames_hdf(filename, frames):
         # First frame creates the table:
         if table is None:
             # Format of records in a frame array:
-            fields = [('time', int, 1)] + [(field,) + desc \
+            fields = [('time', int, 1)] + [(field,) + tuple([desc[0],(desc[1],)]) \
                 for field, desc in frame.ext_schema().items()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
@@ -766,7 +767,7 @@ def save_frames_hdf(filename, frames):
         arr['time'] = frame.time()
         
         for k, v in frame.as_dict().items():
-            arr[k] = v
+            arr[k] = np.atleast_1d(v)
         table.append(arr)
         
         # Keep track of trajectory starts/ends for the bounds table. 
@@ -787,7 +788,7 @@ def save_frames_hdf(filename, frames):
     table.cols.time.create_index()          
     
     bounds_tab = outfile.create_table('/', 'bounds', 
-        np.dtype([('trajid', int, 1), ('first', int, 1), ('last', int, 1)]))
+        np.dtype([('trajid', int, (1,)), ('first', int, (1,)), ('last', int, (1,))]))
     for trid, bounds in ongoing_trajects.items():
         bounds_tab.append([(trid, bounds[0], bounds[1])])
     bounds_tab.cols.trajid.create_index()
