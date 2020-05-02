@@ -35,25 +35,21 @@ the OpenPTV project, in its Github repository,
 
 Dependencies:
 
-* The software depends on the SciPy package, obtainable from 
-  http://www.scipy.org/
-
-* Some features depend on the Matplotlib package. Users which need those 
-  features may get Matplotlib at http://matplotlib.org/
+* The software depends on the NumPy, Scipy, Matplotlib, PyTables packages
 
 Installation
 -----------
 
 To install this package, follow the standard procedure for installing 
-Python modules. The package may be installed either systemwide, in the default
+Python modules. The package may be installed either system wide, in the default
 location, or for a single user, by changing the install location and updating
 environment variables in the standard way, as indicated by the Python 
 documentation [1]. 
 
-For a default systemwide installation: using a terminal, change directory into
-the root directory of theis program's source code, then run
+For a default system wide installation: using a terminal, change directory into
+the root directory of this program's source code, then run
 
-  python setup.py install
+  pip install . -r requirements.txt
 
 Note that for the default install you may need administrative privileges on the
 machine you are using. Consult the Python documentation for the single-user 
