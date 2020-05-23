@@ -768,7 +768,7 @@ class InverseDistanceWeighter(GeneralInterpolant):
         
         vel_diffs = (matched_data - local_interp[:,None,:]) # m x k x d
         jac = self._par/self.__weights.sum(
-                axis=1, keepdims=True)[:,None,None] \
+                axis=1, keepdims=True)[:,None,None, 0] \
             * np.sum(der_inv_dists[...,None,None]*rel_pos[:,:,None,:]*\
                    vel_diffs[...,None], axis=1)
         
