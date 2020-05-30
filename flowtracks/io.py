@@ -696,7 +696,7 @@ def save_particles_table(filename, trajects, trim=None):
     
     outfile = tables.open_file(filename, mode='w')
     bounds_tab = outfile.create_table('/', 'bounds', 
-        np.dtype([('trajid', int,), ('first', int), ('last', int)]))
+        np.dtype([('trajid', int), ('first', int), ('last', int)]))
     
     for traj in trajects:
         if len(traj) - trim_len <= 0:
@@ -705,8 +705,13 @@ def save_particles_table(filename, trajects, trim=None):
         # First trajectory creates the table:
         if table is None:
             # Format of records in a trajectory array :
-            fields = [('trajid', int)] + [(field,) + desc \
-                for field, desc in traj.ext_schema().items()]
+            fields = [('trajid', int)]
+            for field, desc in traj.ext_schema().items():
+                if desc[1] == 1:
+                    fields.append((field, desc[0]))
+                else:
+                    fields.append((field,) + desc)
+ 
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
 
