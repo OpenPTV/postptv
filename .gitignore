@@ -2,3 +2,5 @@
 .spyder*
 
 build/*
+MANIFEST
+dist/
