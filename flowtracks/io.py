@@ -28,8 +28,6 @@ from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
 
-from itertools import iteritems
-
 
 class FramesIterator(object):
     def __init__(self, fname_tmpl, fmt, skip, first=None, last=None):
@@ -709,7 +707,7 @@ def save_particles_table(filename, trajects, trim=None):
         if table is None:
             # Format of records in a trajectory array :
             fields = [('trajid', int, 1)] + [(field,) + desc \
-                for field, desc in iteritems(traj.ext_schema())]
+                for field, desc in traj.ext_schema().items()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
 
