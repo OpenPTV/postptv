@@ -5,3 +5,4 @@ build/*
 MANIFEST
 dist/
 flowtracks.egg-info/*
+examples/.ipynb_checkpoints/*
