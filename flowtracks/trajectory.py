@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import types
-import numpy as np
+import types, numpy as np
 import scipy.interpolate as interp
-
+from future.utils import iteritems
+from builtins import object
 
 class Frame(object):
     """
@@ -40,8 +40,8 @@ class ParticleSet(object):
         }
         base_vals.update(kwds)
         
-        self._check_attr = []  # Attrs to look for when concatenating bundles
-        for n, v in base_vals.items():
+        self._check_attr = [] # Attrs to look for when concatenating bundles
+        for n, v in iteritems(base_vals):
             self.create_property(n, v)
     
     def create_property(self, propname, init_val):
@@ -257,7 +257,7 @@ def trajectories_in_frame(trajects, frame_num,
     """
     if start_times is None or end_times is None:
         start_end = [(tr.time()[0], tr.time()[-1]) for tr in trajects]
-        start_times, end_times = list(map(np.array, list(zip(*start_end))))
+        start_times, end_times = map(np.array, zip(*start_end))
     
     end_frm = (frame_num + 1) if segs else frame_num
     cands = (frame_num >= start_times) & (end_frm <= end_times)
@@ -292,15 +292,15 @@ def take_snapshot(trajects, frame, schema):
     a :class:`ParticleSnapshot` object with all the particles in the given frame.
     """
     if len(trajects) == 0:
-        kwds = dict((k, np.empty((0,) + v)) for k, v in schema.items())
+        kwds = dict((k, np.empty((0,) + v)) for k, v in iteritems(schema))
         kwds['time'] = frame
         return ParticleSnapshot(trajid=np.empty(0), **kwds)
     
     kwds = dict((k, np.empty(
         (len(trajects),) + v, 
         dtype=trajects[0].__dict__['_' + k].dtype)) \
-        for k, v in schema.items())
-    copy_keys = list(kwds.keys())
+        for k, v in iteritems(schema))
+    copy_keys = kwds.keys()
     kwds['trajid'] = np.empty(len(trajects), dtype=np.int_)
     
     for trix, traj in enumerate(trajects):

@@ -7,7 +7,13 @@ Created on Tue Feb  4 11:52:38 2014
 @author: yosef
 """
 
-import unittest, os, configparser
+import unittest, os
+
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
+    
 from flowtracks import sequence
 
 class TestReadWrite(unittest.TestCase):
@@ -17,9 +23,9 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/sequence.cfg')
         seq = sequence.read_sequence(fname)
         
-        self.assertEqual(seq.frate, 500)
-        self.assertEqual(seq.range(), (10000, 10201))
-        self.assertEqual(seq.part_fname(), '../data/particles/xuap.%d')
+        self.failUnlessEqual(seq.frate, 500)
+        self.failUnlessEqual(seq.range(), (10000, 10201))
+        self.failUnlessEqual(seq.part_fname(), '../data/particles/xuap.%d')
     
     def test_write_sequence(self):
         """A test sequence is faithfully reproduced from rewritten sequence"""
@@ -27,7 +33,7 @@ class TestReadWrite(unittest.TestCase):
         fname = os.path.join(fdir, 'testing_fodder/sequence.cfg')
         seq = sequence.read_sequence(fname)
         
-        cfg = configparser.ConfigParser()
+        cfg = SafeConfigParser()
         seq.save_config(cfg)
         nfname = os.path.join(fdir, 'testing_fodder/analysis.cfg')
         with open(nfname, 'w') as fobj:
@@ -35,8 +41,8 @@ class TestReadWrite(unittest.TestCase):
         
         # Round-trip check:
         nseq = sequence.read_sequence(nfname)
-        self.assertEqual(seq.frate, nseq.frate)
-        self.assertEqual(seq.range(), nseq.range())
-        self.assertEqual(seq.part_fname(), nseq.part_fname())
+        self.failUnlessEqual(seq.frate, nseq.frate)
+        self.failUnlessEqual(seq.range(), nseq.range())
+        self.failUnlessEqual(seq.part_fname(), nseq.part_fname())
         
         os.remove(nfname)

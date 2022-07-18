@@ -4,7 +4,14 @@ import numpy as np
 from .io import trajectories, infer_format
 from .particle import Particle
 from .trajectory import take_snapshot, trajectories_in_frame, Frame
-from configparser import ConfigParser
+<<<<<<< HEAD
+from configparser import SafeConfigParser
+=======
+try:
+    from ConfigParser import SafeConfigParser
+except ImportError:
+    from configparser import SafeConfigParser
+>>>>>>> 8b70921ee239a5d3d0122c4eb6a2c46091be6f34
 
 class Sequence(object):
     """
@@ -121,7 +128,7 @@ class Sequence(object):
         # Also caches the starts and ends of trajectories, so that accessing
         # only the ones relevant to a specific frame is easier.
         start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ptraj]
-        self.__pstarts, self.__pends =  list(map(np.array, list(zip(*start_end))))
+        self.__pstarts, self.__pends =  map(np.array, zip(*start_end))
         
         return self.__ptraj
     
@@ -145,7 +152,7 @@ class Sequence(object):
         # Also caches the starts and ends of trajectories, so that accessing
         # only the ones relevant to a specific frame is easier.
         start_end = [(tr.time()[0], tr.time()[-1]) for tr in self.__ttraj]
-        self.__tstarts, self.__tends =  list(map(np.array, list(zip(*start_end))))
+        self.__tstarts, self.__tends =  map(np.array, zip(*start_end))
             
         return self.__ttraj
         
@@ -192,7 +199,7 @@ class Sequence(object):
         self._act_rng = (first, last)
         return self
     
-    def __next__(self):
+    def next(self):
         if self._frame == self._act_rng[1]:
             del self._act_rng
             raise StopIteration
@@ -275,7 +282,7 @@ class Sequence(object):
                 res[k][frame_counters[k]] = v
                 frame_counters[k] += 1
         
-        for k in list(res.keys()):
+        for k in res.keys():
             res[k] = np.array(res[k])
         return res
     
@@ -322,7 +329,7 @@ def read_sequence(conf_fname, smooth=None, traj_min_len=None):
     Returns:
     a Sequence object initialized with the configuration values found.
     """
-    parser = ConfigParser()
+    parser = SafeConfigParser()
     parser.read(conf_fname)
 
     particle = Particle(
