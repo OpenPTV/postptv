@@ -32,7 +32,7 @@ def pairwise(iterable):
     """
     a, b = it.tee(iterable)
     next(b, None)
-    return it.izip(a, b)
+    return zip(a, b)
 
 def gen_query_string(key, range_spec):
     """
@@ -423,7 +423,7 @@ class DualScene(object):
             self._particles.set_frame_range(frame_range)
             self._tracers.set_frame_range(frame_range)
     
-        for particles, tracers in it.izip(
+        for particles, tracers in zip(
             self._particles.iter_frames(), self._tracers.iter_frames()):
             frame = Frame()
             frame.tracers = tracers
@@ -455,7 +455,7 @@ class DualScene(object):
             self._particles.set_frame_range(frame_range)
             self._tracers.set_frame_range(frame_range)
     
-        for part_frames, tracer_frames in it.izip(
+        for part_frames, tracer_frames in zip(
             self._particles.iter_segments(), self._tracers.iter_segments()):
             frame = Frame()
             frame.tracers = tracer_frames[0]
@@ -483,7 +483,7 @@ def read_dual_scene(conf_fname):
     Returns:
     a DualScene object initialized with the configuration values found.
     """
-    parser = ConfigParser()
+    parser = SafeConfigParser()
     parser.read(conf_fname)
 
     particle = Particle(
