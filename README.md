@@ -53,7 +53,7 @@ documentation [1].
 For a default systemwide installation: using a terminal, change directory into
 the root directory of theis program's source code, then run
 
-  python setup.py install
+    pip install -r requirements.txt
 
 Note that for the default install you may need administrative privileges on the
 machine you are using. Consult the Python documentation for the single-user 
@@ -70,7 +70,7 @@ also described therein.
 The examples are Jupyter notebooks [2], and can be previewed without any 
 special setup under the examples section of
 
-  http://flowtracks.readthedocs.org
+    http://flowtracks.readthedocs.org
 
 
 [1] Python documentation: https://docs.python.org/2/install/index.html
