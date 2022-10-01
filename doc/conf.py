@@ -44,7 +44,8 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'flowtracks.format_docstrings'
+    'flowtracks.format_docstrings',
+    'nbsphinx'
 ]
 autoclass_content = "both"
 

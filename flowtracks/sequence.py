@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-import numpy as np
+
 
 from .io import trajectories, infer_format
 from .particle import Particle
 from .trajectory import take_snapshot, trajectories_in_frame, Frame
 from configparser import ConfigParser
+import numpy as np
 
 class Sequence(object):
     """

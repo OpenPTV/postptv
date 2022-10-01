@@ -1,13 +1,9 @@
-# -*- coding: utf-8 -*-
-#Created on Thu Nov 14 11:41:53 2013
-
 """
 Trajectory smoothing routines. These are routines that are out of the 
 Trajectory object because they precompute values that are dependent only on the
 smoothing method, and not on the trajectory itself, so they may be shared for
 processing a whole list of trajectories.
 """
-
 from flowtracks.trajectory import Trajectory
 import numpy as np
 
@@ -32,23 +28,23 @@ def savitzky_golay(trajs, fps, window_size, order):
         trajectories. Trajectories shorter than the window size are discarded.
     
     Notes:
-    The Savitzky-Golay is a type of low-pass filter, particularly
+    The Savitzky-Golay [1][3] is a type of low-pass filter, particularly
     suited for smoothing noisy data. The main idea behind this
     approach is to make for each point a least-square fit with a
     polynomial of high order over a odd-sized window centered at
-    the point.
+    the point [2].
 
     References:
 
-    .. [#] A. Savitzky, M. J. E. Golay, Smoothing and Differentiation of \
+    .. [1] A. Savitzky, M. J. E. Golay, Smoothing and Differentiation of \
        Data by Simplified Least Squares Procedures. Analytical \
        Chemistry, 1964, 36 (8), pp 1627-1639.
 
-    .. [#] Numerical Recipes 3rd Edition: The Art of Scientific Computing \
+    .. [2] Numerical Recipes 3rd Edition: The Art of Scientific Computing \
        W.H. Press, S.A. Teukolsky, W.T. Vetterling, B.P. Flannery \
        Cambridge University Press ISBN-13: 9780521880688
 
-    .. [#] http://wiki.scipy.org/Cookbook/SavitzkyGolay
+    .. [3] http://wiki.scipy.org/Cookbook/SavitzkyGolay
     """
     try:
         window_size = np.abs(np.int(window_size))
