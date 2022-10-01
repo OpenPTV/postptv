@@ -4,7 +4,8 @@ correct results.
 """
 
 import unittest
-import numpy as np, numpy.testing as nptest
+import numpy as np
+import numpy.testing as nptest
 
 from flowtracks.scene import Scene, gen_query_string
 from flowtracks.trajectory import Trajectory, take_snapshot
@@ -48,7 +49,7 @@ class TestScene(unittest.TestCase):
         trjs = [tr for tr in self.scene.iter_trajectories()]
         self.assertEqual(len(trjs), len(self.correct))
         
-        for trj, correct in zip(trjs, self.correct):
+        for trj, correct in zip(trjs, self.correct):    
             nptest.assert_array_almost_equal(trj.pos(), correct.pos())
             nptest.assert_array_almost_equal(trj.velocity(), correct.velocity())
             nptest.assert_array_almost_equal(trj.accel(), correct.accel())
@@ -86,7 +87,9 @@ class TestScene(unittest.TestCase):
     
     def test_iter_frames_subrange(self):
         """Iterating frames subrange"""
+        print(self.scene.__dict__)
         self.scene.set_frame_range((10002, 10004))
+        print(self.scene.__dict__)
         
         schm = self.correct[0].schema()
         correct_frames = [take_snapshot(self.correct, frm, schm) \

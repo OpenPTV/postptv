@@ -5,6 +5,7 @@ mkl-random
 mkl-service
 mock
 pytest
+matplotlib
 numexpr
 numpy
 scipy

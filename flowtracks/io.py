@@ -16,7 +16,7 @@ the various formats. They are documented here alongside the main entry points,
 so that users may access them directly if needed.
 """
 import os, os.path, re, itertools as itr
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 from io import StringIO
 
 import numpy as np

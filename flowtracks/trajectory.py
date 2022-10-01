@@ -294,18 +294,20 @@ def take_snapshot(trajects, frame, schema):
         kwds = dict((k, np.empty((0,) + v)) for k, v in schema.items())
         kwds['time'] = frame
         return ParticleSnapshot(trajid=np.empty(0), **kwds)
-    
+
     kwds = dict((k, np.empty(
         (len(trajects),) + v, 
         dtype=trajects[0].__dict__['_' + k].dtype)) \
         for k, v in schema.items())
+
     copy_keys = kwds.keys()
     kwds['trajid'] = np.empty(len(trajects), dtype=np.int_)
-    
+
     for trix, traj in enumerate(trajects):
         first_frame = traj.time()[0]
         for prop in copy_keys:
             kwds[prop][trix] = traj.__dict__[prop](frame - first_frame)
+
         kwds['trajid'][trix] = traj.trajid()
     
     kwds['time'] = frame
