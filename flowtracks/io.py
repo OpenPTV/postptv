@@ -412,7 +412,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         for trid in ending_trids:
             traj = trajects[trid]
             traj = Trajectory(traj[:,:3], traj[:,3:6], traj[:,6],
-                np.int(traj[0,7]))
+                int(traj[0,7]))
             
             # Add forward-difference acceleration:
             accel = np.empty_like(traj.velocity())
