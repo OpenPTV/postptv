@@ -1,8 +1,9 @@
 *.pyc
 .spyder*
-
 build/*
 MANIFEST
-dist/
+dist/*
 flowtracks.egg-info/*
 examples/.ipynb_checkpoints/*
+doc/build/*
+*.json

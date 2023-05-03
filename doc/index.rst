@@ -32,6 +32,7 @@ Contents:
    analysis
    an_scene
    sequence
+   examples/repeated_interpolation.ipynb
 
 Getting Started
 ===============
@@ -57,7 +58,7 @@ Dependencies:
   
 
 Installation
------------
+------------
 
 To install this package, follow the standard procedure for installing 
 Python modules. Using a terminal, change directory into the root directory
@@ -65,7 +66,7 @@ of theis program's source code, then run
 
 .. code:: bash 
   
-  python setup.py install
+      python -m pip install -r requirements.txt
 
 Note that you may need administrative privileges on the machine you are 
 using.
@@ -107,6 +108,10 @@ IPython notebooks, both available as HTML for direct viewing:
   (:download:`HTML <_static/hdf5_scene_analysis.html>`).
 * a demonstration of using the ``flowtracks.interpolation`` module 
   (:download:`HTML <_static/repeated_interpolation.html>`).
+
+
+Additional examples in Jupyter notebooks are available in a Github repository
+.. _flowtracks_examples: https://github.com/alexlib/flowtracks_examples
 
 Analysis Script
 ---------------

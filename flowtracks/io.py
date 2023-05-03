@@ -28,6 +28,7 @@ from .particle import Particle
 from .trajectory import Trajectory, mark_unique_rows, \
     Frame, take_snapshot, trajectories_in_frame
 
+
 class FramesIterator(object):
     def __init__(self, fname_tmpl, fmt, skip, first=None, last=None):
         """
@@ -411,7 +412,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         for trid in ending_trids:
             traj = trajects[trid]
             traj = Trajectory(traj[:,:3], traj[:,3:6], traj[:,6],
-                np.int(traj[0,7]))
+                int(traj[0,7]))
             
             # Add forward-difference acceleration:
             accel = np.empty_like(traj.velocity())
@@ -705,13 +706,8 @@ def save_particles_table(filename, trajects, trim=None):
         # First trajectory creates the table:
         if table is None:
             # Format of records in a trajectory array :
-            fields = [('trajid', int)]
-            for field, desc in traj.ext_schema().items():
-                if desc[1] == 1:
-                    fields.append((field, desc[0]))
-                else:
-                    fields.append((field,) + desc)
- 
+            fields = [('trajid', int, 1)] + [(field,) + desc \
+                for field, desc in traj.ext_schema().items()]
             dtype = np.dtype(fields)
             table = outfile.create_table('/', 'particles', dtype)
 
