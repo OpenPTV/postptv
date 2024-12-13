@@ -9,7 +9,7 @@ from distutils.core import setup
 from glob import glob
 
 setup(name='flowtracks',
-    version='1.0',
+    version='1.0.1',
     description='Library for handling of PTV trajectory database.',
     author='Yosef Meller',
     author_email='yosefm@gmail.com',
