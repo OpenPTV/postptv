@@ -301,7 +301,7 @@ def take_snapshot(trajects, frame, schema):
         for k, v in schema.items())
 
     copy_keys = kwds.keys()
-    kwds['trajid'] = np.empty(len(trajects), dtype=np.int_)
+    kwds['trajid'] = np.empty(len(trajects), dtype=np.int64_)
 
     for trix, traj in enumerate(trajects):
         first_frame = traj.time()[0]
