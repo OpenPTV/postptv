@@ -374,7 +374,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
         if not ending.any():
             continue
         
-        ending_trids = np.atleast_1d(np.int64_(frame[ending,-1]))
+        ending_trids = np.atleast_1d(frame[ending,-1].astype(np.int64))
         ending_starts = np.r_[[traj_starts[trid] for trid in ending_trids]]
         
         # Filter short trajectories:
