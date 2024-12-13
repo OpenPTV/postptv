@@ -104,7 +104,7 @@ class Scene(object):
         tags = self._file.get_node('/bounds')
         return np.hstack([tags.col(name)[:,None] for name in ['trajid', 'first', 'last']])
             
-        return np.array([np.int(row[:]) for row in self._file.get_node('/bounds').read()])
+        return np.array([np.int64(row[:]) for row in self._file.get_node('/bounds').read()])
     
     def set_frame_range(self, frame_range):
         """
