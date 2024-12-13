@@ -47,8 +47,8 @@ def savitzky_golay(trajs, fps, window_size, order):
     .. [3] http://wiki.scipy.org/Cookbook/SavitzkyGolay
     """
     try:
-        window_size = np.abs(np.int(window_size))
-        order = np.abs(np.int(order))
+        window_size = np.abs(np.int64(window_size))
+        order = np.abs(np.int64(order))
     except ValueError:
         raise ValueError("window_size and order have to be of type int")
     if window_size % 2 != 1 or window_size < 1:
