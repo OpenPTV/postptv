@@ -268,7 +268,7 @@ def trajectories_in_frame(trajects, frame_num,
         pos = np.array([trajects[trix].pos()[frm] \
             for trix, frm in zip(cand_nums, frm_ixs)])
 
-        update_cands = np.zeros(pos.shape[0], dtype=np.bool)
+        update_cands = np.zeros(pos.shape[0], dtype=bool)
         update_cands[mark_unique_rows(pos)] = True
         cands[cands] = update_cands
         cand_nums = np.nonzero(cands)[0]
@@ -304,9 +304,9 @@ def take_snapshot(trajects, frame, schema):
     kwds['trajid'] = np.empty(len(trajects), dtype=np.int64)
 
     for trix, traj in enumerate(trajects):
-        first_frame = traj.time()[0]
+        frm_ix = frame - traj.time()[0]
         for prop in copy_keys:
-            kwds[prop][trix] = traj.__dict__[prop](frame - first_frame)
+            kwds[prop][trix] = traj.__dict__['_' + prop][frm_ix]
 
         kwds['trajid'][trix] = traj.trajid()
 

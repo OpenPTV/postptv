@@ -21,8 +21,19 @@ def companion_indices(trids, companions):
     trajectory ID array, or a negative number if not found.
     """
     comp = np.full_like(companions, -1)
-    idx = np.nonzero(trids[:,None] == companions)
-    comp[idx[1]] = idx[0]
+    if len(trids) == 0 or len(companions) == 0:
+        return comp
+        
+    sort_ix = np.argsort(trids)
+    sorted_trids = trids[sort_ix]
+    
+    locs = np.searchsorted(sorted_trids, companions)
+    valid = locs < len(sorted_trids)
+    matched = valid.copy()
+    if matched.any():
+        matched[valid] = sorted_trids[locs[valid]] == companions[valid]
+        
+    comp[matched] = sort_ix[locs[matched]]
     return comp
                 
 class GeneralAnalyser(object):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import tables, itertools as it, numpy as np
+import tables, numpy as np
 from .scene import read_dual_scene, gen_query_string
 from .trajectory import Trajectory
 
@@ -55,18 +55,28 @@ class AnalysedScene(object):
         
     def _iter_frame_arrays(self, cond=None):
         """
-        Private. Breaks the file down to its frames, and makes arrays of 
+        Private. Breaks the file down to its frames, and makes arrays of
         them, iteratively. Also allows filtering the frames.
-        
+
         Arguments:
-        cond - an optional PyTables condition string to apply to each frame.
+        cond - an optional PyTables condition string to AND into the single
+            read performed over the whole frame range.
         """
-        query_string = '(time == t)'
+        first, last = self._scene.get_range()
+        read_cond = "(time >= %d) & (time < %d)" % (first, last)
         if cond is not None:
-            query_string = '&'.join([query_string, cond])
-            
-        for t in range(*self._scene.get_range()):
-            yield t, self._table.read_where(query_string)
+            read_cond = "(%s) & (%s)" % (read_cond, cond)
+
+        arr = self._table.read_where(read_cond)
+        order = np.argsort(arr['time'], kind='stable')
+        arr = arr[order]
+        bounds = np.flatnonzero(np.diff(arr['time'])) + 1
+        groups = np.split(arr, bounds)
+        by_time = {int(g['time'][0]): g for g in groups}
+        empty = arr[0:0]
+
+        for t in range(first, last):
+            yield t, by_time.get(t, empty)
     
     def collect(self, keys, where=None):
         """
@@ -104,28 +114,26 @@ class AnalysedScene(object):
             if len(an_cond_add) != 0:
                 an_cond = ' & '.join(an_cond_add)
                 
-        # Iterate over dual frame, each from the right source using the 
+        # Iterate over dual frame, each from the right source using the
         # divided conditions.
         res = dict((k, []) for k in keys)
-        
-        dframe_it = it.izip(
+
+        dframe_it = zip(
             self._scene.get_particles()._iter_frame_arrays(part_cond),
             self._iter_frame_arrays(an_cond))
-            
+
         for tr_frm, an_frm in dframe_it:
             # Cross reference matching rows.
             tp, p_arr = tr_frm
             ta, a_arr = an_frm
-            
+
             p_trids = p_arr['trajid']
             a_trids = a_arr['trajid']
-            trajids = set(p_trids) & set(a_trids)
-            
+            trajids = np.intersect1d(p_trids, a_trids, assume_unique=True)
+
             # select only those from the two frames:
-            in_p = np.array([True if tr in trajids else False \
-                for tr in p_trids])
-            in_a = np.array([True if tr in trajids else False \
-                for tr in a_trids])
+            in_p = np.isin(p_trids, trajids, assume_unique=True)
+            in_a = np.isin(a_trids, trajids, assume_unique=True)
             
             if len(in_p) > 0:
                 p_arr = p_arr[in_p]

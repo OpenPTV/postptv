@@ -64,41 +64,41 @@ def savitzky_golay(trajs, fps, window_size, order):
         'trajid']
 
     # precompute coefficients
-    b = np.mat([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
-    m = np.linalg.pinv(b).A
+    b = np.array([[k**i for i in order_range] for k in range(-half_window, half_window+1)])
+    m = np.linalg.pinv(b)
     m_pos = m[0]
     m_vel = m[1] * fps
-    m_acc = m[2] * (fps**2 * 2)
-    m_jerk = m[3] * (fps**3 * 6)
+    m_acc = m[2] * (fps**2 * 2) if order >= 2 else np.zeros(window_size)
+    m_jerk = m[3] * (fps**3 * 6) if order >= 3 else np.zeros(window_size)
+
+    # Coefficient rows, reused for every component and every output derivative
+    # (pos/vel/acc/jerk). Multiplying a windowed view of the padded signal by
+    # this matrix is mathematically identical to the previous per-component
+    # ``np.convolve(m_*[::-1], y, mode='valid')`` loop, because
+    # ``convolve(m[::-1], y, 'valid')`` evaluates to ``window . m`` (a forward
+    # dot product of the window with the coefficients).
+    M = np.stack([m_pos, m_vel, m_acc, m_jerk])   # (4, window_size)
 
     new_trajs = []
     for traj in trajs:
         if len(traj) < window_size:
             continue
 
-        newpos = []
-        newvel = []
-        newacc = []
-        jerk = []
+        pos = traj.pos()
+        # pad the signal at the extremes with values mirrored from the signal
+        # itself (the abs makes it a reflection, not a plain reflect).
+        firstvals = pos[0] - np.abs(pos[1:half_window+1][::-1] - pos[0])
+        lastvals = pos[-1] + np.abs(pos[-half_window-1:-1][::-1] - pos[-1])
+        padded = np.concatenate((firstvals, pos, lastvals), axis=0)
 
-        nextacc = []
-        nextvel = []
-        for y in traj.pos().T: # For each component of pos
-            # pad the signal at the extremes with
-            # values taken from the signal itself
-            firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
-            lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
-            y = np.concatenate((firstvals, y, lastvals))
+        windows = np.lib.stride_tricks.sliding_window_view(
+            padded, window_size, axis=0)                 # (L, 3, window_size)
+        out = windows @ M.T                              # (L, 3, 4)
 
-            newpos.append(np.convolve( m_pos[::-1], y, mode='valid'))
-            newvel.append(np.convolve( m_vel[::-1], y, mode='valid'))
-            newacc.append(np.convolve( m_acc[::-1], y, mode='valid'))
-            jerk.append(np.convolve( m_jerk[::-1], y, mode='valid'))
-
-        newpos = np.r_[newpos].T
-        newvel = np.r_[newvel].T
-        newacc = np.r_[newacc].T
-        jerk = np.r_[jerk].T
+        newpos = out[:, :, 0]
+        newvel = out[:, :, 1]
+        newacc = out[:, :, 2]
+        jerk = out[:, :, 3]
 
         # Velocity and acceleration evaluated at i = 1 rather than i = 0,
         # for comparison with the i = 0 values from next polynomial.

@@ -11,3 +11,4 @@ numpy
 scipy
 six
 tables
+vtk

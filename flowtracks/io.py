@@ -315,10 +315,9 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
     frame = np.hstack((pos, vel, np.ones((max_traj, 1))*frame_num,
         trids[:,None]))
     frames.append(frame)
+    frames_sort_cache = [(trids, trids)]
 
-    traj_starts = {} # what is the starting frame for each trajectory.
-    for trid in trids:
-        traj_starts[trid] = 0
+    traj_starts = dict.fromkeys(trids, 0)
 
     trajects = {}
 
@@ -327,7 +326,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
     if ending.any():
         ending_trids = np.atleast_1d(frame[ending,-1].astype(np.int_))
         for trid in ending_trids:
-            trajects[trid] = frame[frame[:,-1] == trid]
+            trajects[trid] = frame[trid:trid+1]
 
     frame_buffer_start = 0
 
@@ -337,6 +336,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
 
         if table.ndim == 0:
             frames.append(None)
+            frames_sort_cache.append(None)
             continue
             # We assume that the next frame will have no continuing particles,
             # and this case is caused by detection failure. Otherwise the code
@@ -353,9 +353,9 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
 
         # Start new trajectories:
         num_new_traj = np.sum(~cont)
-        traj[~cont] = np.arange(max_traj, max_traj + num_new_traj)
-        for trid in traj[~cont]:
-            traj_starts[trid] = fix + 1
+        new_trids = np.arange(max_traj, max_traj + num_new_traj)
+        traj[~cont] = new_trids
+        traj_starts.update(dict.fromkeys(new_trids, fix + 1))
         max_traj += num_new_traj
 
         # Consolidate into frame table.
@@ -374,6 +374,9 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             frames[-1][prev_ix,3:6] = \
                 (pos[cont] - frames[-1][prev_ix,:3]) * frate
         frames.append(frame)
+        trids_in_frame = frame[:, -1].astype(np.int64)
+        sort_ix = np.argsort(trids_in_frame)
+        frames_sort_cache.append((trids_in_frame[sort_ix], sort_ix))
 
         # Make Trajectory objects from fully-read trajectories, so we can
         # discard early frames they're in.
@@ -382,7 +385,7 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             continue
 
         ending_trids = np.atleast_1d(frame[ending,-1].astype(np.int_))
-        ending_starts = np.r_[[traj_starts[trid] for trid in ending_trids]]
+        ending_starts = np.fromiter((traj_starts[trid] for trid in ending_trids), dtype=np.int64, count=len(ending_trids))
 
         # Filter short trajectories:
         traj_lens = fix - ending_starts + 2
@@ -399,19 +402,33 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             if past_frame is None: continue
 
             in_frame = ending_starts <= scanix + frame_buffer_start
-            for trid in ending_trids[in_frame]:
+            active_ending_trids = ending_trids[in_frame]
+            if len(active_ending_trids) == 0: continue
+
+            sorted_trids, sort_ix = frames_sort_cache[scanix]
+
+            locs = np.searchsorted(sorted_trids, active_ending_trids)
+            valid = locs < len(sorted_trids)
+            matched = valid.copy()
+            if matched.any():
+                matched[valid] = sorted_trids[locs[valid]] == active_ending_trids[valid]
+
+            valid_active_trids = active_ending_trids[matched]
+            valid_row_ixs = sort_ix[locs[matched]]
+
+            for trid, row_ix in zip(valid_active_trids, valid_row_ixs):
                 traj_rel_ix = scanix + frame_buffer_start - traj_starts[trid]
-                traj_locator = past_frame[:,-1] == trid
-                trajects[trid][traj_rel_ix] = past_frame[traj_locator][0]
+                trajects[trid][traj_rel_ix] = past_frame[row_ix]
 
         # Discard frames that only have trajectories that ended.
         cont_trids = frame[~ending,-1]
         if len(cont_trids) == 0:
             new_start = fix
         else:
-            new_start = min([traj_starts[trid] for trid in cont_trids])
+            new_start = min(traj_starts[int(trid)] for trid in cont_trids)
 
         frames = frames[new_start - frame_buffer_start : ]
+        frames_sort_cache = frames_sort_cache[new_start - frame_buffer_start : ]
         frame_buffer_start = new_start
 
         # Convert the dictionary of trajectory arrays to list of Trajectory
@@ -458,7 +475,7 @@ def trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
     return [t for t in iter_trajectories_ptvis(fname, first, last, frate,
         xuap, traj_min_len)]
 
-def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
+def trajectories(fname, first=None, last=None, frate=1.0, fmt=None, traj_min_len=None,
     iter_allowed=False):
     """
     Extract all trajectories in a given target location. The location format
@@ -516,6 +533,9 @@ def trajectories(fname, first, last, frate, fmt=None, traj_min_len=None,
         else:
             traj = [t for t in it]
 
+    elif fmt == 'zarr':
+        traj = read_zarr_trajectories(fname, first, last)
+
     if filter_needed:
         if traj_min_len is None:
             traj_min_len = 2
@@ -536,9 +556,11 @@ def infer_format(fname):
 
     Returns:
     A string marking the format. Currently one of 'acc', 'mat', 'xuap',
-    'npz', 'hdf' or 'ptvis'.
+    'npz', 'hdf', 'zarr', or 'ptvis'.
     """
-    if fname.endswith('mat'):
+    if fname.endswith('zarr') or fname.endswith('zarr/') or '.zarr' in fname:
+        return 'zarr'
+    elif fname.endswith('mat'):
         return 'mat'
     elif fname.endswith('/'):
         return 'npz'
@@ -836,16 +858,31 @@ def trajectories_table(fname, first=None, last=None):
     outfile = tables.open_file(fname, mode='r')
     table = outfile.get_node('/particles')
 
-    query_string = ('(trajid == trid)')
+    conds = []
     if first is not None:
-        query_string += " & (time >= %d)" % first
+        conds.append("(time >= %d)" % first)
     if last is not None:
-        query_string += " & (time <= %d)" % last
+        conds.append("(time <= %d)" % last)
+    read_cond = ' & '.join(conds)
+
+    # Read the whole (possibly time-filtered) table once, then group by trajid
+    # in memory, instead of one ``read_where`` query per trajectory id.
+    arr = table.read_where(read_cond) if read_cond else table.read()
+
+    all_trids = np.unique(table.col('trajid'))
+    order = np.argsort(arr['trajid'], kind='stable')
+    arr = arr[order]
+    bounds = np.flatnonzero(np.diff(arr['trajid'])) + 1
+    groups = np.split(arr, bounds)
+    by_trid = {int(g['trajid'][0]): g for g in groups}
 
     trajects = []
-    for trid in np.unique(table.col('trajid')):
-        arr = table.read_where(query_string)
-        kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+    # Iterate over every trajid present in the file (matching the old per-id
+    # query loop, which also appended an empty Trajectory for ids that fall
+    # outside the time range).
+    for trid in all_trids:
+        chunk = by_trid.get(int(trid), arr[0:0])
+        kwds = dict((field, chunk[field]) for field in chunk.dtype.fields \
             if field != 'trajid')
         kwds['trajid'] = trid
         trajects.append(Trajectory(**kwds))
@@ -909,3 +946,289 @@ def load_trajectories(res_dir, first=None, last=None):
         trajects.append(Trajectory(**kwds))
 
     return trajects, per_traject_adds
+
+
+def read_zarr_trajectories(zarr_path, first=None, last=None, group="trajectories"):
+    """
+    Extract all trajectories from a Zarr store directory.
+
+    Arguments:
+    zarr_path - path to the .zarr directory or Zarr group.
+    first, last - inclusive range of frame numbers to read.
+    group - sub-group name inside the Zarr store ('trajectories' or
+            'trajectories/smoothed' or 'correspondences').
+
+    Returns:
+    trajects - a list of Trajectory objects.
+    """
+    import zarr
+
+    root = zarr.open_group(str(zarr_path), mode="r")
+    target_group = root[group] if group in root else root
+
+    # The tracker's linkage is the source of truth; /trajectories is a derived
+    # cache written by post-processing (openptv_cloud.post.convert). Re-tracking
+    # does not refresh it, so preferring it silently replays a stale result --
+    # observed as trajectories jumping tens of mm/frame, far past the tracker's
+    # own velocity bound. Read it only when there is no linkage to walk.
+    has_linkage = "linkage" in root and len(list(root["linkage"].keys())) > 0
+
+    # Case 1: Structured dataset in /trajectories (arrays: pos, vel, accel, time, trajid)
+    if "trajid" in target_group and not has_linkage:
+        trajid_arr = np.asarray(target_group["trajid"])
+        time_arr = np.asarray(target_group["time"])
+        pos_arr = np.asarray(target_group["pos"])
+
+        vel_arr = np.asarray(target_group["vel"]) if "vel" in target_group else None
+        accel_arr = np.asarray(target_group["accel"]) if "accel" in target_group else None
+
+        # Filter frame range
+        mask = np.ones(len(time_arr), dtype=bool)
+        if first is not None:
+            mask &= time_arr >= first
+        if last is not None:
+            mask &= time_arr <= last
+
+        trajid_arr = trajid_arr[mask]
+        time_arr = time_arr[mask]
+        pos_arr = pos_arr[mask]
+        if vel_arr is not None:
+            vel_arr = vel_arr[mask]
+        if accel_arr is not None:
+            accel_arr = accel_arr[mask]
+
+        # Group by trajid
+        if len(trajid_arr) == 0:
+            return []
+
+        order = np.lexsort((time_arr, trajid_arr))
+        trajid_sorted = trajid_arr[order]
+        time_sorted = time_arr[order]
+        pos_sorted = pos_arr[order]
+        vel_sorted = vel_arr[order] if vel_arr is not None else None
+        accel_sorted = accel_arr[order] if accel_arr is not None else None
+
+        bounds = np.flatnonzero(np.diff(trajid_sorted)) + 1
+        id_groups = np.split(trajid_sorted, bounds)
+        pos_groups = np.split(pos_sorted, bounds)
+        time_groups = np.split(time_sorted, bounds)
+        vel_groups = np.split(vel_sorted, bounds) if vel_sorted is not None else None
+        accel_groups = np.split(accel_sorted, bounds) if accel_sorted is not None else None
+
+        trajects = []
+        for i, (g_id, g_pos, g_time) in enumerate(zip(id_groups, pos_groups, time_groups)):
+            if len(g_id) == 0:
+                continue
+            trid = int(g_id[0])
+            vel_val = vel_groups[i] if vel_groups is not None else np.zeros_like(g_pos)
+            kws = {}
+            if accel_groups is not None:
+                kws["accel"] = accel_groups[i]
+            trajects.append(Trajectory(g_pos, vel_val, g_time, trid, **kws))
+
+        return trajects
+
+    # Case 2: Walk the tracker's own prev/next linkage (openptv2's
+    # linkage/<name>/frame_NNNNN groups, written by ZarrStore.write_linkage
+    # in the same prev/next/pos shape as a classic ptv_is.# file). This is
+    # the real particle identity across frames. The correspondences group
+    # (case 3 below) has no such column: its 4th+ fields are per-camera 2D
+    # target array indices, which reset every frame and are NOT a trajectory
+    # id, so grouping by them stitches together unrelated particles.
+    elif "linkage" in root:
+        link_root = root["linkage"]
+        linkage_name = "ptv_is" if "ptv_is" in link_root else next(iter(link_root.keys()), None)
+        link_group = link_root[linkage_name] if linkage_name else None
+        frame_keys = sorted(
+            [k for k in link_group.keys() if k.startswith("frame_")],
+            key=lambda k: int(k.split("_")[1]),
+        ) if link_group is not None else []
+        if first is not None:
+            frame_keys = [k for k in frame_keys if int(k.split("_")[1]) >= first]
+        if last is not None:
+            frame_keys = [k for k in frame_keys if int(k.split("_")[1]) <= last]
+
+        pos_l, time_l, trajid_l = [], [], []
+        prev_trajids = None
+        prev_frame_num = None
+        next_trajid = 0
+        for fkey in frame_keys:
+            frame_num = int(fkey.split("_")[1])
+            fg = link_group[fkey]
+            prev_ids = np.asarray(fg["prev"])
+            pos = np.asarray(fg["pos"])
+            n = len(pos)
+            trajids = np.empty(n, dtype=np.int64)
+            if prev_trajids is not None and (
+                prev_frame_num != frame_num - 1
+                or (prev_ids.size and prev_ids.max() >= len(prev_trajids))
+            ):
+                # `prev` indexes the frame immediately before this one. A gap
+                # in the stored frames -- or a row count that disagrees with
+                # the linkage (frames left over from an earlier run in an
+                # appended store) -- means those indices address unrelated
+                # particles. Break every chain rather than invent a link.
+                prev_trajids = None
+            if prev_trajids is None:
+                # First frame in range: nothing to inherit from, every
+                # particle starts a new trajectory (mirrors
+                # iter_trajectories_ptvis' treatment of its first frame).
+                trajids[:] = np.arange(next_trajid, next_trajid + n)
+                next_trajid += n
+            else:
+                # A `prev` claim must be unique to count as a real link: if
+                # two particles in this frame both claim the same
+                # predecessor, the tracker's linkage is ambiguous for that
+                # predecessor and neither claim can be trusted. Merging them
+                # under one trajid was observed to snowball into a single
+                # "trajectory" absorbing hundreds of unrelated particles
+                # over a 100-frame run - worse than the bug this replaced.
+                claimed, claim_counts = np.unique(
+                    prev_ids[prev_ids >= 0], return_counts=True
+                )
+                ambiguous = set(claimed[claim_counts > 1].tolist())
+                linked = np.array(
+                    [p >= 0 and p not in ambiguous for p in prev_ids]
+                )
+                trajids[linked] = prev_trajids[prev_ids[linked]]
+                n_new = int((~linked).sum())
+                trajids[~linked] = np.arange(next_trajid, next_trajid + n_new)
+                next_trajid += n_new
+            pos_l.append(pos)
+            time_l.append(np.full(n, frame_num, dtype=np.int64))
+            trajid_l.append(trajids)
+            prev_trajids = trajids
+            prev_frame_num = frame_num
+
+        if not pos_l:
+            return []
+
+        pos_all = np.concatenate(pos_l)
+        time_all = np.concatenate(time_l)
+        trajid_all = np.concatenate(trajid_l)
+
+        order = np.lexsort((time_all, trajid_all))
+        trajid_sorted = trajid_all[order]
+        pos_sorted = pos_all[order]
+        time_sorted = time_all[order]
+
+        bounds = np.flatnonzero(np.diff(trajid_sorted)) + 1
+        id_groups = np.split(trajid_sorted, bounds)
+        pos_groups = np.split(pos_sorted, bounds)
+        time_groups = np.split(time_sorted, bounds)
+
+        trajects = []
+        for g_id, g_pos, g_time in zip(id_groups, pos_groups, time_groups):
+            if len(g_id) < 2:
+                continue
+            trid = int(g_id[0])
+            p_vel = np.zeros_like(g_pos)
+            trajects.append(Trajectory(g_pos, p_vel, g_time, trid))
+
+        return trajects
+
+    # Case 3: Reading frame-by-frame 3D correspondences from openptv2 (e.g., correspondences/frame_10000)
+    elif "correspondences" in root or group == "correspondences":
+        corr_group = root["correspondences"] if "correspondences" in root else root
+        frame_keys = sorted(
+            [k for k in corr_group.keys() if k.startswith("frame_")],
+            key=lambda k: int(k.split("_")[1])
+        )
+
+        all_points = []
+        for fkey in frame_keys:
+            frame_num = int(fkey.split("_")[1])
+            if first is not None and frame_num < first:
+                continue
+            if last is not None and frame_num > last:
+                continue
+
+            arr = np.asarray(corr_group[fkey])
+            if len(arr) == 0:
+                continue
+            for row in arr:
+                pt_x, pt_y, pt_z = row[0], row[1], row[2]
+                pt_id = int(row[3]) if len(row) > 3 else 0
+                all_points.append((pt_x, pt_y, pt_z, frame_num, pt_id if pt_id != -1 else 0))
+
+        if len(all_points) == 0:
+            return []
+
+        pts = np.array(all_points)
+        time_pts = pts[:, 3].astype(int)
+        trid_pts = pts[:, 4].astype(int)
+        pos_pts = pts[:, :3]
+
+        order = np.lexsort((time_pts, trid_pts))
+        trid_sorted = trid_pts[order]
+        pos_sorted = pos_pts[order]
+        time_sorted = time_pts[order]
+
+        bounds = np.flatnonzero(np.diff(trid_sorted)) + 1
+        id_groups = np.split(trid_sorted, bounds)
+        pos_groups = np.split(pos_sorted, bounds)
+        time_groups = np.split(time_sorted, bounds)
+
+        trajects = []
+        for g_id, g_pos, g_time in zip(id_groups, pos_groups, time_groups):
+            if len(g_id) < 2:
+                continue
+            trid = int(g_id[0])
+            p_vel = np.zeros_like(g_pos)
+            trajects.append(Trajectory(g_pos, p_vel, g_time, trid))
+
+        return trajects
+
+    return []
+
+
+def save_zarr_trajectories(trajects, zarr_path, group="trajectories", overwrite=True):
+    """
+    Save a list of Trajectory objects into a Zarr directory store.
+
+    Arguments:
+    trajects - list of Trajectory objects.
+    zarr_path - path to the target .zarr directory.
+    group - sub-group name inside the Zarr store.
+    overwrite - if True, overwrite existing arrays in the group.
+    """
+    import zarr
+
+    root = zarr.open_group(str(zarr_path), mode="a")
+    target_group = root.require_group(group)
+
+    if len(trajects) == 0:
+        return
+
+    lens = np.fromiter((len(tr) for tr in trajects), dtype=np.int64, count=len(trajects))
+    trids = np.fromiter((tr.trajid() for tr in trajects), dtype=np.int64, count=len(trajects))
+    trajid_arr = np.repeat(trids, lens)
+
+    all_pos = [tr.pos() for tr in trajects]
+    all_time = [tr.time() for tr in trajects]
+    pos_arr = np.concatenate(all_pos, axis=0)
+    time_arr = np.concatenate(all_time, axis=0)
+
+    target_group.create_array("pos", data=pos_arr, overwrite=overwrite)
+    target_group.create_array("time", data=time_arr, overwrite=overwrite)
+    target_group.create_array("trajid", data=trajid_arr, overwrite=overwrite)
+
+    first_tr = trajects[0]
+    has_vel = (hasattr(first_tr, "velocity") and first_tr.velocity() is not None) or (
+        hasattr(first_tr, "vel") and first_tr.vel() is not None
+    )
+    if has_vel:
+        all_vel = [
+            tr.velocity() if (hasattr(tr, "velocity") and tr.velocity() is not None) else tr.vel()
+            for tr in trajects
+        ]
+        vel_arr = np.concatenate(all_vel, axis=0)
+        target_group.create_array("vel", data=vel_arr, overwrite=overwrite)
+
+    has_accel = hasattr(first_tr, "accel") and first_tr.accel() is not None
+    if has_accel:
+        all_accel = [tr.accel() for tr in trajects]
+        accel_arr = np.concatenate(all_accel, axis=0)
+        target_group.create_array("accel", data=accel_arr, overwrite=overwrite)
+
+

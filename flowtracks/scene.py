@@ -103,8 +103,6 @@ class Scene(object):
     def trajectory_tags(self):
         tags = self._file.get_node('/bounds')
         return np.hstack([tags.col(name)[:,None] for name in ['trajid', 'first', 'last']])
-            
-        return np.array([np.int64(row[:]) for row in self._file.get_node('/bounds').read()])
     
     def set_frame_range(self, frame_range):
         """
@@ -195,16 +193,25 @@ class Scene(object):
     def iter_trajectories(self):
         """
         Iterator over trajectories. Generates a Trajectory object for each 
-        trajectory in the file (in no particular order, but the same order 
-        every time on the same PyTables version) and yields it.
+        trajectory in the file (in ``self._trids`` order) and yields it.
         """
-        query_string = '(trajid == trid)'
         if self._frame_limit != '':
-            query_string += ' & ' + self._frame_limit
-        
+            arr = self._table.read_where(self._frame_limit)
+        else:
+            arr = self._table.read()
+
+        # Read once, then group by trajid in memory, instead of issuing one
+        # ``read_where`` query per trajectory id.
+        order = np.argsort(arr['trajid'], kind='stable')
+        arr = arr[order]
+        bounds = np.flatnonzero(np.diff(arr['trajid'])) + 1
+        groups = np.split(arr, bounds)
+        by_trid = {int(g['trajid'][0]): g for g in groups}
+        empty = arr[0:0]
+
         for trid in self._trids:
-            arr = self._table.read_where(query_string)
-            kwds = dict((field, arr[field]) for field in arr.dtype.fields \
+            chunk = by_trid.get(int(trid), empty)
+            kwds = dict((field, chunk[field]) for field in chunk.dtype.fields \
                 if field != 'trajid')
             kwds['trajid'] = trid
             yield Trajectory(**kwds)
@@ -224,16 +231,29 @@ class Scene(object):
         """
         Private. Like iter_frames but does not create a ParticleSnapshot
         object, leaving the raw array. Also allows heavier filtering.
-        
+
         Arguments:
-        cond - an optional PyTables condition string to apply to each frame.
+        cond - an optional PyTables condition string to AND into the single
+            read performed over the whole frame range.
         """
-        query_string = '(time == t)'
+        read_cond = "(time >= %d) & (time < %d)" % (self._first, self._last)
         if cond is not None:
-            query_string = '&'.join(query_string, cond)
-            
+            read_cond = "(%s) & (%s)" % (read_cond, cond)
+
+        # Read the whole range once, then group by frame number, instead of one
+        # ``read_where`` per frame. Yields one array per frame in the range,
+        # including empty arrays for frames that contain no rows (this keeps
+        # ``iter_segments``' consecutive-frame pairing intact).
+        arr = self._table.read_where(read_cond)
+        order = np.argsort(arr['time'], kind='stable')
+        arr = arr[order]
+        bounds = np.flatnonzero(np.diff(arr['time'])) + 1
+        groups = np.split(arr, bounds)
+        by_time = {int(g['time'][0]): g for g in groups}
+        empty = arr[0:0]
+
         for t in range(self._first, self._last):
-            yield t, self._table.read_where(query_string)
+            yield t, by_time.get(t, empty)
     
     def frame_by_time(self, t):
         """
@@ -272,13 +292,11 @@ class Scene(object):
             # find continuing trajectories:
             arr_trids = arr['trajid']
             next_arr_trids = next_arr['trajid']
-            trajids = set(arr_trids) & set(next_arr_trids)
+            trajids = np.intersect1d(arr_trids, next_arr_trids, assume_unique=True)
             
             # select only those from the two frames:
-            in_arr = np.array([True if tr in trajids else False \
-                for tr in arr_trids])
-            in_next_arr = np.array([True if tr in trajids else False \
-                for tr in next_arr_trids])
+            in_arr = np.isin(arr_trids, trajids, assume_unique=True)
+            in_next_arr = np.isin(next_arr_trids, trajids, assume_unique=True)
             
             if len(in_arr) > 0:
                 arr = arr[in_arr]
@@ -312,8 +330,11 @@ class Scene(object):
         Returns:
         a list of arrays, in the order of ``keys``.
         """
-        # Compose query to PyTables engine:
-        conds = [self._frame_limit]
+        # Compose query to PyTables engine. self._frame_limit may be "" (no
+        # frame-range restriction set); joining it in unconditionally used to
+        # prepend a stray "& " before any `where` condition, which PyTables'
+        # expression compiler rejects outright.
+        conds = [c for c in [self._frame_limit] if c]
         if where is not None:
             for key, rng in where.items():
                 conds.append(gen_query_string(key, rng))
@@ -352,6 +373,22 @@ class Scene(object):
         return min_pos, max_pos
             
         
+def open_scene(path, frame_range=None):
+    """Open a :class:`Scene` (HDF5) or :class:`~.zarr_scene.ZarrScene`
+    (Zarr), whichever the path's format resolves to via
+    :func:`flowtracks.io.infer_format`. The two classes are duck-type
+    compatible for every reader method, so callers do not need to branch
+    on which one they got.
+    """
+    from .io import infer_format
+
+    if infer_format(str(path)) == "zarr":
+        from .zarr_scene import ZarrScene
+
+        return ZarrScene(path, frame_range)
+    return Scene(path, frame_range)
+
+
 class DualScene(object):
     """
     Holds a scene orresponding to the dual-PTV systems, which shoot separate
