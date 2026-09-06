@@ -102,6 +102,62 @@ def shift_phase(ds: xr.Dataset, shift: int) -> xr.Dataset:
     return out
 
 
+def phase_metric_curve(ds: xr.Dataset, var_names=VEL_VARS, rho: float = 1200.0) -> xr.DataArray:
+    """Spatially-averaged MKE per phase, ignoring zero/NaN voxels.
+
+    Averages only over voxels that actually have data (nanmean over nonzero
+    MKE), not the whole grid, since sparse Eulerian bins are often mostly
+    empty outside the region of interest.
+    """
+    u, v, w = (ds[n] for n in var_names)
+    mke = 0.5 * rho * (u**2 + v**2 + w**2)
+    return mke.where(mke != 0).mean(("x", "y", "z"), skipna=True)
+
+
+def find_phase_shift(ds: xr.Dataset, reference_phase: int = 0,
+                     var_names=VEL_VARS, rho: float = 1200.0) -> int:
+    """Extract the phase shift (in bins) that rotates ds's peak-MKE phase to
+    reference_phase.
+
+    Replaces a manual "eyeball the MKE-vs-phase curve, pick the roll amount"
+    step with a computed parameter, so multiple acquisition runs of the same
+    periodic flow can each be aligned to the same point in the cycle before
+    combining.
+    """
+    curve = phase_metric_curve(ds, var_names, rho)
+    n = curve.sizes["phase"]
+    peak = int(curve.argmax("phase"))
+    return reference_phase - peak
+
+
+def align_phases(sets: dict, reference_phase: int = 0,
+                 var_names=VEL_VARS, rho: float = 1200.0) -> dict:
+    """Shift each named acquisition run to a common reference phase.
+
+    Returns {name: shifted_dataset}; each dataset also carries the extracted
+    shift in .attrs["shift"] (set by shift_phase) for inspection/logging.
+    """
+    return {name: shift_phase(ds, find_phase_shift(ds, reference_phase, var_names, rho))
+            for name, ds in sets.items()}
+
+
+def region_timeseries(fields: dict, mask: xr.DataArray) -> xr.Dataset:
+    """Per-phase mean and max of each named scalar field within a mask.
+
+    General masked phase-statistics helper: pass whatever named fields
+    (kinetic energy, vorticity magnitude, a vortex-identification scalar,
+    ...) and whatever region mask (an anatomical subregion, a jet core, a
+    near-wall shell, the whole valid-data volume, ...) the analysis needs.
+    fields: {name: xr.DataArray}, each with dims including (x, y, z).
+    """
+    out = xr.Dataset()
+    for name, da in fields.items():
+        masked = da.where(mask)
+        out[f"{name}_mean"] = masked.mean(("x", "y", "z"), skipna=True)
+        out[f"{name}_max"] = masked.max(("x", "y", "z"), skipna=True)
+    return out
+
+
 def turbulent_statistics(fluct: xr.Dataset, counts: xr.DataArray) -> xr.Dataset:
     """Count-weighted second moments of fluctuations across sets.
 
@@ -161,6 +217,19 @@ def mask_variance(ds: xr.Dataset, k: float = 3.0) -> xr.Dataset:
         s = ds[v].std(("x", "y", "z"))
         out[v] = ds[v].where(np.abs(ds[v] - m) <= k * s)
     return ds.assign(out)
+
+
+@_mask
+def mask_array(ds: xr.Dataset, mask) -> xr.Dataset:
+    """NaN voxels outside an externally supplied (x, y, z) boolean mask.
+
+    Stand-in for an interactive freehand ROI: hand-drawing a region of
+    interest is a GUI step (MATLAB's imfreehand, napari, ParaView, ...) with
+    no headless equivalent, so it isn't reproduced here. Draw it once,
+    wherever, save the resulting boolean array, and pass it in.
+    """
+    m = xr.DataArray(np.asarray(mask, dtype=bool), dims=("x", "y", "z"))
+    return ds.assign({v: ds[v].where(m) for v in VEL_VARS if v in ds})
 
 
 def apply_masks(ds: xr.Dataset, specs: list) -> xr.Dataset:
@@ -333,6 +402,87 @@ def export_vtk(ds: xr.Dataset, out_dir: Path, prefix: str = "phase") -> list[Pat
         writer.Write()
         written.append(path)
     return written
+
+
+def export_vtk_rectilinear_series(ds: xr.Dataset, out_dir: Path,
+                                  prefix: str = "phase", dt: float = 1.0) -> Path:
+    """Write one binary .vtr (XML RectilinearGrid) per phase plus a .pvd
+    time-series collection, ParaView's native pattern for an axis-aligned grid.
+
+    Learned from newvtkcode.m: a rectilinear grid stores only the 1-D x/y/z
+    coordinate arrays (not a full 3-D point cloud like vtkStructuredGrid /
+    export_vtk above), and a .pvd Collection is what lets ParaView step
+    through phases as a time series instead of opening files one by one.
+    Binary encoding here instead of the legacy ASCII per-point fprintf loop —
+    same data, far smaller files, no behavior change.
+    """
+    import vtk
+    from vtk.util import numpy_support
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    nx, ny, nz = ds.sizes["x"], ds.sizes["y"], ds.sizes["z"]
+
+    def _clean(values):
+        # nan=0 matches legacy NaN-masking; posinf/neginf=0 too (default
+        # nan_to_num maps +-inf to +-1.8e308, which overflows the float32 cast)
+        return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+
+    def vtk_array(values):
+        return numpy_support.numpy_to_vtk(
+            np.ascontiguousarray(_clean(values).ravel(order="F"), dtype=np.float32),
+            deep=True)
+
+    files = []
+    for p in ds["phase"].values:
+        snap = ds.sel(phase=p)
+        grid = vtk.vtkRectilinearGrid()
+        grid.SetDimensions(nx, ny, nz)
+        grid.SetXCoordinates(numpy_support.numpy_to_vtk(
+            np.ascontiguousarray(ds["x"].values, dtype=np.float32)))
+        grid.SetYCoordinates(numpy_support.numpy_to_vtk(
+            np.ascontiguousarray(ds["y"].values, dtype=np.float32)))
+        grid.SetZCoordinates(numpy_support.numpy_to_vtk(
+            np.ascontiguousarray(ds["z"].values, dtype=np.float32)))
+
+        if all(v in snap for v in VEL_VARS):
+            vec = np.stack([_clean(snap[v].values).ravel(order="F")
+                            for v in VEL_VARS], axis=-1)
+            arr = numpy_support.numpy_to_vtk(np.ascontiguousarray(vec, dtype=np.float32), deep=True)
+            arr.SetName("velocity")
+            grid.GetPointData().AddArray(arr)
+        for name, da in snap.data_vars.items():
+            if name in VEL_VARS:
+                continue
+            arr = vtk_array(da.values)
+            arr.SetName(name)
+            grid.GetPointData().AddArray(arr)
+
+        writer = vtk.vtkXMLRectilinearGridWriter()
+        writer.SetDataModeToBinary()
+        path = out_dir / f"{prefix}_{int(p):04d}.vtr"
+        writer.SetFileName(str(path))
+        writer.SetInputData(grid)
+        writer.Write()
+        files.append(path)
+
+    pvd_path = out_dir / f"{prefix}_series.pvd"
+    _write_pvd(pvd_path, files, dt)
+    return pvd_path
+
+
+def _write_pvd(pvd_path: Path, files: list, dt: float) -> None:
+    """Minimal ParaView Collection (.pvd) indexing time-series files by
+    path relative to the .pvd itself, so the output directory stays portable
+    (the legacy write_pvd_collection_abs used absolute Windows paths)."""
+    lines = ['<?xml version="1.0"?>',
+             '<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">',
+             '  <Collection>']
+    for i, f in enumerate(files):
+        rel = Path(f).relative_to(pvd_path.parent).as_posix()
+        lines.append(f'    <DataSet timestep="{i * dt:.9g}" group="" part="0" file="{rel}"/>')
+    lines += ['  </Collection>', '</VTKFile>']
+    pvd_path.write_text("\n".join(lines) + "\n")
 
 
 CF_ATTRS = {

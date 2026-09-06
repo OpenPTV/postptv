@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-PostPTV Post-Processing & Post-Analysis Pipeline for TT13_aorta
-----------------------------------------------------------------
+PostPTV Post-Processing & Post-Analysis Pipeline
+-------------------------------------------------
 1. Converts openptv2 raw PTV output (wp1/res/ptv_is.* and wp2/res/ptv_is.*) to HDF5 trajectory databases (trajectories.h5).
 2. Computes 3D Eulerian gridded velocity fields using flowtracks.
 3. Computes ensemble phase-averaging across realizations (wp1, wp2).
@@ -111,7 +111,7 @@ def run_postptv_analysis(exp_root: Path):
     output_res = exp_root / "res"
     output_res.mkdir(parents=True, exist_ok=True)
     
-    nc_out = output_res / "TT13_aorta_post_analysis.nc"
+    nc_out = output_res / "post_analysis.nc"
     print(f"\n[postptv] Saving NetCDF output -> {nc_out}")
     post_analysis_xr.save_netcdf(final_ds, nc_out)
     

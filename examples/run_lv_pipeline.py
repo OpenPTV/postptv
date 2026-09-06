@@ -183,5 +183,5 @@ def run_pipeline(lv_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    target_dir = Path(r"C:\Users\alex\Downloads\hidimaging_test\LV")
+    target_dir = Path(r"path/to/your/LV/dataset")
     run_pipeline(target_dir)

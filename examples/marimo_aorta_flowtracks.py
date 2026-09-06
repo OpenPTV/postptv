@@ -21,7 +21,7 @@ def _():
 @app.cell
 def _(mo):
     mo.md("""
-    # 🌊 Flowtracks Trajectory Post-Processing: TT13_aorta Dataset
+    # 🌊 Flowtracks Trajectory Post-Processing: Aorta PTV Dataset
     This interactive notebook loads 3D particle trajectories from OpenPTV output (`ptv_is.*` files)
     and performs:
     1. **Raw Trajectories Inspection**
@@ -33,7 +33,7 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    res_dir = r"C:\Users\alex\Downloads\hidimaging_test\TT13_aorta\wp1\res"
+    res_dir = r"path/to/your/ptv_is_output/res"
     fname_pattern = res_dir + r"\ptv_is.%d"
 
     ui_fps = mo.ui.number(label="Camera FPS", value=10.0, step=1.0)

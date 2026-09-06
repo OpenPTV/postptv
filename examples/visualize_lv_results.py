@@ -11,8 +11,8 @@ import plotly.graph_objects as go
 import vtk
 from vtk.util import numpy_support
 
-LV_DIR = Path(r"C:\Users\alex\Downloads\hidimaging_test\LV")
-ARTIFACT_DIR = Path(r"C:\Users\alex\.gemini\antigravity-cli\brain\a620070e-6ea4-424e-ac93-9510a8f07eb5")
+LV_DIR = Path(r"path/to/your/LV/dataset")
+ARTIFACT_DIR = Path(r"path/to/your/scratch/dir")
 
 
 def benchmark_readers() -> dict:

@@ -34,7 +34,7 @@ def _():
 def _(Path, mo):
     preset_picker = mo.ui.dropdown(
         options={
-            "LV Dataset (Real Experiment)": r"C:\Users\alex\Downloads\hidimaging_test\LV",
+            "LV Dataset (Real Experiment)": r"path/to/your/LV/dataset",
             "PTV Output Sample (Repo Test Data)": str((Path(__file__).parent.parent / "ptv_output").resolve()),
         },
         value="LV Dataset (Real Experiment)",
