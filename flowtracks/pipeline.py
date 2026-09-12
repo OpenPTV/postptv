@@ -79,7 +79,8 @@ def streamlined_pipeline(config_path="config.yaml", grid_path="grid.yaml", recip
        optionally export binary VTK files.
     """
     from flowtracks.io import Scene
-    from flowtracks.eulerian import eulerian_grid, export_vtk, run_post_analysis_ds, save_dataset
+    from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset
+    from flowtracks.writers import write_eulerian_series
 
     base_path = Path(base)
     with open(base_path / config_path) as f:
@@ -115,12 +116,12 @@ def streamlined_pipeline(config_path="config.yaml", grid_path="grid.yaml", recip
 
     vtk_cfg = recipe.get("vtk")
     if vtk_cfg:
-        files = export_vtk(
+        pvd = write_eulerian_series(
             out_ds,
             grid_dir / vtk_cfg.get("dir", "vtk_output"),
             prefix=vtk_cfg.get("prefix", "phase"),
         )
-        print(f"[streamlined_pipeline] Exported {len(files)} VTK files to {files[0].parent}")
+        print(f"[streamlined_pipeline] Exported Eulerian ParaView series to {pvd}")
 
     return out_path
 

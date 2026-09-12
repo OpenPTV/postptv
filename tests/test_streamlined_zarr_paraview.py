@@ -173,7 +173,7 @@ def test_export_vtk_structured_grid(sample_dataset, tmp_path):
 
 def test_streamlined_pipeline_full_integration(tmp_path, monkeypatch):
     """Test full streamlined_pipeline execution with both NetCDF and Zarr output."""
-    pytest.importorskip("vtk")
+    pytest.importorskip("pyvista")
     (tmp_path / "config.yaml").write_text(yaml.safe_dump({
         "traj_min_length": 20, "first": 100001, "last": 100020,
         "frate": 5000, "hb": 70, "data_path": ".", "set_names": ["s1", "s2"],
@@ -216,4 +216,5 @@ def test_streamlined_pipeline_full_integration(tmp_path, monkeypatch):
     assert out_p.name == "final.zarr"
     ds = xr.open_zarr(out_p)
     assert "TKE" in ds
-    assert (tmp_path / "vtk_out" / "phase_000.vtk").exists()
+    assert (tmp_path / "vtk_out" / "phase_series.pvd").exists()
+    assert (tmp_path / "vtk_out" / "phase_0000.vti").exists()

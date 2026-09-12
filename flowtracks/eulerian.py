@@ -359,6 +359,11 @@ def export_vtk(ds: xr.Dataset, out_dir: Path, prefix: str = "phase") -> list[Pat
 
     Bulk numpy_support arrays instead of the legacy per-point Python loop,
     and binary instead of ASCII — smaller files, much faster.
+
+    Deprecated: prefer :func:`flowtracks.writers.write_eulerian_series`
+    (pyvista-based, writes modern `.vti`/`.vtr` + a `.pvd` time series
+    instead of one legacy `.vtk` per phase). Kept for `combine.py` and
+    existing callers/tests until they migrate — see WRITERS_PLAN.md.
     """
     import vtk
     from vtk.util import numpy_support
@@ -415,6 +420,10 @@ def export_vtk_rectilinear_series(ds: xr.Dataset, out_dir: Path,
     through phases as a time series instead of opening files one by one.
     Binary encoding here instead of the legacy ASCII per-point fprintf loop —
     same data, far smaller files, no behavior change.
+
+    Deprecated: superseded by :func:`flowtracks.writers.write_eulerian_series`,
+    which additionally auto-picks `.vti` when spacing is uniform. Kept only
+    until remaining callers/tests migrate — see WRITERS_PLAN.md.
     """
     import vtk
     from vtk.util import numpy_support
@@ -588,12 +597,14 @@ def run(recipe_path: Path) -> Path:
 
     vtk_cfg = recipe.get("vtk")
     if vtk_cfg:
-        files = export_vtk(
+        from flowtracks.writers import write_eulerian_series
+
+        pvd = write_eulerian_series(
             out,
             grid_dir / vtk_cfg.get("dir", "vtk_output"),
             prefix=vtk_cfg.get("prefix", "phase"),
         )
-        print(f"Wrote {len(files)} VTK files to {files[0].parent}")
+        print(f"Wrote Eulerian ParaView series to {pvd}")
 
     scratch = recipe_path.parent / recipe.get("scratch_dir", "../scratch")
     if recipe.get("cleanup_scratch") and scratch.is_dir():

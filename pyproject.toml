@@ -32,11 +32,21 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# flowtracks/vtk_export.py and eulerian.export_vtk ParaView export (both
-# already guard the import at call time, so this is a convenience installer).
-vtk = ["vtk"]
+# flowtracks/writers.py (pyvista-based .vtp/.vti/.vtr/.pvd ParaView export)
+# and the legacy flowtracks/vtk_export.py + eulerian.export_vtk* (raw vtk).
+# Both are import-guarded at call time, so this is a convenience installer.
+vtk = ["vtk", "pyvista"]
 # flowtracks/io.py legacy NPZ/HDF5 scene reader (pytables-based).
 legacy-io = ["tables"]
+# examples/*.py marimo notebooks (interactive demos; matplotlib is already a
+# core dependency, plotly covers the 3D trajectory viewers, tables/pytables
+# loads the data/*.h5 demo datasets via Scene). Was previously undeclared --
+# notebooks only ran via an ad hoc `--with marimo`.
+notebooks = [
+    "marimo>=0.24.2",
+    "plotly>=7.0.0",
+    "tables",
+]
 
 [dependency-groups]
 dev = [

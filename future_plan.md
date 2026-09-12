@@ -73,7 +73,7 @@ PostPTV provides core functionality for reading particle trajectories, interpola
 | Milestone | Deliverable / Feature Module | Target Scope | Priority |
 |---|---|---|---|
 | **M1** | **Zarr & Xarray Data Engine** | Productionize `future_idea_xarray_dask_zarr.py` into `flowtracks/zarr_io.py` | P1 |
-| **M2** | **Interactive 3D Viz & VTK Export** | PyVista/Plotly integrations in `flowtracks/graphics.py` & XML VTK exporter | P2 |
+| **M2** | **Interactive 3D Viz & VTK Export** | PyVista/Plotly integrations in `flowtracks/graphics.py` & XML VTK exporter — see [`WRITERS_PLAN.md`](WRITERS_PLAN.md) for the concrete design (`flowtracks/writers.py`, zarr-native `.vtp`/`.vti`/`.vtr`/`.pvd`) | P2 |
 | **M3** | **RTS Kalman Smoothing & Filtering** | RTS smoother, kinematic outlier filter in `flowtracks/smoothing.py` | P3 |
 | **M4** | **Turbulence Statistics Module** | New `flowtracks/turbulence.py` module ($D_{LL}, R_{ij}, T_L$, FTLE, Pressure) | P4 |
 | **M5** | **CLI & Acceleration Hooks** | `postptv` CLI entry points and optional CuPy GPU interpolation paths | P5 |

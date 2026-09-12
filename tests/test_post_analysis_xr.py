@@ -112,7 +112,7 @@ def test_eulerian_grid_bins_particles():
 
 
 def test_recipe_run_end_to_end(tmp_path):
-    pytest.importorskip("vtk")
+    pytest.importorskip("pyvista")
     _write_grid(tmp_path / "a_grid.h5", 1.0)
     _write_grid(tmp_path / "b_grid.h5", 3.0)
     recipe = tmp_path / "recipe.yaml"
@@ -128,7 +128,8 @@ def test_recipe_run_end_to_end(tmp_path):
         assert name in out
     # sets are constants 1 and 3 -> fluct = -/+1, all counts equal -> u'u' = 1
     assert float(out["u_ins_u_ins"].mean()) == 1.0
-    assert (tmp_path / "vtk" / "p_000.vtk").exists()
+    assert (tmp_path / "vtk" / "p_series.pvd").exists()
+    assert (tmp_path / "vtk" / "p_0000.vti").exists()
 
 
 def test_recipe_run_zarr_output(tmp_path):
