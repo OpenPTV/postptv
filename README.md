@@ -5,6 +5,8 @@ Flowtracks - postprocessing of 3D-PTV data
 This package contains Flowtracks, a Python-package for post-processing
 of 3D Particle Tracking Velocimetry particle/trajectory databases.
 
+Latest release: https://pypi.org/project/flowtracks/ (flowtracks 1.2.2)
+
 The full documentation for this package may be built from the Sphinx 
 sources in the doc/ directory. It is also available online:
 
@@ -44,28 +46,27 @@ Dependencies:
 Installation
 -----------
 
-To install this package, follow the standard procedure for installing 
-Python modules. The package may be installed either systemwide, in the default
-location, or for a single user, by changing the install location and updating
-environment variables in the standard way, as indicated by the Python 
-documentation [1]. 
+For users (no source checkout needed) — install the latest release
+from PyPI (https://pypi.org/project/flowtracks/):
 
-For a default systemwide installation: using a terminal, change directory into
-the root directory of theis program's source code, then run
+    pip install flowtracks
 
-    pip install -r requirements.txt
+With ParaView export support (writes .vti/.vtr/.pvd via pyvista/vtk):
 
-Note that for the default install you may need administrative privileges on the
-machine you are using. Consult the Python documentation for the single-user 
-install procedure.
+    pip install "flowtracks[vtk]"
 
-The install script will install the Python package in the default place for 
-your platform. Additionally, it will install example scripts in a 
-subdirectory ``flowtracks-examples/`` under the default executable location, 
-and a the documentation in the default package root. For information on where
-these directories are on your platform (and how to change them), refer to 
-the Python documentation [1]. Other standard features of the setup script are 
-also described therein.
+Requires Python ≥ 3.11; numpy/scipy and the other core dependencies
+are installed automatically.
+
+For developers — clone the repository and install it editable:
+
+    git clone https://github.com/OpenPTV/postptv
+    cd postptv
+    pip install -e ".[vtk]"   # or: uv sync --group dev (installs pytest)
+
+See pyproject.toml for the full dependency list and the optional
+extras (vtk, legacy-io, notebooks). The legacy HDF5/pytables reader
+needs the legacy-io extra; the .vti/.vtr ParaView writers need vtk.
 
 The examples are Jupyter notebooks [2], and can be previewed without any 
 special setup under the examples section of
@@ -73,5 +74,5 @@ special setup under the examples section of
     http://flowtracks.readthedocs.org
 
 
-[1] Python documentation: https://docs.python.org/2/install/index.html
+[1] Python documentation: https://docs.python.org/3/install/index.html
 [2] http://jupyter.org/
