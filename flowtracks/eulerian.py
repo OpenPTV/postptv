@@ -16,11 +16,95 @@ from flowtracks.phase_average import DIMS, fluctuations, open_sets, phase_averag
 
 VEL_VARS = ["u_ins_mean", "v_ins_mean", "w_ins_mean"]
 COUNT_VAR = "par_ave2"
+VALID_VAR = "valid"
+
+
+def clean_field(a: np.ndarray) -> np.ndarray:
+    """Zero-out NaN/+-Inf once, upfront (MATLAB VTR convention).
+
+    ``np.nan_to_num`` defaults map +-Inf to +-1.8e308, which overflows the
+    float32 VTK cast — so map all three to 0.0 explicitly. Used for gradient
+    inputs and VTK export, never for the stored means themselves.
+    """
+    return np.nan_to_num(np.asarray(a), nan=0.0, posinf=0.0, neginf=0.0)
+
+
+def fluid_mask(counts, threshold: float = 100):
+    """Stricter-than-binning fluid mask: ``counts > threshold``.
+
+    Mirrors ``newvtkcode.m`` / ``TT13PRE_PTV_V3.m`` ``fluidMask = par_ave2>100``
+    (note: stricter than the ``<50`` count mask used at binning time).
+    Accepts an xr.DataArray or ndarray, returns the same kind of boolean mask.
+    """
+    if isinstance(counts, xr.DataArray):
+        return counts > threshold
+    return np.asarray(counts) > threshold
+
+
+def qc_mask(pos, vel, min_speed=None, max_speed=None,
+            finite_only: bool = True) -> np.ndarray:
+    """Vectorized pre-binning QC mask (aortic-pipeline order, cheap first).
+
+    Drops non-finite positions/velocities, then out-of-range speeds
+    ``|v|``. Length/ROI gates need trajectory ids / polygons and live outside
+    this hot path — see :func:`finite_difference_velocity` for recomputing
+    velocities before calling this.
+    """
+    pos = np.asarray(pos, dtype=float)
+    vel = np.asarray(vel, dtype=float)
+    keep = np.ones(pos.shape[0], dtype=bool)
+    if finite_only and pos.shape[0]:
+        keep &= np.isfinite(pos).all(axis=1) & np.isfinite(vel).all(axis=1)
+    if (min_speed is not None or max_speed is not None) and pos.shape[0]:
+        speed = np.linalg.norm(np.where(np.isfinite(vel), vel, np.nan), axis=1)
+        if min_speed is not None:
+            keep &= speed >= float(min_speed)
+        if max_speed is not None:
+            keep &= speed <= float(max_speed)
+        keep &= np.isfinite(speed) if finite_only else True
+    return keep
+
+
+def finite_difference_velocity(pos, ids) -> np.ndarray:
+    """Centered-FD interior, one-sided endpoints, NaN singletons.
+
+    Port of ``aorta_pipeline/filtering.py:finite_difference_velocity`` on
+    bare arrays: sort by ``(ids, time)`` first (caller) or pass already-grouped
+    runs of equal ``ids``. ``pos`` is (n, 3), ``ids`` is (n,). Returns (n, 3)
+    velocities in pos units per frame.
+    """
+    pos = np.asarray(pos, dtype=float)
+    ids = np.asarray(ids)
+    vel = np.full_like(pos, np.nan)
+    if len(pos) == 0:
+        return vel
+    first = np.r_[True, ids[1:] != ids[:-1]]
+    last = np.r_[ids[:-1] != ids[1:], True]
+    singleton = first & last
+    interior = ~(first | last)
+    ii = np.flatnonzero(interior)
+    vel[ii] = (pos[ii + 1] - pos[ii - 1]) / 2.0
+    fi = np.flatnonzero(first & ~singleton)
+    li = np.flatnonzero(last & ~singleton)
+    vel[fi] = pos[fi + 1] - pos[fi]
+    vel[li] = pos[li] - pos[li - 1]
+    return vel
+
+
+def _bin_counts_sums(pos, vel, ti, edges4, shape):
+    """Single histogramdd pass accumulating counts + per-component sums."""
+    sample = np.column_stack([pos, ti])
+    counts = np.histogramdd(sample, bins=edges4)[0]
+    sums = [np.histogramdd(sample, bins=edges4, weights=vel[:, d])[0]
+            for d in range(3)]
+    assert counts.shape == tuple(shape), (counts.shape, shape)
+    return counts, sums
 
 
 def eulerian_grid(scene, grid_params, first, last, cycletime,
                   deltat=90, base_time=100000, min_count=50,
-                  smoothing_sigma=None) -> xr.Dataset:
+                  smoothing_sigma=None, *, fill_value=float("nan"),
+                  qc=None, chunk_frames=None, add_valid=True) -> xr.Dataset:
     """Bin Lagrangian particles onto a (x, y, z, phase) grid of mean velocities.
 
     Same math as batch_Lagrangian_to_Eulerian.eulerian_grid, but: reads the
@@ -31,6 +115,20 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
     smoothing_sigma (in grid cells, scalar or per-axis (sx, sy, sz)) applies
     Gaussian kernel smoothing to the velocity sums AND the counts before the
     division (Shepard/kernel estimate); min_count then acts on smoothed counts.
+
+    fill_value: value written into velocity voxels with ``counts < min_count``
+    (default NaN — masked-out voxels never masquerade as zero velocity;
+    pass ``0.0`` to restore the legacy zero-fill). ``par_ave2`` keeps the
+    legacy convention (sub-threshold counts stored as 0) and a boolean
+    ``valid`` variable (``counts >= min_count``) is added when
+    ``add_valid=True`` (aortic-pipeline pattern).
+
+    qc: optional dict ``{"min_speed":.., "max_speed":.., "finite_only":..}``
+    applying :func:`qc_mask` before binning. Default off (no cost when None).
+
+    chunk_frames: optional int bounding frames per accumulation chunk. Time-
+    sorted chunks are histogrammed separately and summed — identical math to
+    the single pass, bounded memory for OOM-scale runs.
     """
     zaman = deltat * 2 + 1
     fin = int(np.ceil(cycletime / zaman))
@@ -52,21 +150,50 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
         vel = np.vstack(v_list) if v_list else np.empty((0, 3))
         time = np.concatenate(t_list) if t_list else np.empty((0,))
 
+    pos = np.asarray(pos, dtype=float).reshape(-1, 3)
+    vel = np.asarray(vel, dtype=float).reshape(-1, 3)
+    time = np.asarray(time).ravel()
+
+    if qc is not None:
+        q = dict(qc)
+        keep_qc = qc_mask(pos, vel,
+                          min_speed=q.get("min_speed"),
+                          max_speed=q.get("max_speed"),
+                          finite_only=q.get("finite_only", True))
+        pos, vel, time = pos[keep_qc], vel[keep_qc], time[keep_qc]
+
     mask = (time >= first) & (time <= last)
-    for d, b in enumerate(edges):
-        mask &= (pos[:, d] >= b[0]) & (pos[:, d] < b[-1])
+    if pos.shape[0]:
+        for d, b in enumerate(edges):
+            mask &= (pos[:, d] >= b[0]) & (pos[:, d] < b[-1])
     pos, vel, time = pos[mask], vel[mask], time[mask]
 
     # phase bin per particle: identical to the legacy per-frame arithmetic
     # ti = ceil((t - cycle_start)/zaman) - 1, reduced to integer ops
-    ti = np.clip(((time.astype(np.int64) - base_time - 1) % int(cycletime))
-                 // zaman, 0, fin - 1)
+    if pos.shape[0]:
+        ti = np.clip(((time.astype(np.int64) - base_time - 1) % int(cycletime))
+                     // zaman, 0, fin - 1)
+    else:
+        ti = np.empty((0,), dtype=np.int64)
 
-    sample = np.column_stack([pos, ti])
     edges4 = [*edges, np.arange(fin + 1) - 0.5]
-    counts = np.histogramdd(sample, bins=edges4)[0]
-    sums = {v: np.histogramdd(sample, bins=edges4, weights=vel[:, d])[0]
-            for d, v in enumerate(VEL_VARS)}
+    shape4 = (*[grid_params[f"step{d}"] for d in "xyz"], fin)
+    if chunk_frames is None or pos.shape[0] == 0:
+        counts, sums_list = _bin_counts_sums(pos, vel, ti, edges4, shape4)
+    else:
+        order = np.argsort(time, kind="mergesort")
+        pos_s, vel_s, ti_s = pos[order], vel[order], ti[order]
+        uniq = np.unique(time[order])
+        counts = np.zeros(shape4)
+        sums_list = [np.zeros(shape4) for _ in range(3)]
+        for s in range(0, len(uniq), int(chunk_frames)):
+            sel = np.isin(time[order], uniq[s:s + int(chunk_frames)])
+            c, sl = _bin_counts_sums(pos_s[sel], vel_s[sel], ti_s[sel],
+                                     edges4, shape4)
+            counts += c
+            for d in range(3):
+                sums_list[d] += sl[d]
+    sums = dict(zip(VEL_VARS, sums_list))
 
     if smoothing_sigma is not None:
         from scipy.ndimage import gaussian_filter
@@ -76,20 +203,120 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
         counts = gaussian_filter(counts, sigma4)
         sums = {v: gaussian_filter(s, sigma4) for v, s in sums.items()}
 
+    raw_counts = counts.copy()
     low = counts < min_count
     counts = np.where(low, 0, counts)
+    fill = np.full_like(next(iter(sums.values())), float(fill_value))
     data = {}
     for v in VEL_VARS:
         s = np.where(low, 0.0, sums[v])
-        data[v] = (DIMS, np.divide(s, counts, out=np.zeros_like(s),
-                                   where=counts != 0))
+        mean = np.divide(s, counts, out=fill.copy(),
+                         where=counts != 0)
+        data[v] = (DIMS, mean)
     data[COUNT_VAR] = (DIMS, counts if smoothing_sigma is not None
                        else counts.astype(np.int64))
+    if add_valid:
+        data[VALID_VAR] = (DIMS, raw_counts >= min_count)
     return xr.Dataset(
         data,
         coords={"x": mids[0], "y": mids[1], "z": mids[2], "phase": np.arange(fin)},
         attrs={"first": first, "last": last, "cycletime": cycletime,
-               "zaman": zaman, "min_count": min_count},
+               "zaman": zaman, "min_count": min_count,
+               "fill_value": float(fill_value)},
+    )
+
+
+def eulerian_windowed(scene, grid_params, first, last, window_frames: int,
+                      step_frames: int, min_count: int = 50,
+                      *, fill_value=float("nan"),
+                      qc=None, add_valid=True) -> xr.Dataset:
+    """Sliding-window Eulerian mean (aortic-pipeline pattern, non-periodic).
+
+    Overlapping time windows replace cardiac phase bins: window centers run
+    from ``first + window//2`` to ``last - window//2`` in steps of
+    ``step_frames`` (single center when the range is too short). Each window
+    ``[center-w//2, center+w//2]`` is binned with one ``histogramdd`` pass
+    over a ``searchsorted`` slice of the once-sorted table — no per-particle
+    phase arithmetic. Output dims are (x, y, z, window) with a
+    ``window_center`` coordinate; velocities are NaN where ``counts <
+    min_count`` with the same ``par_ave2``/``valid`` convention as
+    :func:`eulerian_grid`.
+    """
+    edges = [np.linspace(grid_params[f"min_{d}"], grid_params[f"max_{d}"],
+                         grid_params[f"step{d}"] + 1) for d in "xyz"]
+    mids = [0.5 * (b[:-1] + b[1:]) for b in edges]
+    shape3 = tuple(grid_params[f"step{d}"] for d in "xyz")
+
+    if hasattr(scene, "collect"):
+        pos, vel, time = (np.asarray(a) for a in scene.collect(["pos", "velocity", "time"]))
+        pos = np.asarray(pos, dtype=float).reshape(-1, 3)
+        vel = np.asarray(vel, dtype=float).reshape(-1, 3)
+        time = np.asarray(time).ravel()
+    else:
+        from flowtracks.io import trajectories
+        trajs = trajectories(str(scene))
+        p_list, v_list, t_list = [], [], []
+        for tr in trajs:
+            p_list.append(tr.pos())
+            v_list.append(tr.velocity())
+            t_list.append(tr.time())
+        pos = np.vstack(p_list) if p_list else np.empty((0, 3))
+        vel = np.vstack(v_list) if v_list else np.empty((0, 3))
+        time = np.concatenate(t_list) if t_list else np.empty((0,))
+
+    if qc is not None:
+        q = dict(qc)
+        keep_qc = qc_mask(pos, vel, min_speed=q.get("min_speed"),
+                          max_speed=q.get("max_speed"),
+                          finite_only=q.get("finite_only", True))
+        pos, vel, time = pos[keep_qc], vel[keep_qc], time[keep_qc]
+
+    order = np.argsort(time, kind="mergesort")
+    pos_s, vel_s, time_s = pos[order], vel[order], time[order]
+    w = int(window_frames)
+    centers = list(range(int(first) + w // 2, int(last) - w // 2 + 1,
+                         int(step_frames)))
+    if not centers:
+        centers = [(int(first) + int(last)) // 2]
+    nwin = len(centers)
+    counts = np.zeros((*shape3, nwin))
+    sums = [np.zeros((*shape3, nwin)) for _ in range(3)]
+    for k, c in enumerate(centers):
+        lo, hi = c - w // 2, c + w // 2
+        a = np.searchsorted(time_s, lo, side="left")
+        b = np.searchsorted(time_s, hi, side="right")
+        xyz = pos_s[a:b]
+        vv = vel_s[a:b]
+        keep = np.ones(len(xyz), dtype=bool)
+        for d, e in enumerate(edges):
+            keep &= (xyz[:, d] >= e[0]) & (xyz[:, d] < e[-1])
+        xyz, vv = xyz[keep], vv[keep]
+        if len(xyz) == 0:
+            continue
+        counts[..., k] = np.histogramdd(xyz, bins=edges)[0]
+        for d in range(3):
+            sums[d][..., k] = np.histogramdd(xyz, bins=edges,
+                                             weights=vv[:, d])[0]
+    low = counts < min_count
+    counts_out = np.where(low, 0, counts)
+    dims = ("x", "y", "z", "window")
+    data = {}
+    fill = float(fill_value)
+    for d, v in enumerate(VEL_VARS):
+        s = np.where(low, 0.0, sums[d])
+        mean = np.divide(s, counts_out,
+                         out=np.full_like(s, fill), where=counts_out != 0)
+        data[v] = (dims, mean)
+    data[COUNT_VAR] = (dims, counts_out.astype(np.int64))
+    if add_valid:
+        data[VALID_VAR] = (dims, counts >= min_count)
+    return xr.Dataset(
+        data,
+        coords={"x": mids[0], "y": mids[1], "z": mids[2],
+                "window": np.arange(nwin),
+                "window_center": ("window", np.asarray(centers))},
+        attrs={"first": first, "last": last, "window_frames": w,
+               "step_frames": int(step_frames), "min_count": min_count},
     )
 
 
@@ -251,15 +478,29 @@ ALL_DERIVED = ["MKE", "TKE", "VEL", "PRT", "VSS", "RSS", "ML", "TL",
 
 
 def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
-                   mu: float = 1.0, fields: list[str] | None = None) -> xr.Dataset:
+                   mu: float = 1.0, fields: list[str] | None = None, *,
+                   counts=None, fluid_min=None, clean_nan: bool = True,
+                   gradient_convention: str = "matlab",
+                   prt_mode: str = "velocity",
+                   prt_dt: float = 1.0) -> xr.Dataset:
     """Derived hemodynamic/turbulence fields, vectorized over ALL phases.
 
-    Port of sample_vtkcode.py main() (which loops per time slice). Formulas —
-    including the legacy gradient conventions — are preserved exactly:
-    the u component is negated, np.gradient axis naming follows the Matlab
-    meshgrid convention (axis0 spacing dy), and dx is set to the z spacing.
-    # ponytail: those three quirks look like Matlab-port bugs; kept verbatim
-    # for parity with sample_vtkcode — revisit with a fluid dynamicist.
+    Port of sample_vtkcode.py main() (which loops per time slice).
+    ``gradient_convention="matlab"`` (default) preserves the legacy quirks
+    exactly: the u component is negated, np.gradient axis naming follows the
+    Matlab meshgrid convention (axis0 spacing dy), and dx is set to the z
+    spacing. ``"physical"`` instead uses ``np.gradient(u, dx, dy, dz)`` with
+    no negation — the physically consistent choice (matches
+    ``flowtracks.vortex``); expect ~tens-of-percent differences in
+    gradient-based fields between conventions on anisotropic grids.
+
+    clean_nan: zero-out NaN/+-Inf gradient inputs upfront (MATLAB VTR
+    convention via :func:`clean_field`) so one masked voxel does not poison
+    its neighbors' gradients; VEL/MKE/helicity still use the raw means.
+    counts+fluid_min: optional stricter-than-binning fluid mask
+    (``counts >= fluid_min``, e.g. 100 vs binning 50) applied as NaN to all
+    outputs. prt_mode: ``"velocity"`` (legacy ``gridx*1000/|v|``) or
+    ``"counts"`` (``counts*prt_dt``, needs counts).
     """
     want = set(fields or ["MKE", "TKE"])
     unknown = want - set(ALL_DERIVED)
@@ -284,19 +525,45 @@ def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
     grad_needed = want & {"PRT", "VSS", "ML", "TL", "ScalarShear",
                           "H1", "H2", "H3", "H4"}
     if grad_needed:
+        if gradient_convention not in ("matlab", "physical"):
+            raise ValueError("gradient_convention must be 'matlab' or 'physical'")
         gridx = float(avg.x[1] - avg.x[0])
         dy = float(avg.y[1] - avg.y[0])
         dz = float(avg.z[1] - avg.z[0])
-        dx = dz  # legacy: sample_vtkcode.py:142
-        uy, ux, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                      np.gradient(-u.values, dy, dx, dz, axis=(0, 1, 2)))
-        vy, vx, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                      np.gradient(v.values, dy, dx, dz, axis=(0, 1, 2)))
-        wy, wx, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                      np.gradient(w.values, dy, dx, dz, axis=(0, 1, 2)))
+        if gradient_convention == "matlab":
+            dx = dz  # legacy: sample_vtkcode.py:142
+            gu, gv, gw = -u.values, v.values, w.values
+            uy, ux, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gu) if clean_nan else gu,
+                                      dy, dx, dz, axis=(0, 1, 2)))
+            vy, vx, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gv) if clean_nan else gv,
+                                      dy, dx, dz, axis=(0, 1, 2)))
+            wy, wx, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gw) if clean_nan else gw,
+                                      dy, dx, dz, axis=(0, 1, 2)))
+        else:
+            dx = gridx
+            gu, gv, gw = u.values, v.values, w.values
+            ux, uy, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gu) if clean_nan else gu,
+                                      dx, dy, dz, axis=(0, 1, 2)))
+            vx, vy, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gv) if clean_nan else gv,
+                                      dx, dy, dz, axis=(0, 1, 2)))
+            wx, wy, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                          np.gradient(clean_field(gw) if clean_nan else gw,
+                                      dx, dy, dz, axis=(0, 1, 2)))
 
     if "PRT" in want:
-        out["PRT"] = xr.where(vel != 0, gridx * 1000.0 / vel, 0.0)
+        if prt_mode == "velocity":
+            out["PRT"] = xr.where(vel != 0, gridx * 1000.0 / vel, 0.0)
+        elif prt_mode == "counts":
+            if counts is None:
+                raise ValueError("prt_mode='counts' requires counts=")
+            out["PRT"] = counts.astype(float) * float(prt_dt)
+        else:
+            raise ValueError("prt_mode must be 'velocity' or 'counts'")
     if "VSS" in want:
         p2, p3, p6 = uy + vx, uz + wx, vz + wy
         p1 = 2 * ux - (2 / 3) * (ux + uy + uz)
@@ -338,6 +605,9 @@ def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
             out["H3"] = xr.where(h2 != 0, h1 / h2, 0.0)
         if "H4" in want:
             out["H4"] = xr.where(h2 != 0, np.abs(h1) / h2, 0.0)
+    if counts is not None and fluid_min is not None:
+        keep = fluid_mask(counts, float(fluid_min))
+        out = out.where(keep)
     return out
 
 
@@ -499,6 +769,7 @@ CF_ATTRS = {
     "v_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity y", "standard_name": "northward_sea_water_velocity"},
     "w_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity z", "standard_name": "upward_sea_water_velocity"},
     "par_ave2": {"units": "1", "long_name": "samples per voxel per phase"},
+    "valid": {"units": "1", "long_name": "voxel meets min_count threshold"},
     "x": {"units": "m", "axis": "X", "standard_name": "projection_x_coordinate"},
     "y": {"units": "m", "axis": "Y", "standard_name": "projection_y_coordinate"},
     "z": {"units": "m", "axis": "Z", "standard_name": "height_above_mean_sea_level"},
@@ -576,7 +847,15 @@ def run_post_analysis_ds(ds_sets: dict[str, xr.Dataset], recipe: dict) -> xr.Dat
     fields = d_cfg.get("fields", ["MKE", "TKE"])
     derived = derived_fields(avg, stats,
                              rho=d_cfg.get("rho", 1.0), mu=d_cfg.get("mu", 1.0),
-                             fields=ALL_DERIVED if fields == "all" else fields)
+                             fields=ALL_DERIVED if fields == "all" else fields,
+                             counts=ds[COUNT_VAR].mean("set")
+                             if COUNT_VAR in ds and "set" in ds.dims else None,
+                             fluid_min=d_cfg.get("fluid_min"),
+                             clean_nan=d_cfg.get("clean_nan", True),
+                             gradient_convention=d_cfg.get(
+                                 "gradient_convention", "matlab"),
+                             prt_mode=d_cfg.get("prt_mode", "velocity"),
+                             prt_dt=d_cfg.get("prt_dt", 1.0))
 
     out = xr.merge([avg, fluct, stats, derived], combine_attrs="override")
     out.attrs = ds.attrs

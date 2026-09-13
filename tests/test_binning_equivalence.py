@@ -92,7 +92,8 @@ def legacy_eulerian_grid(scene, grid_params, first, last, cycletime,
 def _compare(first, last, cycletime, deltat, min_count):
     scene = RandomScene(first, last)
     new = eulerian_grid(scene, GRID, first, last, cycletime,
-                        deltat=deltat, min_count=min_count)
+                        deltat=deltat, min_count=min_count, fill_value=0.0,
+                        add_valid=False)
     means, counts = legacy_eulerian_grid(scene, GRID, first, last, cycletime,
                                          deltat, 100000, min_count)
     np.testing.assert_array_equal(new["par_ave2"].values, counts)

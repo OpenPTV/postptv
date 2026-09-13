@@ -121,8 +121,10 @@ def test_min_count_zeroes_sparse_cells():
 def test_empty_scene_gives_zeros_not_nan():
     ds = eulerian_grid(SceneOf(np.empty((0, 3)), np.empty((0, 3))), GRID_1x1,
                        100001, 100010, cycletime=10, deltat=2, min_count=1)
-    assert not ds["u_ins_mean"].isnull().any()
-    assert float(ds["u_ins_mean"].sum()) == 0.0
+    # masked-out voxels are NaN (never zero-velocity); counts stay 0.
+    assert bool(ds["u_ins_mean"].isnull().all())
+    assert int(ds["par_ave2"].sum()) == 0
+    assert not ds["valid"].values.any()
 
 
 def test_phase_index_never_out_of_bounds():

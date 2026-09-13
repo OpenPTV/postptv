@@ -50,5 +50,18 @@ def test_eulerian_grid_min_count_masking():
     )
     u = ds['u_ins_mean'].values
     par = ds['par_ave2'].values
-    assert u[1, 1, 1, 0] == 0.0
+    assert np.isnan(u[1, 1, 1, 0])
     assert par[1, 1, 1, 0] == 0
+    assert "valid" in ds
+    assert not ds["valid"].values[1, 1, 1, 0]
+
+
+def test_eulerian_grid_legacy_zero_fill_opt_in():
+    scene = _fake_scene(n_particles=5)
+    ds = lag.eulerian_grid(
+        scene, GRID, first=100001, last=100005, cycletime=100,
+        deltat=90, base_time=100000, min_count=100, fill_value=0.0,
+        add_valid=False,
+    )
+    assert ds['u_ins_mean'].values[1, 1, 1, 0] == 0.0
+    assert "valid" not in ds
