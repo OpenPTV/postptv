@@ -27,6 +27,18 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Verify release tag matches package version
+        run: |
+          # Release tag is like v1.2.2; package __version__ must be 1.2.2.
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          PACKAGE_VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\'\"](.*?)[\'\"]', open('flowtracks/__init__.py').read()).group(1))")
+          echo "Tag version: $TAG_VERSION"
+          echo "Package version: $PACKAGE_VERSION"
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package version ($PACKAGE_VERSION)"
+            exit 1
+          fi
+
       - name: Build release distributions
         run: |
           # NOTE: put your own distribution build steps here.
