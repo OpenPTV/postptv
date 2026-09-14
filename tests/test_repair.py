@@ -12,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from flowtracks.repair import repair_trajectories
+from flowtracks.repair import _greedy_one_to_one, repair_arrays, repair_trajectories
 from flowtracks.trajectory import Trajectory
 
 N_PART, N_FRAMES, NOISE = 40, 80, 0.01
@@ -111,6 +111,40 @@ class TestRepairTrajectories(unittest.TestCase):
 
         self.assertIn(999, [int(np.ravel(tr.trajid())[0]) for tr in out])
         self.assertEqual(report["n_out"], N_PART + 1)
+
+
+class TestRepairArrays(unittest.TestCase):
+    def test_arrays_api_repairs_in_input_row_order(self):
+        trajs = _broken(_truth(seed=3))
+        tid = np.concatenate([np.full(len(tr.time()), k) for k, tr in enumerate(trajs)])
+        time = np.concatenate([tr.time() for tr in trajs])
+        pos = np.concatenate([tr.pos() for tr in trajs])
+        shuffle = np.random.default_rng(0).permutation(len(tid))
+
+        new_tid, report = repair_arrays(tid[shuffle], time[shuffle], pos[shuffle])
+
+        self.assertEqual(len(new_tid), len(tid))
+        pid = _pid(pos[shuffle])
+        for t in np.unique(new_tid):
+            self.assertEqual(len(set(pid[new_tid == t])), 1)
+        self.assertEqual(len(np.unique(new_tid)), N_PART)
+        self.assertEqual(report["n_out"], N_PART)
+
+    def test_greedy_matching_equals_a_sequential_scan(self):
+        rng = np.random.default_rng(4)
+        chi = rng.random(400)
+        left, right = rng.integers(0, 60, 400), rng.integers(0, 60, 400)
+
+        got = set(zip(*_greedy_one_to_one(chi, left, right)))
+
+        used_l, used_r, want = set(), set(), set()
+        for i in np.argsort(chi, kind="stable"):
+            if left[i] in used_l or right[i] in used_r:
+                continue
+            used_l.add(left[i])
+            used_r.add(right[i])
+            want.add((left[i], right[i]))
+        self.assertEqual(got, want)
 
 
 if __name__ == "__main__":

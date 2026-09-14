@@ -32,6 +32,18 @@ the real frame numbers.
    repaired, report = repair_trajectories(trajectories, max_gap=3)
    print(report)   # links_cut, points_attached, joins, threshold, noise_scale, ...
 
+For millions of points use the array form, which is what the list form wraps:
+
+.. code:: python
+
+   from flowtracks.repair import repair_arrays
+
+   new_trajid, report = repair_arrays(trajid, frame, pos)   # one row per position
+
+Candidate searches are single KD-tree queries over (x, y, z, frame) and
+matches are resolved greedily in order of increasing check value, so a
+5000-frame, 6-million-point run is repaired in tens of seconds.
+
 Use it before :mod:`flowtracks.smoothing`: smoothing a trajectory that contains
 a wrong link spreads the jump over the whole smoothing window.
 
