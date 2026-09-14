@@ -27,6 +27,7 @@ Contents:
    interpolation
    graphics
    smoothing
+   repair
    pairs
    scene
    analysis
