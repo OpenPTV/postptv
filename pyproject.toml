@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowtracks"
-version = "1.2.2"
+version = "1.3.0"
 description = "Library for handling 3D PTV trajectory databases and Lagrangian/Eulerian turbulence post-processing."
 readme = "README.md"
 requires-python = ">=3.11"
