@@ -158,6 +158,16 @@ class TestFastStitching(unittest.TestCase):
         self.assertEqual(len(stitching.stitch_trajectories_fast([base, far], max_gap=3, max_distance=5.0)), 2)
         self.assertEqual(len(stitching.stitch_trajectories_fast([base, near_gap], max_gap=3, max_distance=5.0)), 2)
 
+    def test_chain_of_three_segments_is_not_duplicated(self):
+        """A->B->C of one particle gives ONE trajectory; B must not be copied into two."""
+        fps = 1.0
+        segs = [self._segment(i, t0, t0 + 5, [1.0, 0, 0], fps) for i, t0 in enumerate((0, 6, 12))]
+        kwargs = dict(fps=fps, max_gap=2, max_distance=0.5, max_vel_diff=0.5)
+        for fn in (stitching.stitch_trajectories, stitching.stitch_trajectories_fast):
+            out = fn(list(segs), **kwargs)
+            self.assertEqual(len(out), 1, fn.__name__)
+            np.testing.assert_array_equal(out[0].time(), np.arange(17))
+
     def test_fast_passes_through_non_monotonic_segments(self):
         """Unlinked-particle buckets (repeated times) are not stitched."""
         fps = 1.0

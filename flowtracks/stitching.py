@@ -145,6 +145,18 @@ def stitch_trajectories(
             if cost_val < BIG_COST / 2:
                 matches.append((rows[r], cols[c]))
 
+        # A segment joins at most once per pass (see stitch_trajectories_fast):
+        # the assignment keeps rows and columns unique, but the same segment
+        # can be a row (end) and a column (start) at once, which duplicated it.
+        matches.sort(key=lambda m: cost_matrix[row_pos[m[0]], col_pos[m[1]]])
+        used, kept = set(), []
+        for i, j in matches:
+            if i in used or j in used:
+                continue
+            used.update((i, j))
+            kept.append((i, j))
+        matches = kept
+
         if not matches:
             break
 
@@ -333,13 +345,15 @@ def stitch_trajectories_fast(
             break
 
         order = np.argsort(cand_c, kind="stable")
-        used_i, used_j, matches = set(), set(), []
+        # A segment joins at most once per pass, as end OR start: allowing both
+        # (A->B and B->C) copied B into two merged trajectories. Chains
+        # complete over the following passes of the while loop.
+        used, matches = set(), []
         for idx in order:
             i, j = cand_i[idx], cand_j[idx]
-            if i in used_i or j in used_j:
+            if i in used or j in used:
                 continue
-            used_i.add(i)
-            used_j.add(j)
+            used.update((i, j))
             matches.append((i, j))
 
         merged_mask = np.zeros(n, dtype=bool)
