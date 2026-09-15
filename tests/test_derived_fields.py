@@ -184,6 +184,7 @@ def test_binary_vtk_round_trip(tmp_path):
 
 
 def test_save_netcdf_compression_and_attrs(tmp_path):
+    pytest.importorskip("netCDF4")  # optional extra flowtracks[netcdf]
     ds = xr.Dataset(
         {"u_ins_mean": (DIMS4, np.zeros((4, 4, 4, 4)))},
         coords={"x": np.arange(4.0), "y": np.arange(4.0),

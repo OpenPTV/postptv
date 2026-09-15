@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowtracks"
-version = "1.3.0"
+version = "1.4.0"
 description = "Library for handling 3D PTV trajectory databases and Lagrangian/Eulerian turbulence post-processing."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,7 +15,6 @@ dependencies = [
     "scipy",
     "h5py",
     "pyyaml",
-    "netcdf4",
     "zarr>=3.0.0",
     "xarray>=2024.1.0",
     "matplotlib",
@@ -38,6 +37,9 @@ classifiers = [
 vtk = ["vtk", "pyvista"]
 # flowtracks/io.py legacy NPZ/HDF5 scene reader (pytables-based).
 legacy-io = ["tables"]
+# eulerian.save_netcdf / save_dataset("*.nc"): optional NetCDF output. Zarr
+# (save_zarr, the default of save_dataset) needs no extra.
+netcdf = ["netcdf4"]
 # examples/*.py marimo notebooks (interactive demos; matplotlib is already a
 # core dependency, plotly covers the 3D trajectory viewers, tables/pytables
 # loads the data/*.h5 demo datasets via Scene). Was previously undeclared --

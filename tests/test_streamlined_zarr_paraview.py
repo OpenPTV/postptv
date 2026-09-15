@@ -91,6 +91,7 @@ def test_cf_metadata_paraview_compatibility(sample_dataset):
 
 def test_zarr_and_netcdf_roundtrip_equivalence(sample_dataset, tmp_path):
     """Saving to Zarr vs NetCDF must preserve identical data arrays, coords, and metadata."""
+    pytest.importorskip("netCDF4")  # optional extra flowtracks[netcdf]
     nc_path = tmp_path / "test.nc"
     zarr_path = tmp_path / "test.zarr"
 
@@ -110,21 +111,33 @@ def test_zarr_and_netcdf_roundtrip_equivalence(sample_dataset, tmp_path):
     assert ds_nc.x.attrs["axis"] == ds_zarr.x.attrs["axis"]
 
 
-def test_save_dataset_auto_format_selection(sample_dataset, tmp_path):
-    """save_dataset should automatically select Zarr vs NetCDF based on extension."""
+def test_save_dataset_defaults_to_zarr(sample_dataset, tmp_path):
+    """Any path that is not .nc/.nc4/.netcdf is written as a Zarr store."""
+    for name in ("out.zarr", "post_analysis", "fields.eulerian"):
+        path = tmp_path / name
+        save_dataset(sample_dataset, path)
+        assert path.is_dir(), name
+        np.testing.assert_allclose(xr.open_zarr(path)["u_ins_mean"].values, sample_dataset["u_ins_mean"].values)
+
+
+def test_save_dataset_netcdf_by_extension(sample_dataset, tmp_path):
+    """.nc paths still give NetCDF when the optional backend is installed."""
+    pytest.importorskip("netCDF4")
     p_nc = tmp_path / "out.nc"
-    p_zarr = tmp_path / "out.zarr"
-
     save_dataset(sample_dataset, p_nc)
-    save_dataset(sample_dataset, p_zarr)
+    assert p_nc.is_file()
+    np.testing.assert_allclose(xr.open_dataset(p_nc)["u_ins_mean"].values, sample_dataset["u_ins_mean"].values)
 
-    assert p_nc.exists()
-    assert p_zarr.exists() and p_zarr.is_dir()
 
-    read_nc = xr.open_dataset(p_nc)
-    read_zarr = xr.open_zarr(p_zarr)
+def test_save_netcdf_without_backend_names_the_extra(sample_dataset, tmp_path, monkeypatch):
+    import importlib.util
 
-    np.testing.assert_allclose(read_nc["u_ins_mean"].values, read_zarr["u_ins_mean"].values)
+    real_find_spec = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec",
+                        lambda name, *a, **k: None if name in ("netCDF4", "h5netcdf") else real_find_spec(name, *a, **k))
+    with pytest.raises(ImportError, match=r"flowtracks\[netcdf\]"):
+        save_netcdf(sample_dataset, tmp_path / "out.nc")
+    assert not (tmp_path / "out.nc").exists()
 
 
 def test_in_memory_vs_disk_pipeline_equivalence(tmp_path):

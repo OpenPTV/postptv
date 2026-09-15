@@ -1,7 +1,7 @@
 """flowtracks.combine - CLI entrypoint for postptv-combine
 
 Vectorized 3D Eulerian binning, ensemble phase-averaging across realizations/subfolders,
-and NetCDF/VTK ParaView export.
+and Zarr + VTK (ParaView) export.
 
 Usage:
     postptv-combine [DATA_DIR]
@@ -96,13 +96,13 @@ def run_combine(data_dir: str | Path = "."):
         derived = post_analysis_xr.derived_fields(avg, stats, fields=['MKE', 'TKE', 'VEL'])
         final_ds = xr.merge([avg, stats, derived])
 
-    nc_out = res_dir / "post_analysis.nc" if res_dir.exists() else data_path / "post_analysis.nc"
-    print(f"[postptv-combine] Saving NetCDF output -> {nc_out}")
-    post_analysis_xr.save_netcdf(final_ds, nc_out)
-    
+    zarr_out = (res_dir if res_dir.exists() else data_path) / "post_analysis.zarr"
+    print(f"[postptv-combine] Saving Zarr output -> {zarr_out}")
+    post_analysis_xr.save_zarr(final_ds, zarr_out)
+
     print(f"[postptv-combine] Exporting VTK phase snapshots -> {vtk_dir}")
     post_analysis_xr.export_vtk(final_ds, vtk_dir)
-    print(f"[postptv-combine] Complete! Saved {nc_out.name}")
+    print(f"[postptv-combine] Complete! Saved {zarr_out.name}")
 
 
 def main():

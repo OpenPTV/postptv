@@ -72,7 +72,9 @@ def run(recipe_path: Path) -> Path:
         combine_attrs="override",
     )
     out_path = grid_dir / recipe["output"]
-    out.to_netcdf(out_path)
+    from flowtracks.eulerian import save_dataset  # local: eulerian imports this module
+
+    save_dataset(out, out_path)  # Zarr unless the recipe names a .nc file
     print(f"Saved {list(out.data_vars)} for {len(recipe['sets'])} sets to {out_path}")
     return out_path
 

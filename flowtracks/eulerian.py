@@ -802,8 +802,21 @@ def apply_cf_metadata(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
+NETCDF_SUFFIXES = (".nc", ".nc4", ".netcdf")
+
+
 def save_netcdf(ds: xr.Dataset, path: Path) -> None:
-    """Canonical output: compressed netCDF with CF metadata for ParaView."""
+    """Optional output: compressed netCDF with CF metadata (needs ``flowtracks[netcdf]``).
+
+    Zarr (:func:`save_zarr`) holds the same data and metadata and is the default;
+    NetCDF is kept for tools that only read it.
+    """
+    import importlib.util
+
+    if importlib.util.find_spec("netCDF4") is None and importlib.util.find_spec("h5netcdf") is None:
+        raise ImportError(
+            "NetCDF output needs a netCDF backend: pip install 'flowtracks[netcdf]'. "
+            "Zarr output (save_zarr, or save_dataset with any non-.nc path) needs none.")
     ds = apply_cf_metadata(ds)
     encoding = {name: {"zlib": True, "complevel": 4}
                 for name in ds.data_vars}
@@ -811,19 +824,19 @@ def save_netcdf(ds: xr.Dataset, path: Path) -> None:
 
 
 def save_zarr(ds: xr.Dataset, path: Path) -> None:
-    """Cloud-native output: chunked Zarr dataset with CF metadata for ParaView."""
+    """Default output: chunked Zarr dataset with CF metadata for ParaView and xarray."""
     ds = apply_cf_metadata(ds)
     ds.to_zarr(path, mode="w")
 
 
 def save_dataset(ds: xr.Dataset, path: Path) -> None:
-    """Save Dataset as Zarr if path ends with .zarr, otherwise NetCDF."""
+    """Save as NetCDF if the path ends in .nc/.nc4/.netcdf, otherwise as Zarr (the default)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.suffix == ".zarr" or path.name.endswith(".zarr"):
-        save_zarr(ds, path)
-    else:
+    if path.suffix.lower() in NETCDF_SUFFIXES:
         save_netcdf(ds, path)
+    else:
+        save_zarr(ds, path)
 
 
 def run_post_analysis_ds(ds_sets: dict[str, xr.Dataset], recipe: dict) -> xr.Dataset:

@@ -117,13 +117,13 @@ def test_recipe_run_end_to_end(tmp_path):
     _write_grid(tmp_path / "b_grid.h5", 3.0)
     recipe = tmp_path / "recipe.yaml"
     recipe.write_text(yaml.safe_dump({
-        "sets": ["a", "b"], "output": "post.nc",
+        "sets": ["a", "b"], "output": "post.zarr",
         "vtk": {"dir": "vtk", "prefix": "p"},
     }))
 
     out_path = run(recipe)
 
-    out = xr.open_dataset(out_path)
+    out = xr.open_zarr(out_path)
     for name in ["u_ins_mean", "u_fluct", "u_rms", "u_ins_v_ins", "MKE", "TKE"]:
         assert name in out
     # sets are constants 1 and 3 -> fluct = -/+1, all counts equal -> u'u' = 1

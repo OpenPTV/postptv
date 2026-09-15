@@ -45,11 +45,11 @@ def test_recipe_run(tmp_path):
     _write_grid(tmp_path / "b_grid.h5", 3.0)
     recipe = tmp_path / "recipe.yaml"
     recipe.write_text(
-        yaml.safe_dump({"sets": ["a", "b"], "variables": VARS, "output": "out.nc"})
+        yaml.safe_dump({"sets": ["a", "b"], "variables": VARS, "output": "out.zarr"})
     )
 
     out_path = run(recipe)
 
-    out = xr.open_dataset(out_path)
+    out = xr.open_zarr(out_path)
     assert float(out["u_phase_averaged"].mean()) == 2.0
     assert out["u_fluct"].dims == ("set", "x", "y", "z", "phase")
