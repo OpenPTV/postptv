@@ -343,10 +343,16 @@ def iter_trajectories_ptvis(fname, first=None, last=None, frate=1., xuap=False,
             # that generated the data has a bug that can't be dealt with here.
 
         # Continue existing trajectories into this frame:
-        cont = table['prev'] - count_base > -1
-        traj = np.empty(table['prev'].shape)
-
         has_history = (len(frames) > 0) and (frames[-1] is not None)
+        cont = table['prev'] - count_base > -1
+        if has_history:
+            # Some xuap/ptv_is data contains dangling 'prev' links (pointing
+            # past the previous frame's particle count) from tracking
+            # artifacts in the source data; treat those as new trajectories
+            # instead of crashing.
+            cont &= (table['prev'] - count_base) < frames[-1].shape[0]
+
+        traj = np.empty(table['prev'].shape)
         if has_history:
             prev_ix = table['prev'][cont] - count_base
             traj[cont] = frames[-1][:,-1][prev_ix]
