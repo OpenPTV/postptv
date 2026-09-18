@@ -32,7 +32,7 @@ def clean_field(a: np.ndarray) -> np.ndarray:
 def fluid_mask(counts, threshold: float = 100):
     """Stricter-than-binning fluid mask: ``counts > threshold``.
 
-    Mirrors ``newvtkcode.m`` / ``TT13PRE_PTV_V3.m`` ``fluidMask = par_ave2>100``
+    Mirrors the legacy MATLAB pipeline ``fluidMask = par_ave2>100``
     (note: stricter than the ``<50`` count mask used at binning time).
     Accepts an xr.DataArray or ndarray, returns the same kind of boolean mask.
     """
@@ -43,7 +43,7 @@ def fluid_mask(counts, threshold: float = 100):
 
 def qc_mask(pos, vel, min_speed=None, max_speed=None,
             finite_only: bool = True) -> np.ndarray:
-    """Vectorized pre-binning QC mask (aortic-pipeline order, cheap first).
+    """Vectorized pre-binning QC mask (cheap checks first).
 
     Drops non-finite positions/velocities, then out-of-range speeds
     ``|v|``. Length/ROI gates need trajectory ids / polygons and live outside
@@ -68,8 +68,8 @@ def qc_mask(pos, vel, min_speed=None, max_speed=None,
 def finite_difference_velocity(pos, ids) -> np.ndarray:
     """Centered-FD interior, one-sided endpoints, NaN singletons.
 
-    Port of ``aorta_pipeline/filtering.py:finite_difference_velocity`` on
-    bare arrays: sort by ``(ids, time)`` first (caller) or pass already-grouped
+    Centered finite-difference velocity on bare arrays: sort by
+    ``(ids, time)`` first (caller) or pass already-grouped
     runs of equal ``ids``. ``pos`` is (n, 3), ``ids`` is (n,). Returns (n, 3)
     velocities in pos units per frame.
     """
@@ -101,10 +101,36 @@ def _bin_counts_sums(pos, vel, ti, edges4, shape):
     return counts, sums
 
 
+def _bin_counts_sums_ceil(pos, vel, ti, mins, deltas, shape):
+    """MATLAB-``ceil`` voxel rule: ``idx = ceil((p - min) / d) - 1``.
+
+    Exact port of the legacy MATLAB mean-field script's ceil binning rule
+    (plus the in-range guard): particles exactly on an interior voxel edge
+    fall in the LOWER voxel, whereas ``np.histogramdd`` (half-open bins)
+    puts them in the UPPER one. Vectorized via raveled ``bincount`` — same
+    speed class as the histogramdd path, bit-identical to the per-frame loop
+    for identical input.
+    """
+    idx = [np.ceil((pos[:, d] - mins[d]) / deltas[d]).astype(np.int64) - 1
+           for d in range(3)]
+    ok = np.ones(pos.shape[0], dtype=bool)
+    for d, n in enumerate(shape[:3]):
+        ok &= (idx[d] >= 0) & (idx[d] < n)
+    ok &= (ti >= 0) & (ti < shape[3])
+    rav = ((idx[0][ok] * shape[1] + idx[1][ok]) * shape[2]
+           + idx[2][ok]) * shape[3] + ti[ok]
+    n = int(np.prod(shape))
+    counts = np.bincount(rav, minlength=n).reshape(shape).astype(float)
+    sums = [np.bincount(rav, weights=np.asarray(vel[ok, d], dtype=float),
+                        minlength=n).reshape(shape) for d in range(3)]
+    return counts, sums
+
+
 def eulerian_grid(scene, grid_params, first, last, cycletime,
                   deltat=90, base_time=100000, min_count=50,
                   smoothing_sigma=None, *, fill_value=float("nan"),
-                  qc=None, chunk_frames=None, add_valid=True) -> xr.Dataset:
+                  qc=None, chunk_frames=None, add_valid=True, fin=None,
+                  voxel_rule="half-open") -> xr.Dataset:
     """Bin Lagrangian particles onto a (x, y, z, phase) grid of mean velocities.
 
     Same math as batch_Lagrangian_to_Eulerian.eulerian_grid, but: reads the
@@ -121,7 +147,7 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
     pass ``0.0`` to restore the legacy zero-fill). ``par_ave2`` keeps the
     legacy convention (sub-threshold counts stored as 0) and a boolean
     ``valid`` variable (``counts >= min_count``) is added when
-    ``add_valid=True`` (aortic-pipeline pattern).
+    ``add_valid=True``.
 
     qc: optional dict ``{"min_speed":.., "max_speed":.., "finite_only":..}``
     applying :func:`qc_mask` before binning. Default off (no cost when None).
@@ -129,12 +155,28 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
     chunk_frames: optional int bounding frames per accumulation chunk. Time-
     sorted chunks are histogrammed separately and summed — identical math to
     the single pass, bounded memory for OOM-scale runs.
+
+    fin: optional explicit phase-bin count. Default (None) keeps the legacy
+    ``ceil(cycletime / zaman)``. Pass an explicit ``fin`` to reproduce a
+    legacy chain where the phase grid has a fixed bin count and the trailing
+    ``cycletime - fin*zaman`` frames fold into the LAST bin via the ``clip``
+    below instead of opening an extra partial bin.
+
+    voxel_rule: ``"half-open"`` (default, ``np.histogramdd`` semantics —
+    particles exactly on an interior edge fall in the upper voxel) or
+    ``"ceil"`` (legacy MATLAB mean-field convention — edge
+    particles fall in the lower voxel). ``"ceil"`` also switches the domain
+    prefilter to the strict exclusive box (both bounds exclusive), so
+    the binned set matches the legacy inputs exactly.
     """
     zaman = deltat * 2 + 1
-    fin = int(np.ceil(cycletime / zaman))
+    fin = int(np.ceil(cycletime / zaman)) if fin is None else int(fin)
     edges = [np.linspace(grid_params[f"min_{d}"], grid_params[f"max_{d}"],
                          grid_params[f"step{d}"] + 1) for d in "xyz"]
     mids = [0.5 * (b[:-1] + b[1:]) for b in edges]
+    use_ceil = voxel_rule == "ceil"
+    if voxel_rule not in ("half-open", "ceil"):
+        raise ValueError("voxel_rule must be 'half-open' or 'ceil'")
 
     if hasattr(scene, "collect"):
         pos, vel, time = (np.asarray(a) for a in scene.collect(["pos", "velocity", "time"]))
@@ -165,7 +207,10 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
     mask = (time >= first) & (time <= last)
     if pos.shape[0]:
         for d, b in enumerate(edges):
-            mask &= (pos[:, d] >= b[0]) & (pos[:, d] < b[-1])
+            if use_ceil:
+                mask &= (pos[:, d] > b[0]) & (pos[:, d] < b[-1])
+            else:
+                mask &= (pos[:, d] >= b[0]) & (pos[:, d] < b[-1])
     pos, vel, time = pos[mask], vel[mask], time[mask]
 
     # phase bin per particle: identical to the legacy per-frame arithmetic
@@ -178,8 +223,18 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
 
     edges4 = [*edges, np.arange(fin + 1) - 0.5]
     shape4 = (*[grid_params[f"step{d}"] for d in "xyz"], fin)
+    if use_ceil:
+        mins = [grid_params[f"min_{d}"] for d in "xyz"]
+        deltas = [(grid_params[f"max_{d}"] - grid_params[f"min_{d}"])
+                  / grid_params[f"step{d}"] for d in "xyz"]
+
+        def _bin(p, v, t):
+            return _bin_counts_sums_ceil(p, v, t, mins, deltas, shape4)
+    else:
+        def _bin(p, v, t):
+            return _bin_counts_sums(p, v, t, edges4, shape4)
     if chunk_frames is None or pos.shape[0] == 0:
-        counts, sums_list = _bin_counts_sums(pos, vel, ti, edges4, shape4)
+        counts, sums_list = _bin(pos, vel, ti)
     else:
         order = np.argsort(time, kind="mergesort")
         pos_s, vel_s, ti_s = pos[order], vel[order], ti[order]
@@ -188,8 +243,7 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
         sums_list = [np.zeros(shape4) for _ in range(3)]
         for s in range(0, len(uniq), int(chunk_frames)):
             sel = np.isin(time[order], uniq[s:s + int(chunk_frames)])
-            c, sl = _bin_counts_sums(pos_s[sel], vel_s[sel], ti_s[sel],
-                                     edges4, shape4)
+            c, sl = _bin(pos_s[sel], vel_s[sel], ti_s[sel])
             counts += c
             for d in range(3):
                 sums_list[d] += sl[d]
@@ -221,8 +275,8 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
         data,
         coords={"x": mids[0], "y": mids[1], "z": mids[2], "phase": np.arange(fin)},
         attrs={"first": first, "last": last, "cycletime": cycletime,
-               "zaman": zaman, "min_count": min_count,
-               "fill_value": float(fill_value)},
+               "zaman": zaman, "fin": fin, "min_count": min_count,
+               "voxel_rule": voxel_rule, "fill_value": float(fill_value)},
     )
 
 
@@ -230,9 +284,9 @@ def eulerian_windowed(scene, grid_params, first, last, window_frames: int,
                       step_frames: int, min_count: int = 50,
                       *, fill_value=float("nan"),
                       qc=None, add_valid=True) -> xr.Dataset:
-    """Sliding-window Eulerian mean (aortic-pipeline pattern, non-periodic).
+    """Sliding-window Eulerian mean (non-periodic).
 
-    Overlapping time windows replace cardiac phase bins: window centers run
+    Overlapping time windows replace periodic phase bins: window centers run
     from ``first + window//2`` to ``last - window//2`` in steps of
     ``step_frames`` (single center when the range is too short). Each window
     ``[center-w//2, center+w//2]`` is binned with one ``histogramdd`` pass
@@ -369,11 +423,11 @@ def align_phases(sets: dict, reference_phase: int = 0,
 
 
 def region_timeseries(fields: dict, mask: xr.DataArray) -> xr.Dataset:
-    """Per-phase mean and max of each named scalar field within a mask.
+    """Per-phase mean, max and min of each named scalar field within a mask.
 
     General masked phase-statistics helper: pass whatever named fields
     (kinetic energy, vorticity magnitude, a vortex-identification scalar,
-    ...) and whatever region mask (an anatomical subregion, a jet core, a
+    ...) and whatever region mask (a subregion, a jet core, a
     near-wall shell, the whole valid-data volume, ...) the analysis needs.
     fields: {name: xr.DataArray}, each with dims including (x, y, z).
     """
@@ -382,7 +436,30 @@ def region_timeseries(fields: dict, mask: xr.DataArray) -> xr.Dataset:
         masked = da.where(mask)
         out[f"{name}_mean"] = masked.mean(("x", "y", "z"), skipna=True)
         out[f"{name}_max"] = masked.max(("x", "y", "z"), skipna=True)
+        out[f"{name}_min"] = masked.min(("x", "y", "z"), skipna=True)
     return out
+
+
+def y_slab_masks(fluid, y, start_idx=3, slab_length=0.05):
+    """Inner/outer y-slab split of a fluid mask (legacy MATLAB convention).
+
+    start_idx is 1-based (MATLAB convention): inner slab spans
+    y0=y[start_idx-1] .. y0+slab_length, outer spans above it to the domain
+    top. Broadcast over any trailing (z, phase) dims; returns
+    (inner, outer) boolean masks.
+    """
+    y = np.asarray(y, dtype=float)
+    fluid = np.asarray(fluid, dtype=bool)
+    y0 = y[start_idx - 1]
+    inner_y = np.where((y >= y0) & (y <= y0 + slab_length))[0]
+    outer_y = np.where((y > y0 + slab_length) & (y <= y[-1]))[0]
+    inner = np.zeros_like(fluid)
+    outer = np.zeros_like(fluid)
+    if inner_y.size:
+        inner[:, inner_y, ...] = fluid[:, inner_y, ...]
+    if outer_y.size:
+        outer[:, outer_y, ...] = fluid[:, outer_y, ...]
+    return inner.astype(bool), outer.astype(bool)
 
 
 def turbulent_statistics(fluct: xr.Dataset, counts: xr.DataArray) -> xr.Dataset:
@@ -447,16 +524,24 @@ def mask_variance(ds: xr.Dataset, k: float = 3.0) -> xr.Dataset:
 
 
 @_mask
-def mask_array(ds: xr.Dataset, mask) -> xr.Dataset:
+def mask_array(ds: xr.Dataset, mask, zero_to_nan: bool = False) -> xr.Dataset:
     """NaN voxels outside an externally supplied (x, y, z) boolean mask.
 
     Stand-in for an interactive freehand ROI: hand-drawing a region of
-    interest is a GUI step (MATLAB's imfreehand, napari, ParaView, ...) with
-    no headless equivalent, so it isn't reproduced here. Draw it once,
-    wherever, save the resulting boolean array, and pass it in.
+    interest is a GUI step with no headless equivalent, so it isn't
+    reproduced here. Draw it once, wherever, save the resulting boolean
+    array, and pass it in.
+
+    zero_to_nan: also map exact-zero means to NaN (legacy masking-script
+    ``0 -> NaN`` semantics — a zero mean inside the mask is treated as "no
+    data", preserving exact boundary shear semantics downstream).
     """
     m = xr.DataArray(np.asarray(mask, dtype=bool), dims=("x", "y", "z"))
-    return ds.assign({v: ds[v].where(m) for v in VEL_VARS if v in ds})
+    out = ds.assign({v: ds[v].where(m) for v in VEL_VARS if v in ds})
+    if zero_to_nan:
+        out = out.assign({v: out[v].where(out[v] != 0) for v in VEL_VARS
+                          if v in out})
+    return out
 
 
 def apply_masks(ds: xr.Dataset, specs: list) -> xr.Dataset:
@@ -473,6 +558,92 @@ def apply_masks(ds: xr.Dataset, specs: list) -> xr.Dataset:
 
 # --- derived fields ----------------------------------------------------------
 
+def reference_derived(u, v, w, dx, dy, dz, mask=None, rho=1000.0, mu=None,
+                    counts=None, dt=1.0):
+    """Per-phase reference derived fields with legacy MATLAB gradient semantics.
+
+    Exact port of the legacy MATLAB derived-field scripts on
+    bare numpy arrays (one 3D phase field at a time — loop over phases at the
+    call site). Unlike :func:`derived_fields` (a port of the old
+    ``sample_vtkcode.py`` demo with its sign convention and zero-filled
+    gradients), this preserves the legacy quirks validated against Octave:
+
+    - NaN-preserving gradients (no zero-fill): NaN propagates from any
+      stencil voxel, matching the reference validity mask;
+    - MATLAB ``gradient()`` dim2-first output order: numpy's first two
+      outputs are swapped to replicate it exactly;
+    - voxel-loop Q-criterion / lambda2 over the fluid mask
+      (``lambda2`` = 2nd eigenvalue of ``S*S + Om*Om``),
+      NaN wherever the gradient tensor is not finite (MATLAB ``eig(NaN)``).
+
+    u, v, w: (nx, ny, nz) phase means; dx, dy, dz: grid spacings (m).
+    mask: optional (nx, ny, nz) fluid boolean — outputs are NaN outside it,
+      and Q/lambda2 are evaluated only inside it.
+    rho, mu: density / dynamic viscosity (defaults: water at ~1000 kg/m^3).
+    counts, dt: optional per-voxel sample counts + frame time — when given,
+      ``prt = counts * dt`` is returned; else ``prt`` is NaN.
+
+    Returns dict(vel, mke, vss, eps, vortmag, heli, q, l2, ens, prt) plus the
+    masked ``u, v, w`` (masked velocity).
+    """
+    u = np.asarray(u, dtype=float)
+    v = np.asarray(v, dtype=float)
+    w = np.asarray(w, dtype=float)
+    if mu is None:
+        mu = 4.85e-6 * rho
+    m = np.ones(u.shape, dtype=bool) if mask is None else np.asarray(mask, dtype=bool)
+
+    dd = np.gradient(u, dx, dy, dz, edge_order=1)
+    dv = np.gradient(v, dx, dy, dz, edge_order=1)
+    dw = np.gradient(w, dx, dy, dz, edge_order=1)
+    du_dx, du_dy, du_dz = dd[1], dd[0], dd[2]
+    dv_dx, dv_dy, dv_dz = dv[1], dv[0], dv[2]
+    dw_dx, dw_dy, dw_dz = dw[1], dw[0], dw[2]
+    exx, eyy, ezz = du_dx, dv_dy, dw_dz
+    exy = 0.5 * (du_dy + dv_dx)
+    exz = 0.5 * (du_dz + dw_dx)
+    eyz = 0.5 * (dv_dz + dw_dy)
+    dmag = np.sqrt(exx ** 2 + eyy ** 2 + ezz ** 2
+                   + 2 * (exy ** 2 + exz ** 2 + eyz ** 2))
+    wx, wy, wz = dw_dy - dv_dz, du_dz - dw_dx, dv_dx - du_dy
+    vortmag = np.sqrt(wx ** 2 + wy ** 2 + wz ** 2)
+    q = np.full_like(vortmag, np.nan)
+    l2 = np.full_like(vortmag, np.nan)
+    flat = (du_dx, du_dy, du_dz, dv_dx, dv_dy, dv_dz, dw_dx, dw_dy, dw_dz)
+    for ix, iy, iz in np.argwhere(m):
+        Gu = np.array([[du_dx[ix, iy, iz], du_dy[ix, iy, iz], du_dz[ix, iy, iz]],
+                       [dv_dx[ix, iy, iz], dv_dy[ix, iy, iz], dv_dz[ix, iy, iz]],
+                       [dw_dx[ix, iy, iz], dw_dy[ix, iy, iz], dw_dz[ix, iy, iz]]])
+        if not np.all(np.isfinite(Gu)):
+            continue
+        Sm, Om = 0.5 * (Gu + Gu.T), 0.5 * (Gu - Gu.T)
+        q[ix, iy, iz] = 0.5 * (np.sum(Om ** 2) - np.sum(Sm ** 2))
+        l2[ix, iy, iz] = np.sort(np.real(np.linalg.eigvals(Sm @ Sm + Om @ Om)))[1]
+
+    vel = np.sqrt(u ** 2 + v ** 2 + w ** 2)
+    out = {
+        "vel": vel,
+        "mke": 0.5 * rho * (u ** 2 + v ** 2 + w ** 2),
+        "vss": 2 * mu * dmag,
+        "eps": 2 * mu * (exx ** 2 + eyy ** 2 + ezz ** 2
+                         + 2 * (exy ** 2 + exz ** 2 + eyz ** 2)),
+        "vortmag": vortmag,
+        "heli": u * wx + v * wy + w * wz,
+        "q": q,
+        "l2": l2,
+        "ens": 0.5 * vortmag ** 2,
+        "prt": (np.asarray(counts, dtype=float) * dt
+                if counts is not None else np.full_like(vortmag, np.nan)),
+        "u": u.copy(),
+        "v": v.copy(),
+        "w": w.copy(),
+    }
+    for key, arr in out.items():
+        arr[~m] = np.nan
+    out["g9"] = flat  # unmasked gradient tuple (for Q/L2 reuse)
+    return out
+
+
 ALL_DERIVED = ["MKE", "TKE", "VEL", "PRT", "VSS", "RSS", "ML", "TL",
                "ScalarShear", "H1", "H2", "H3", "H4"]
 
@@ -483,7 +654,7 @@ def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
                    gradient_convention: str = "matlab",
                    prt_mode: str = "velocity",
                    prt_dt: float = 1.0) -> xr.Dataset:
-    """Derived hemodynamic/turbulence fields, vectorized over ALL phases.
+    """Derived turbulence/flow fields, vectorized over ALL phases.
 
     Port of sample_vtkcode.py main() (which loops per time slice).
     ``gradient_convention="matlab"`` (default) preserves the legacy quirks
@@ -684,10 +855,10 @@ def export_vtk_rectilinear_series(ds: xr.Dataset, out_dir: Path,
     """Write one binary .vtr (XML RectilinearGrid) per phase plus a .pvd
     time-series collection, ParaView's native pattern for an axis-aligned grid.
 
-    Learned from newvtkcode.m: a rectilinear grid stores only the 1-D x/y/z
-    coordinate arrays (not a full 3-D point cloud like vtkStructuredGrid /
-    export_vtk above), and a .pvd Collection is what lets ParaView step
-    through phases as a time series instead of opening files one by one.
+    A rectilinear grid stores only the 1-D x/y/z coordinate arrays (not a
+    full 3-D point cloud like vtkStructuredGrid / export_vtk above), and a
+    .pvd Collection is what lets ParaView step through phases as a time
+    series instead of opening files one by one.
     Binary encoding here instead of the legacy ASCII per-point fprintf loop —
     same data, far smaller files, no behavior change.
 
@@ -765,14 +936,14 @@ def _write_pvd(pvd_path: Path, files: list, dt: float) -> None:
 
 
 CF_ATTRS = {
-    "u_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity x", "standard_name": "eastward_sea_water_velocity"},
-    "v_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity y", "standard_name": "northward_sea_water_velocity"},
-    "w_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity z", "standard_name": "upward_sea_water_velocity"},
+    "u_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity x"},
+    "v_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity y"},
+    "w_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity z"},
     "par_ave2": {"units": "1", "long_name": "samples per voxel per phase"},
     "valid": {"units": "1", "long_name": "voxel meets min_count threshold"},
-    "x": {"units": "m", "axis": "X", "standard_name": "projection_x_coordinate"},
-    "y": {"units": "m", "axis": "Y", "standard_name": "projection_y_coordinate"},
-    "z": {"units": "m", "axis": "Z", "standard_name": "height_above_mean_sea_level"},
+    "x": {"units": "m", "axis": "X"},
+    "y": {"units": "m", "axis": "Y"},
+    "z": {"units": "m", "axis": "Z"},
     "phase": {"units": "1", "axis": "T", "long_name": "phase index"},
     "MKE": {"units": "J m-3", "long_name": "mean kinetic energy"},
     "TKE": {"units": "J m-3", "long_name": "turbulent kinetic energy"},

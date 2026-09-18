@@ -9,7 +9,7 @@ def _(mo):
     mo.md(r"""
     # 🔄 Phase Averaging Across Misaligned Periodic-Flow Sets
 
-    Two acquisition sets of a periodic flow (cardiac/LV, aorta, piston, ...)
+    Two acquisition sets of a periodic flow (pulsatile pump, piston, ...)
     rarely start their cycle at the same frame. This notebook shows, step by
     step, the **existing** `flowtracks` machinery
     (`flowtracks.eulerian.shift_phase` + `flowtracks.phase_average.phase_average`)

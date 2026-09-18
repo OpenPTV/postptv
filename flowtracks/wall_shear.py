@@ -3,7 +3,7 @@
 General-purpose: works with any triangulated surface -- an explicit wall
 mesh you already have, or one extracted from an occupancy/indicator field
 with occupancy_isosurface() when no explicit mesh exists. TAWSS/OSI/RRT are
-standard hemodynamic wall-shear indices (time-averaged WSS, oscillatory
+standard wall-shear indices (time-averaged WSS, oscillatory
 shear index, relative residence time); nothing here is specific to any one
 dataset or organ.
 

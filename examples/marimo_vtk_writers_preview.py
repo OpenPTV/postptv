@@ -352,7 +352,7 @@ def _(active_block, np):
 def _(mo):
     mo.md(r"""
     Full 3D views of the same mesh -- a matplotlib 3D quiver (as in
-    `examples/marimo_aorta_flowtracks.py`'s `mpl_toolkits.mplot3d` convention)
+    `examples/marimo_flowtracks.py`'s `mpl_toolkits.mplot3d` convention)
     and a real off-screen pyvista render (velocity glyphs + a scalar slice),
     the same primitives ParaView itself would show:
     """)

@@ -1,8 +1,8 @@
 """Comprehensive correctness + performance tests for the eulerian upgrades.
 
-Covers the smart tricks borrowed from aortic-particle-pipeline (NaN+valid,
-QC gates, FD velocity, sliding windows, chunked accumulation) and from the
-openptv-analysis Matlab ports (upfront clean, fluidMask>100, PRT=counts*dt,
+Covers the vector-validation pipeline tricks (NaN+valid,
+QC gates, FD velocity, sliding windows, chunked accumulation) and the
+legacy MATLAB ports (upfront clean, fluidMask>100, PRT=counts*dt,
 gradient conventions). Performance tests use wall-clock budgets (not
 pytest-benchmark) so they run in the default suite.
 """

@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import vtk
 from vtk.util import numpy_support
 
-LV_DIR = Path(r"path/to/your/LV/dataset")
+DATA_DIR = Path(r"path/to/your/dataset")
 ARTIFACT_DIR = Path(r"path/to/your/scratch/dir")
 
 
@@ -20,7 +20,7 @@ def benchmark_readers() -> dict:
     results = {}
 
     # 1. NetCDF Load Time
-    nc_path = LV_DIR / "post_analysis.nc"
+    nc_path = DATA_DIR / "post_analysis.nc"
     t0 = time.perf_counter()
     with xr.open_dataset(nc_path) as ds_nc:
         ds_nc.load()
@@ -33,7 +33,7 @@ def benchmark_readers() -> dict:
     }
 
     # 2. Zarr Load Time
-    zarr_path = LV_DIR / "post_analysis.zarr"
+    zarr_path = DATA_DIR / "post_analysis.zarr"
     t0 = time.perf_counter()
     with xr.open_zarr(zarr_path) as ds_zarr:
         ds_zarr.load()
@@ -48,7 +48,7 @@ def benchmark_readers() -> dict:
     }
 
     # 3. VTK Load Time
-    vtk_path = LV_DIR / "vtk_output" / "phase_000.vtk"
+    vtk_path = DATA_DIR / "vtk_output" / "phase_000.vtk"
     t0 = time.perf_counter()
     reader = vtk.vtkStructuredGridReader()
     reader.SetFileName(str(vtk_path))
@@ -69,7 +69,7 @@ def benchmark_readers() -> dict:
 def create_visualizations(ds: xr.Dataset) -> None:
     """Generate Matplotlib static plots and Plotly interactive 3D visualizations."""
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
-    out_vis_dir = LV_DIR / "visualizations"
+    out_vis_dir = DATA_DIR / "visualizations"
     out_vis_dir.mkdir(parents=True, exist_ok=True)
 
     # Pick phase with peak velocity magnitude
@@ -81,7 +81,7 @@ def create_visualizations(ds: xr.Dataset) -> None:
 
     # --- 1. Matplotlib Static Figure (3D Quiver + Slice Heatmaps) ---
     fig = plt.figure(figsize=(16, 12), dpi=150)
-    fig.suptitle(f"3D-PTV Flow Field Analysis (LV Dataset, Peak Phase {peak_phase})", fontsize=16, fontweight="bold")
+    fig.suptitle(f"3D-PTV Flow Field Analysis (Peak Phase {peak_phase})", fontsize=16, fontweight="bold")
 
     X, Y, Z = np.meshgrid(snap.x.values * 1000, snap.y.values * 1000, snap.z.values * 1000, indexing="ij")
     U = snap["u_ins_mean"].values
@@ -149,7 +149,7 @@ def create_visualizations(ds: xr.Dataset) -> None:
     ax4_twin.set_ylabel("Mean TKE (J/m³)", color=color)
     ax4_twin.plot(phases, m_tke, color=color, marker="s", linestyle="--", linewidth=2, label="TKE")
     ax4_twin.tick_params(axis="y", labelcolor=color)
-    ax4.set_title("Domain-Averaged Speed & TKE over Cardiac Cycle", fontsize=12)
+    ax4.set_title("Domain-Averaged Speed & TKE over Cycle", fontsize=12)
     ax4.grid(True, alpha=0.3)
 
     plt.tight_layout()

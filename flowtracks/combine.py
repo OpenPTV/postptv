@@ -92,7 +92,7 @@ def run_combine(data_dir: str | Path = "."):
             'w_rms': w_rms,
         })
         
-        print("[postptv-combine] Computing hemodynamic derived fields (MKE, TKE, VEL)...")
+        print("[postptv-combine] Computing derived fields (MKE, TKE, VEL)...")
         derived = post_analysis_xr.derived_fields(avg, stats, fields=['MKE', 'TKE', 'VEL'])
         final_ds = xr.merge([avg, stats, derived])
 

@@ -1,5 +1,5 @@
 """Synthetic two-set periodic-flow scenario: does shift_phase + phase_average
-generalize to any periodic flow (cardiac/LV, aorta, piston, ...) where each
+generalize to any periodic flow (pulsatile pump, piston, ...) where each
 acquisition set's cycle happens to start at a different frame?
 
 Two 20-frame sets, uniform-direction flow whose magnitude rises and falls

@@ -28,10 +28,10 @@ def _():
 @app.cell
 def _(mo):
     mo.md("""
-    # Ilmenau Cylinder Rig — 3D Lagrangian Trajectories
+    # Dual-Rig Cylindrical Test Section — 3D Lagrangian Trajectories
     Two 4-camera rigs (cams 1-4 and cams 5-8) on opposite walls of a
-    7 m-diameter, 3.5 m-high cylindrical test section. Trajectories are
-    pooled from both `openptv_illmenau_4cam` and `openptv_illmenau_5678`
+    cylindrical test section. Trajectories are
+    pooled from both `rig_a` and `rig_b`
     result stores; only the longest tracks in the selected frame window
     are drawn, to keep the plot interactive.
     """)
@@ -40,20 +40,20 @@ def _(mo):
 
 @app.cell
 def _(Path):
-    base = Path(r"C:\Users\alex\Downloads\Illmenau")
+    base = Path(r"path/to/your/dataset")
     stores = [
-        base / "openptv_illmenau_4cam" / "res" / "run.zarr",
-        base / "openptv_illmenau_5678" / "res" / "run.zarr",
+        base / "rig_a" / "res" / "run.zarr",
+        base / "rig_b" / "res" / "run.zarr",
     ]
     ori_files = [
-        base / "openptv_illmenau_4cam" / "cal" / "cam1.tif.ori",
-        base / "openptv_illmenau_4cam" / "cal" / "cam2.tif.ori",
-        base / "openptv_illmenau_4cam" / "cal" / "cam3.tif.ori",
-        base / "openptv_illmenau_4cam" / "cal" / "cam4.tif.ori",
-        base / "openptv_illmenau_5678" / "cal" / "cam5.tif.ori",
-        base / "openptv_illmenau_5678" / "cal" / "cam6.tif.ori",
-        base / "openptv_illmenau_5678" / "cal" / "cam7.tif.ori",
-        base / "openptv_illmenau_5678" / "cal" / "cam8.tif.ori",
+        base / "rig_a" / "cal" / "cam1.tif.ori",
+        base / "rig_a" / "cal" / "cam2.tif.ori",
+        base / "rig_a" / "cal" / "cam3.tif.ori",
+        base / "rig_a" / "cal" / "cam4.tif.ori",
+        base / "rig_b" / "cal" / "cam5.tif.ori",
+        base / "rig_b" / "cal" / "cam6.tif.ori",
+        base / "rig_b" / "cal" / "cam7.tif.ori",
+        base / "rig_b" / "cal" / "cam8.tif.ori",
     ]
     # Cylinder test section: 7 m diameter, 3.5 m high, centered on X=Z=0,
     # base at Y=0 (matches the camera .ori heights, ~0.1-2.3 m off the floor).

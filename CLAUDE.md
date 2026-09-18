@@ -117,5 +117,5 @@ exists; several are aspirational, not built.
   harmless leftovers, not evidence the code needs to support Python 2.
 - `examples/` contains runnable scripts and marimo/Jupyter notebooks that
   exercise the pipeline end-to-end (`marimo_*`, `batch_Lagrangian_to_Eulerian.py`,
-  `run_lv_pipeline.py`) — useful as real usage references when a docstring is
+  `run_pipeline.py`) — useful as real usage references when a docstring is
   unclear.

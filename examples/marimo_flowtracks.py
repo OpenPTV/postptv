@@ -21,7 +21,7 @@ def _():
 @app.cell
 def _(mo):
     mo.md("""
-    # 🌊 Flowtracks Trajectory Post-Processing: Aorta PTV Dataset
+    # 🌊 Flowtracks Trajectory Post-Processing: Periodic-Flow PTV Dataset
     This interactive notebook loads 3D particle trajectories from OpenPTV output (`ptv_is.*` files)
     and performs:
     1. **Raw Trajectories Inspection**

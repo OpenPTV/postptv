@@ -104,7 +104,7 @@ def run_postptv_analysis(exp_root: Path):
             'w_rms': w_rms,
         })
         
-        print("[postptv] Computing hemodynamic derived fields (MKE, TKE, VEL)...")
+        print("[postptv] Computing derived fields (MKE, TKE, VEL)...")
         derived = post_analysis_xr.derived_fields(avg, stats, fields=['MKE', 'TKE', 'VEL'])
         final_ds = xr.merge([avg, stats, derived])
         

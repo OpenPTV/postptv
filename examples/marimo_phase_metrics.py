@@ -7,9 +7,9 @@ app = marimo.App(width="full")
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # 🩺 Phase-Resolved Region & Wall-Shear Metrics for Pulsatile Flow
+    # Phase-Resolved Region & Wall-Shear Metrics for Pulsatile Flow
 
-    A recipe for periodic (cardiac/piston/valve-driven) flow through a
+    A recipe for periodic (pump/piston-driven) flow through a
     constricted channel, on a synthetic dataset so it runs standalone:
 
     1. **Vortex identification** (`flowtracks.vortex.vortex_identification`) —
@@ -17,7 +17,7 @@ def _(mo):
        over the whole grid and every phase at once.
     2. **Named-region time series** (`flowtracks.eulerian.region_timeseries`) —
        mean/max of any scalar field inside any boolean region, per phase.
-       Works for a jet core vs. periphery, an anatomical subregion, or
+       Works for a jet core vs. periphery, a subregion, or
        anything else a mask can express.
     3. **Wall shear from an occupancy isosurface** (`flowtracks.wall_shear`) —
        when there's no explicit wall mesh, extract one from the valid-data

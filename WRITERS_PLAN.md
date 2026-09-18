@@ -9,7 +9,7 @@ none of which handle trajectories, and each written independently:
 |---|---|---|---|---|
 | `flowtracks/vtk_export.py` | legacy `.vtk` `vtkStructuredGrid` (one file, no series) | raw `vtk` | no | Standalone script, port of `sample_vtkcode.py`. Not imported elsewhere. |
 | `flowtracks/eulerian.py: export_vtk` | legacy `.vtk` `vtkStructuredGrid`, one file per phase | raw `vtk` + `vtk.util.numpy_support` | no | Called from `eulerian.run()` when a recipe has a `vtk:` section. |
-| `flowtracks/eulerian.py: export_vtk_rectilinear_series` + `_write_pvd` | XML `.vtr` + `.pvd` | raw `vtk` (`vtkXMLRectilinearGridWriter`) | yes | The "learned from `newvtkcode.m`" fix — correct format choice, wrong library (manual `vtk.util.numpy_support` marshalling instead of pyvista). |
+| `flowtracks/eulerian.py: export_vtk_rectilinear_series` + `_write_pvd` | XML `.vtr` + `.pvd` | raw `vtk` (`vtkXMLRectilinearGridWriter`) | yes | The legacy-script fix — correct format choice, wrong library (manual `vtk.util.numpy_support` marshalling instead of pyvista). |
 
 Outside this repo, the same problem was solved a **third and fourth** time,
 independently: `matlab_to_python_3dptv/post_analysis_xr.export_vtk` (legacy
@@ -125,7 +125,7 @@ carries over conceptually.
   PyPI 1.1.1, predating `writers.py`) and `pyvista` in the `gui` extra.
 - `openptv-analysis/src/phase_align_pipeline.py` repointed at
   `write_eulerian_series`, replacing its `export_vtk_rectilinear_series`
-  import; ran end-to-end against the real TT13PRE data
+  import; ran end-to-end against reference experimental data
   (`outputs/020_combined_phase_VTR/`), confirmed `.vti` output (uniform grid)
   readable by pyvista. `pyproject.toml` gained a direct `pyvista` dependency.
 - Full `postptv` test suite: 143 passed (2 pre-existing filename/format

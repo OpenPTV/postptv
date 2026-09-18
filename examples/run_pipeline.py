@@ -1,6 +1,6 @@
-"""Full 3D-PTV Post-Processing Pipeline Execution Script for LV Dataset.
+"""Full 3D-PTV Post-Processing Pipeline Execution Script for a periodic-flow dataset.
 
-Loads wp4/trajectories.h5 and wp5/trajectories.h5 directly, performs in-memory
+Loads per-set trajectories.h5 files directly, performs in-memory
 Eulerian grid binning, phase-averaging, turbulent statistics calculation,
 attaches CF metadata for ParaView, and exports Zarr, NetCDF, and binary VTK files.
 """
@@ -25,7 +25,7 @@ from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_datase
 def setup_logging(log_file: Path) -> logging.Logger:
     """Configure detailed console and file logger."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("LV_Pipeline")
+    logger = logging.getLogger("PostPTV_Pipeline")
     logger.setLevel(logging.DEBUG)
     
     # Formatter
@@ -48,21 +48,21 @@ def setup_logging(log_file: Path) -> logging.Logger:
     return logger
 
 
-def run_pipeline(lv_dir: Path) -> None:
-    log_file = lv_dir / "logs" / "post_processing_lv.log"
+def run_pipeline(data_dir: Path) -> None:
+    log_file = data_dir / "logs" / "post_processing.log"
     logger = setup_logging(log_file)
 
     logger.info("=" * 70)
     logger.info("Starting Full 3D-PTV Post-Processing Pipeline")
-    logger.info(f"Target Directory: {lv_dir}")
+    logger.info(f"Target Directory: {data_dir}")
     logger.info("=" * 70)
 
     t0_total = time.perf_counter()
 
     # 1. Load Configurations
-    config_file = lv_dir / "config.yaml"
-    grid_file = lv_dir / "grid.yaml"
-    recipe_file = lv_dir / "post_recipe.yaml"
+    config_file = data_dir / "config.yaml"
+    grid_file = data_dir / "grid.yaml"
+    recipe_file = data_dir / "post_recipe.yaml"
 
     logger.info("Reading configuration files...")
     with open(config_file) as f:
@@ -77,14 +77,17 @@ def run_pipeline(lv_dir: Path) -> None:
     logger.debug(f"Recipe: {recipe}")
 
     set_names = config["set_names"]
-    cycletime = float(np.ceil((60 / config["hb"]) * config["frate"]))
-    logger.info(f"Frame Rate: {config['frate']} Hz | Heart Rate: {config['hb']} bpm")
+    # Cycle frequency: prefer generic `cycle_rate` (cycles/min), fall back to
+    # legacy `hb` key for existing configs.
+    cycle_rate = config.get("cycle_rate", config.get("hb"))
+    cycletime = float(np.ceil((60 / cycle_rate) * config["frate"]))
+    logger.info(f"Frame Rate: {config['frate']} Hz | Cycle Rate: {cycle_rate} cycles/min")
     logger.info(f"Calculated Cycle Time: {cycletime:.1f} frames per cycle")
 
     # 2. Eulerian Grid Binning per Set (In Memory)
     ds_sets = {}
     for set_name in set_names:
-        traj_h5 = lv_dir / set_name / "trajectories.h5"
+        traj_h5 = data_dir / set_name / "trajectories.h5"
         if not traj_h5.exists():
             raise FileNotFoundError(f"Trajectory file not found: {traj_h5}")
 
@@ -151,7 +154,7 @@ def run_pipeline(lv_dir: Path) -> None:
     logger.info("Saving Deliverables...")
 
     # Zarr Output
-    zarr_out = lv_dir / "post_analysis.zarr"
+    zarr_out = data_dir / "post_analysis.zarr"
     logger.info(f"Writing Cloud-Native Zarr Store: {zarr_out}")
     t0_zarr = time.perf_counter()
     save_dataset(out_ds, zarr_out)
@@ -159,7 +162,7 @@ def run_pipeline(lv_dir: Path) -> None:
     logger.info(f"Zarr Store Saved in {t_zarr:.2f} seconds.")
 
     # NetCDF Output
-    nc_out = lv_dir / "post_analysis.nc"
+    nc_out = data_dir / "post_analysis.nc"
     logger.info(f"Writing CF-1.8 NetCDF File: {nc_out}")
     t0_nc = time.perf_counter()
     save_dataset(out_ds, nc_out)
@@ -167,7 +170,7 @@ def run_pipeline(lv_dir: Path) -> None:
     logger.info(f"NetCDF File Saved in {t_nc:.2f} seconds ({nc_out.stat().st_size / (1024*1024):.2f} MB).")
 
     # VTK Output
-    vtk_dir = lv_dir / recipe.get("vtk", {}).get("dir", "vtk_output")
+    vtk_dir = data_dir / recipe.get("vtk", {}).get("dir", "vtk_output")
     prefix = recipe.get("vtk", {}).get("prefix", "phase")
     logger.info(f"Exporting Binary Structured VTK Files to: {vtk_dir}")
     t0_vtk = time.perf_counter()
@@ -183,5 +186,5 @@ def run_pipeline(lv_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    target_dir = Path(r"path/to/your/LV/dataset")
+    target_dir = Path(r"path/to/your/dataset")
     run_pipeline(target_dir)

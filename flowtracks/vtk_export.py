@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Python translation of Sample_vtkcode.m
-- Loads masked_fluct__exp6.mat and phaseaver_exp6.mat
+Python translation of a legacy MATLAB VTK export script.
+- Loads masked fluctuation and phase-averaged .mat files
 - Performs time shifting, calculates MKE, TKE, VSS, RSS, Mean Loss, Scalar Shear, TurbLoss, etc.
 - Handles NaNs as in Matlab
 - Writes VTK files using vtk package
@@ -152,7 +152,7 @@ def main():
                             ('RSS', 'RSS'), ('ML', 'ML'), ('TL', 'TL')]:
             fields[short] = (np.nan_to_num(d[name].values).flatten(), 'scalar')
 
-        name_root = f'Exp6_hemodynamics_t{time_id+1}.vtk'
+        name_root = f'phase_t{time_id+1}.vtk'
         write_structured_grid_vtk(full_vtk_path / name_root, x3, y3, z3, fields)
 
 

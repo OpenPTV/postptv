@@ -11,7 +11,7 @@ def _(mo):
 
     Interactive **Marimo** dashboard for exploring 3D Particle Tracking Velocimetry post-processing results.
     Compare **NetCDF (.nc)**, **Zarr (.zarr)**, and **VTK (.vtk)** outputs, inspect 3D vector fields,
-    multi-plane orthogonal slices, turbulent fields (TKE, VSS, Helicity), and cardiac phase animation.
+    multi-plane orthogonal slices, turbulent fields (TKE, VSS, Helicity), and phase animation.
     """)
     return
 
@@ -34,10 +34,10 @@ def _():
 def _(Path, mo):
     preset_picker = mo.ui.dropdown(
         options={
-            "LV Dataset (Real Experiment)": r"path/to/your/LV/dataset",
+            "Periodic-flow Dataset (Real Experiment)": r"path/to/your/dataset",
             "PTV Output Sample (Repo Test Data)": str((Path(__file__).parent.parent / "ptv_output").resolve()),
         },
-        value="LV Dataset (Real Experiment)",
+        value="Periodic-flow Dataset (Real Experiment)",
         label="📁 Quick Folder Presets",
     )
     preset_picker
@@ -107,8 +107,8 @@ def _(ds, mo):
                 "1. 🚀 3D Flow Field Cones",
                 "2. 🔲 Multi-Plane Orthogonal Slices (XY, XZ, YZ)",
                 "3. 🌀 Turbulent Field Comparison (TKE, MKE, VSS, Helicity)",
-                "4. 📈 Cardiac Phase Time-Series Explorer",
-                "5. 🔀 3D Lagrangian Trajectory Inspector (wp4 / wp5)",
+                "4. 📈 Phase Time-Series Explorer",
+                "5. 🔀 3D Lagrangian Trajectory Inspector",
                 "6. 📊 Format & Data Schema Inspector",
             ],
             value="1. 🚀 3D Flow Field Cones",
@@ -254,11 +254,11 @@ def _(
             fig_out.add_trace(go.Scatter(x=phases, y=mean_val, mode="lines+markers", name=f"Mean {v_name}", line=dict(width=3, color="royalblue")))
             fig_out.add_trace(go.Scatter(x=phases, y=max_val, mode="lines+markers", name=f"Max {v_name}", line=dict(width=2, color="crimson", dash="dash")))
             fig_out.add_vline(x=p_idx, line_dash="dash", line_color="orange", annotation_text=f"Phase {p_idx}")
-            fig_out.update_layout(title=f"Cardiac Cycle Evolution: {v_name}", xaxis_title="Phase Bin", yaxis_title=v_name, width=900, height=450)
+            fig_out.update_layout(title=f"Phase Evolution: {v_name}", xaxis_title="Phase Bin", yaxis_title=v_name, width=900, height=450)
 
         elif "5." in mode_val:
             from flowtracks.io import Scene
-            set_pick = "wp4" if (target_dir / "wp4" / "trajectories.h5").exists() else "wp1"
+            set_pick = "set_a" if (target_dir / "set_a" / "trajectories.h5").exists() else "set1"
             h5_p = target_dir / set_pick / "trajectories.h5"
             if not h5_p.exists():
                 h5_p = target_dir / f"{set_pick}_traj4.h5"
