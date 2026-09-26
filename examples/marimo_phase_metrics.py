@@ -36,16 +36,19 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-    import numpy as np
     import matplotlib.pyplot as plt
-
-    from flowtracks.vortex import vortex_identification
-    from flowtracks.eulerian import region_timeseries
-    from flowtracks.wall_shear import (
-        occupancy_isosurface, vertex_normals, near_wall_shear_stress,
-        tawss_osi_rrt, running_tawss_osi_rrt,
-    )
+    import numpy as np
     import xarray as xr
+
+    from flowtracks.eulerian import region_timeseries
+    from flowtracks.vortex import vortex_identification
+    from flowtracks.wall_shear import (
+        near_wall_shear_stress,
+        occupancy_isosurface,
+        running_tawss_osi_rrt,
+        tawss_osi_rrt,
+        vertex_normals,
+    )
 
     return (
         mo, np, plt, vortex_identification, region_timeseries,

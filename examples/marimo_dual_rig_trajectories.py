@@ -16,11 +16,12 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
+    from pathlib import Path
+
     import marimo as mo
     import numpy as np
-    import zarr
     import plotly.graph_objects as go
-    from pathlib import Path
+    import zarr
 
     return Path, go, mo, np, zarr
 

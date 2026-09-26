@@ -1,14 +1,15 @@
 import sys
 from pathlib import Path
-import numpy as np
+
 import h5py
-import yaml
+import numpy as np
 import pytest
+import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from helpers import write_grid_h5
-from flowtracks import eulerian as ts
 
+from flowtracks import eulerian as ts
 
 GRID = {
     'stepx': 3, 'stepy': 3, 'stepz': 2,

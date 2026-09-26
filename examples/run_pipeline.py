@@ -6,10 +6,11 @@ attaches CF metadata for ParaView, and exports Zarr, NetCDF, and a ParaView
 series (.vti/.vtr + .pvd).
 """
 
+import logging
 import sys
 import time
-import logging
 from pathlib import Path
+
 import numpy as np
 import xarray as xr
 import yaml
@@ -19,8 +20,8 @@ src_dir = Path(__file__).parent
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-from flowtracks.io import Scene
 from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset
+from flowtracks.io import Scene
 from flowtracks.writers import write_eulerian_series
 
 
@@ -29,7 +30,7 @@ def setup_logging(log_file: Path) -> logging.Logger:
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("PostPTV_Pipeline")
     logger.setLevel(logging.DEBUG)
-    
+
     # Formatter
     formatter = logging.Formatter(
         "[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -134,7 +135,7 @@ def run_pipeline(data_dir: Path) -> None:
     logger.info("=" * 70)
     logger.info("Running Central Phase-Averaging & Turbulent Statistics...")
     t0_post = time.perf_counter()
-    
+
     out_ds = run_post_analysis_ds(ds_sets, recipe)
     t_post = time.perf_counter() - t0_post
     logger.info(f"Central Post-Analysis Completed in {t_post:.2f} seconds.")

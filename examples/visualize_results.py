@@ -4,11 +4,12 @@
 import sys
 import time
 from pathlib import Path
-import numpy as np
-import xarray as xr
+
 import matplotlib.pyplot as plt
+import numpy as np
 import plotly.graph_objects as go
 import vtk
+import xarray as xr
 from vtk.util import numpy_support
 
 DATA_DIR = Path(r"path/to/your/dataset")
@@ -137,7 +138,7 @@ def create_visualizations(ds: xr.Dataset) -> None:
     phases = ds.phase.values
     m_vel = vel_mag.mean(("x", "y", "z")).values
     m_tke = ds["TKE"].mean(("x", "y", "z")).values
-    
+
     color = "tab:blue"
     ax4.set_xlabel("Flow Phase")
     ax4.set_ylabel("Mean Speed (m/s)", color=color)

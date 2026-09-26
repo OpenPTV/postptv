@@ -1,6 +1,9 @@
 import unittest
+
 import numpy as np
+
 from flowtracks import interpolation
+
 
 class TestIDWCall(unittest.TestCase):
     def setUp(self):

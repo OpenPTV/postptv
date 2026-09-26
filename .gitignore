@@ -1,5 +1,7 @@
 *.pyc
 .spyder*
+# Ad-hoc local scripts and the figures they dump (never library output).
+scratch*
 build/*
 MANIFEST
 dist/*

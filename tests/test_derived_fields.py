@@ -9,13 +9,13 @@ import pytest
 import xarray as xr
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from flowtracks.phase_average import phase_average
 from flowtracks.eulerian import (
     VEL_VARS,
     apply_masks,
     derived_fields,
     save_netcdf,
 )
+from flowtracks.phase_average import phase_average
 from flowtracks.writers import write_eulerian_series
 
 RHO, MU = 1000.0, 0.001
@@ -85,7 +85,7 @@ def test_unknown_derived_field_rejected():
 
 
 def _grid_ds(u, counts):
-    shape = np.shape(u)
+    np.shape(u)
     return xr.Dataset(
         {**{v: (DIMS4, np.asarray(u, dtype=float)) for v in VEL_VARS},
          "par_ave2": (DIMS4, np.asarray(counts))})

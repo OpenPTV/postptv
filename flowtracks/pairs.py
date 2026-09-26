@@ -7,7 +7,9 @@ Pair particles to closest tracers.
 
 import numpy as np
 from scipy.spatial import cKDTree
-from .trajectory import trajectories_in_frame, take_snapshot
+
+from .trajectory import take_snapshot, trajectories_in_frame
+
 
 def particle_pairs(primary_trajects, secondary_trajects, trajids, time_points):
     """
@@ -19,14 +21,14 @@ def particle_pairs(primary_trajects, secondary_trajects, trajids, time_points):
         source points.
     secondary_trajects - a list of Trajectory objects, in which to look for the
         pair points.
-    trajid, time_points - each an n-length array for n pairs to produce, 
+    trajid, time_points - each an n-length array for n pairs to produce,
         holding correspondingly the trajectory id and index into the trajectory
         of the points in the primary set to which a pair is sought.
 
     Returns:
     pair_trid, pair_time - coordinates of the found pairs, element i describes
-        the pair of particle i in (trajid, time_points). Format is the same as 
-        that of ``trajid``, ``time_points``. For particles without a match, 
+        the pair of particle i in (trajid, time_points). Format is the same as
+        that of ``trajid``, ``time_points``. For particles without a match,
         returns -1 as the pair_time value.
     """
     # Output buffers:

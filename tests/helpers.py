@@ -1,8 +1,9 @@
 """Shared helpers for pipeline tests: synthetic HDF5 builders and a fake Scene."""
 import sys
 from pathlib import Path
-import numpy as np
+
 import h5py
+import numpy as np
 
 SRC_DIR = Path(__file__).parent.parent / 'src'
 sys.path.insert(0, str(SRC_DIR))

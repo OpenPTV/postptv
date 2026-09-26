@@ -16,18 +16,26 @@ The rest of the content of this module is composed of readers and writers for
 the various formats. They are documented here alongside the main entry points,
 so that users may access them directly if needed.
 """
-import os, os.path, re, itertools as itr
+import itertools as itr
+import os
+import os.path
+import re
 from configparser import ConfigParser
 from io import StringIO
 
 import numpy as np
-from scipy import io
 import tables
+from scipy import io
 
-from .scene import Scene
 from .particle import Particle
-from .trajectory import Trajectory, mark_unique_rows, \
-    Frame, take_snapshot, trajectories_in_frame
+from .scene import Scene
+from .trajectory import (
+    Frame,
+    Trajectory,
+    mark_unique_rows,
+    take_snapshot,
+    trajectories_in_frame,
+)
 
 
 class FramesIterator(object):

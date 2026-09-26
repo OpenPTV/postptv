@@ -14,7 +14,6 @@ Features:
 import numpy as np
 import xarray as xr
 from scipy.interpolate import UnivariateSpline
-import zarr
 
 # ---------------------------------------------------------------------
 # 1. Example: Ragged array encoding for variable-length trajectories

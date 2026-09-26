@@ -31,6 +31,10 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    - name: Lint (ruff)
+      run: |
+        python -m pip install ruff
+        ruff check .
 
 # NOTE: this workflow never publishes. The single deploy path is
 # python-publish.yml (release-event). Keeping publishing here as well

@@ -29,8 +29,8 @@ def _(mo):
 @app.cell
 def _():
     import marimo as mo
-    import numpy as np
     import matplotlib.pyplot as plt
+    import numpy as np
     import xarray as xr
 
     from flowtracks.eulerian import shift_phase

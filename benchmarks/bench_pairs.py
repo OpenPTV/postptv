@@ -8,8 +8,9 @@ Run with::
 
 import numpy as np
 import pytest
-from flowtracks.trajectory import Trajectory
+
 from flowtracks import pairs
+from flowtracks.trajectory import Trajectory
 
 
 def _make(n_traj, frames, rng):

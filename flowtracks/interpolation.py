@@ -17,10 +17,11 @@ Interpolation routines.
 .. rubric:: Documentation
 """
 
-import numpy as np
 import warnings
-from scipy.spatial import cKDTree
 from configparser import ConfigParser
+
+import numpy as np
+from scipy.spatial import cKDTree
 
 
 def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
@@ -50,7 +51,7 @@ def select_neighbs(tracer_pos, interp_points, radius=None, num_neighbs=None,
         neighbour of interpolation point :math:`i=1...m`.
     """
     n = tracer_pos.shape[0]
-    m = interp_points.shape[0]
+    interp_points.shape[0]
 
     # --- Path selection ---
     # KD-tree path: only when num_neighbs is given, no radius, and n is large
@@ -845,23 +846,23 @@ class InverseDistanceWeighter(GeneralInterpolant):
         m, n = dists.shape
         if data.ndim == 1:
             data = data[:, None]
-            
+
         exact_match = (dists == 0)
         has_exact = exact_match.any(axis=1)
         vel_interp = np.zeros((m, data.shape[1]), dtype=data.dtype)
         weights = self.weights(dists, use_parts)
-        
+
         sum_weights = weights.sum(axis=1)
         valid = (sum_weights != 0) & (~has_exact)
-        
+
         if valid.any():
             vel_interp[valid] = (weights[valid] @ data) / sum_weights[valid, None]
-            
+
         if has_exact.any():
             row_idx = np.where(has_exact)[0]
             col_idx = np.argmax(exact_match[has_exact], axis=1)
             vel_interp[row_idx] = data[col_idx]
-            
+
         # Always return a 2D array (m, d) even for single-point or 1D data
         if vel_interp.ndim == 1:
             vel_interp = vel_interp[:, None]

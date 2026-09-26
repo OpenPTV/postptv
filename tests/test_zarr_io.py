@@ -1,9 +1,15 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 import zarr
-from pathlib import Path
 
-from flowtracks.io import read_zarr_trajectories, save_zarr_trajectories, trajectories, infer_format
+from flowtracks.io import (
+    infer_format,
+    read_zarr_trajectories,
+    save_zarr_trajectories,
+    trajectories,
+)
 from flowtracks.trajectory import Trajectory
 
 

@@ -41,8 +41,8 @@ def _():
     import pyvista as pv
     import xarray as xr
 
-    from flowtracks.zarr_scene import ZarrScene
     from flowtracks.writers import write_eulerian_series, write_trajectories_vtp
+    from flowtracks.zarr_scene import ZarrScene
 
     return (
         Path,
@@ -361,9 +361,9 @@ def _(mo):
 
 @app.cell
 def _(active_block, np):
-    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registers 3d projection)
-    import matplotlib.pyplot as plt3d
     import matplotlib.cm as cm
+    import matplotlib.pyplot as plt3d
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  (registers 3d projection)
 
     pts = active_block.points
     vel = active_block.point_data["velocity"]

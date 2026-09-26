@@ -9,12 +9,13 @@ Usage:
 
 import sys
 from pathlib import Path
+
 import numpy as np
 import xarray as xr
 
 from flowtracks import eulerian as post_analysis_xr
-from flowtracks.phase_average import phase_average, fluctuations
 from flowtracks.io import Scene
+from flowtracks.phase_average import fluctuations, phase_average
 from flowtracks.writers import write_eulerian_series
 
 
@@ -22,11 +23,11 @@ def run_combine(data_dir: str | Path = "."):
     data_path = Path(data_dir)
     res_dir = data_path / "res"
     vtk_dir = data_path / "vtk_output"
-    
+
     # Locate all run.zarr directories or trajectories.h5 files
     all_zarr = list(data_path.rglob("run.zarr")) + list(data_path.rglob("*.zarr"))
     all_h5 = list(data_path.rglob("trajectories.h5"))
-    
+
     all_datasets = sorted(all_zarr + all_h5, key=lambda x: len(x.parts))
     if not all_datasets:
         print(f"[postptv-combine] No Zarr or trajectories.h5 datasets found in {data_path}, skipping stage.")
@@ -70,17 +71,17 @@ def run_combine(data_dir: str | Path = "."):
     else:
         print(f"[postptv-combine] Stacking realizations along 'set' dimension: {set_names}")
         combined = xr.concat(list(ds_sets.values()), dim=xr.DataArray(set_names, dims="set", name="set"))
-        
+
         print("[postptv-combine] Computing ensemble phase-averaging across realizations...")
         avg = phase_average(combined, weights=combined["par_ave2"])
-        
+
         print("[postptv-combine] Computing turbulent fluctuations and statistics...")
         fl = fluctuations(combined, avg)
-        
+
         u_rms = np.sqrt((fl["u_ins_mean"]**2).mean("set"))
         v_rms = np.sqrt((fl["v_ins_mean"]**2).mean("set"))
         w_rms = np.sqrt((fl["w_ins_mean"]**2).mean("set"))
-        
+
         stats = xr.Dataset({
             'u_ins_u_ins': (fl['u_ins_mean']**2).mean('set'),
             'v_ins_v_ins': (fl['v_ins_mean']**2).mean('set'),
@@ -92,7 +93,7 @@ def run_combine(data_dir: str | Path = "."):
             'v_rms': v_rms,
             'w_rms': w_rms,
         })
-        
+
         print("[postptv-combine] Computing derived fields (MKE, TKE, VEL)...")
         derived = post_analysis_xr.derived_fields(avg, stats, fields=['MKE', 'TKE', 'VEL'])
         final_ds = xr.merge([avg, stats, derived])

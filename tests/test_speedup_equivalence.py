@@ -7,19 +7,25 @@ Equivalence tests ensuring performance optimizations and vectorizations in:
 produce identical numerical results without introducing regressions or edge-case bugs.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
+import zarr
+
 from flowtracks.interpolation import (
     Interpolant,
-    rbf_interp,
     _select_neighbs_dense,
+    rbf_interp,
     select_neighbs,
 )
+from flowtracks.io import (
+    iter_trajectories_ptvis,
+    read_zarr_trajectories,
+    save_zarr_trajectories,
+)
 from flowtracks.trajectory import Trajectory
-from flowtracks.io import save_zarr_trajectories, read_zarr_trajectories, iter_trajectories_ptvis
 from flowtracks.zarr_scene import ZarrScene
-import zarr
 
 
 def test_rbf_fast_path_exact_equivalence():

@@ -3,9 +3,11 @@ Tests for flowtracks.stitching.stitch_trajectories.
 """
 
 import unittest
+
 import numpy as np
-from flowtracks.trajectory import Trajectory
+
 from flowtracks import stitching
+from flowtracks.trajectory import Trajectory
 
 
 class TestTrajectoryStitching(unittest.TestCase):
@@ -86,7 +88,7 @@ class TestFastStitching(unittest.TestCase):
         fps = 10.0
         tr1 = self._segment(101, 0, 5, [2.0, 0.0, 0.0], fps)
         tr2 = self._segment(102, 7, 12, [2.0, 0.0, 0.0], fps)
-        ref = stitching.stitch_trajectories([tr1, tr2], fps=fps, max_gap=3, max_distance=1.0)
+        stitching.stitch_trajectories([tr1, tr2], fps=fps, max_gap=3, max_distance=1.0)
         fast = stitching.stitch_trajectories_fast([tr1, tr2], fps=fps, max_gap=3, max_distance=1.0)
         self.assertEqual(len(fast), 1)
         np.testing.assert_array_equal(fast[0].time(), np.arange(12))
@@ -151,7 +153,6 @@ class TestFastStitching(unittest.TestCase):
 
     def test_fast_rejects_large_gap_and_distance(self):
         """Criteria behave exactly as documented for the reference."""
-        fps = 1.0
         far = Trajectory(np.ones((5, 3)) * 100.0, np.zeros((5, 3)), np.arange(5.0), 2)
         near_gap = Trajectory(np.zeros((5, 3)), np.zeros((5, 3)), np.arange(15, 20.0), 3)
         base = Trajectory(np.zeros((5, 3)), np.zeros((5, 3)), np.arange(5.0), 1)

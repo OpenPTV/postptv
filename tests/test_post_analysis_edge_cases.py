@@ -9,15 +9,16 @@ import pytest
 import xarray as xr
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from flowtracks.phase_average import fluctuations, open_sets, phase_average
+from test_phase_average_xr import VARS, _write_grid
+
 from flowtracks.eulerian import (
     derived_fields,
     eulerian_grid,
     shift_phase,
     turbulent_statistics,
 )
+from flowtracks.phase_average import fluctuations, open_sets, phase_average
 from flowtracks.writers import write_eulerian_series
-from test_phase_average_xr import VARS, _write_grid
 
 GRID_1x1 = {"stepx": 1, "stepy": 1, "stepz": 1,
             "min_x": 0, "max_x": 1, "min_y": 0, "max_y": 1,

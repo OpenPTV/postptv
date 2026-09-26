@@ -10,10 +10,11 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
     from mpl_toolkits.mplot3d import Axes3D
+
     import flowtracks
     import flowtracks.io
-    from flowtracks.stitching import stitch_trajectories
     from flowtracks.smoothing import savitzky_golay
+    from flowtracks.stitching import stitch_trajectories
 
     return flowtracks, mo, np, plt, savitzky_golay, stitch_trajectories
 

@@ -4,6 +4,7 @@ Trajectory stitching routines for reconnecting broken trajectory segments.
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+
 from flowtracks.trajectory import Trajectory
 
 

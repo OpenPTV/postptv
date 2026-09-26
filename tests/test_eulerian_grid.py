@@ -1,13 +1,14 @@
 import sys
 from pathlib import Path
-import numpy as np
+
 import h5py
+import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from helpers import FakeScene
-from flowtracks import eulerian as lag
 
+from flowtracks import eulerian as lag
 
 GRID = {
     'stepx': 2, 'stepy': 2, 'stepz': 2,

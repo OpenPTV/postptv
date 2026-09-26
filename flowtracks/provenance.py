@@ -13,7 +13,6 @@ identical to a real run until someone opened it.
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
 
 
 def record_run(zarr_path, stage: str, **info) -> dict:

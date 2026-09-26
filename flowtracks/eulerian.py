@@ -406,7 +406,7 @@ def find_phase_shift(ds: xr.Dataset, reference_phase: int = 0,
     combining.
     """
     curve = phase_metric_curve(ds, var_names, rho)
-    n = curve.sizes["phase"]
+    curve.sizes["phase"]
     peak = int(curve.argmax("phase"))
     return reference_phase - peak
 
@@ -925,8 +925,9 @@ def shift_fields(h5_path, dataset_names, shift, attr="shift"):
     it is left untouched, so calling this more than once in the same pipeline
     never shifts the data twice.
     """
-    import h5py
     import warnings
+
+    import h5py
 
     if shift == 0:
         return

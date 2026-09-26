@@ -27,9 +27,9 @@ def ptv_is_to_lagrangian(set_name, config, base='.'):
 
 # --- Step 2: Lagrangian to Eulerian Grid (per set, distributed) ---
 def lagrangian_to_eulerian(set_name, config, grid_params, base='.'):
-    from flowtracks.io import Scene
-
     from batch_Lagrangian_to_Eulerian import eulerian_grid
+
+    from flowtracks.io import Scene
     full_h5_path = Path(base) / config['data_path'] / config['h5_path']
     h5file = full_h5_path / f"{set_name}_traj{config['traj_min_length']}.h5"
     gridfile = full_h5_path / f"{set_name}_grid.h5"
@@ -78,8 +78,8 @@ def streamlined_pipeline(config_path="config.yaml", grid_path="grid.yaml", recip
     4. Save final output as NetCDF or Zarr with rich CF metadata for ParaView, and
        optionally export binary VTK files.
     """
-    from flowtracks.io import Scene
     from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset
+    from flowtracks.io import Scene
     from flowtracks.writers import write_eulerian_series
 
     base_path = Path(base)

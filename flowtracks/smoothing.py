@@ -4,8 +4,10 @@ Trajectory object because they precompute values that are dependent only on the
 smoothing method, and not on the trajectory itself, so they may be shared for
 processing a whole list of trajectories.
 """
-from flowtracks.trajectory import Trajectory
 import numpy as np
+
+from flowtracks.trajectory import Trajectory
+
 
 def savitzky_golay(trajs, fps, window_size, order):
     r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.

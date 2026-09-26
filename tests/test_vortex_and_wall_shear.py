@@ -5,8 +5,11 @@ import pytest
 
 from flowtracks.vortex import vortex_identification
 from flowtracks.wall_shear import (
-    near_wall_shear_stress, occupancy_isosurface, running_tawss_osi_rrt,
-    tawss_osi_rrt, vertex_normals,
+    near_wall_shear_stress,
+    occupancy_isosurface,
+    running_tawss_osi_rrt,
+    tawss_osi_rrt,
+    vertex_normals,
 )
 
 
@@ -26,7 +29,7 @@ def test_vortex_identification_solid_body_rotation():
 
 
 def test_occupancy_isosurface_sphere_and_vertex_normals():
-    vtk = pytest.importorskip("vtk")
+    pytest.importorskip("vtk")
     n = 12
     x = y = z = np.linspace(-1, 1, n)
     xx, yy, zz = np.meshgrid(x, y, z, indexing="ij")

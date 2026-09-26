@@ -19,13 +19,14 @@ def _(mo):
 @app.cell
 def _():
     from pathlib import Path
+
     import marimo as mo
     import numpy as np
     import plotly.express as px
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-    import xarray as xr
     import vtk
+    import xarray as xr
+    from plotly.subplots import make_subplots
 
     return Path, mo, np, px, go, make_subplots, vtk, xr
 

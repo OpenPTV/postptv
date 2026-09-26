@@ -57,3 +57,37 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# Same lint gate as the sibling repos (openptv2, openptv-cloud), so one
+# `ruff check` means the same thing across the stack.
+target-version = "py312"
+line-length = 88
+# Notebooks are flat cell sequences: ruff sees one module and reports
+# undefined names and import order that do not exist at runtime. Same for
+# marimo notebooks, where a cell variable (e.g. `target_dir`) is defined
+# and returned by another cell.
+extend-exclude = ["*.ipynb", "examples/marimo_*.py", "examples/visualize_marimo.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+# E501: line length is not enforced in this codebase; leaving it on kept
+# `ruff check` permanently red and therefore useless as a gate.
+# E701: `if cond: return` one-liners are the deliberate compact style of the
+# legacy readers (flowtracks/io.py, scene.py).
+# E741: `l`, `I` mirror matrix names in the C/Python originals.
+ignore = ["E501", "E701", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# src/ stays strict. These carve-outs are for trees that are not shipped.
+# E402: imports after a sys.path tweak. F401: availability probes
+# (`import tables` inside try/except) and notebook helpers.
+# F841: values bound for readability in exploratory/demo code.
+"examples/**" = ["E402", "F401", "F841", "B018"]
+"scripts/**" = ["E402", "F401", "F841"]
+"benchmarks/**" = ["E402", "F401", "F841"]
+"doc/**" = ["E402", "F401"]
+"bump_version.py" = ["E402", "F401", "F841"]
+# F401: test modules import names to prove they are importable / to be
+# used by other tests via `from test_x import ...`.
+"tests/**" = ["E402", "F401"]

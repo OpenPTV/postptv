@@ -7,6 +7,8 @@ import xarray as xr
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from test_phase_average_xr import VARS, _write_grid
+
 from flowtracks.eulerian import (
     derived_fields,
     eulerian_grid,
@@ -14,7 +16,6 @@ from flowtracks.eulerian import (
     shift_phase,
     turbulent_statistics,
 )
-from test_phase_average_xr import VARS, _write_grid
 
 
 def _fluct_ds(values_by_set):

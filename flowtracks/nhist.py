@@ -1,5 +1,7 @@
+from typing import Tuple, Union
+
 import numpy as np
-from typing import Optional, Tuple, Union
+
 
 def nhist_scipy(
     y: np.ndarray,
@@ -48,7 +50,7 @@ def nhist_scipy(
 def nhist(y, x=None, *args, plot=True):
     """
     Normalized histogram (PDF), Matlab nhist.m equivalent.
-    
+
     Parameters
     ----------
     y : array-like
@@ -59,7 +61,7 @@ def nhist(y, x=None, *args, plot=True):
         Additional arguments for matplotlib plot.
     plot : bool, default True
         If True, plot the histogram. If False, return data.
-    
+
     Returns
     -------
     no : ndarray
@@ -121,7 +123,7 @@ if __name__ == "__main__":
     # Run nhist
     nn1, xo1 = nhist(data, bins, plot=False)
     nn2, xo2 = nhist_scipy(data, bins, plot=False)
- 
+
     # Plot both for comparison
     plt.figure(figsize=(8,5))
     plt.plot(xo1, nn1, label='nhist', marker='o')

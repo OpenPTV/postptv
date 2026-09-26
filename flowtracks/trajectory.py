@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import types, numpy as np
-import scipy.interpolate as interp
+import types
 from builtins import object
+
+import numpy as np
+import scipy.interpolate as interp
+
 
 class Frame(object):
     """

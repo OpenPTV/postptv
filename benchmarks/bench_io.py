@@ -12,6 +12,7 @@ Zarr readers on the same trajectories for a direct format comparison.
 
 import numpy as np
 import pytest
+
 from flowtracks import io
 from flowtracks.scene import Scene
 

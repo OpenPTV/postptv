@@ -3,6 +3,7 @@ and in-memory streamlined pipeline execution.
 """
 
 from pathlib import Path
+
 import numpy as np
 import pytest
 import xarray as xr
@@ -19,8 +20,8 @@ from flowtracks.eulerian import (
     save_netcdf,
     save_zarr,
 )
-from flowtracks.writers import write_eulerian_series
 from flowtracks.pipeline import streamlined_pipeline
+from flowtracks.writers import write_eulerian_series
 
 
 class FakeScene:

@@ -2,7 +2,18 @@
 
 __version__ = '1.5.0'
 
-from flowtracks.eulerian import clean_field, derived_fields, eulerian_grid, eulerian_windowed, finite_difference_velocity, fluid_mask, qc_mask, save_dataset, save_netcdf, save_zarr
+from flowtracks.eulerian import (
+    clean_field,
+    derived_fields,
+    eulerian_grid,
+    eulerian_windowed,
+    finite_difference_velocity,
+    fluid_mask,
+    qc_mask,
+    save_dataset,
+    save_netcdf,
+    save_zarr,
+)
 from flowtracks.phase_average import fluctuations, phase_average
 from flowtracks.smoothing import savitzky_golay
 from flowtracks.stitching import stitch_trajectories

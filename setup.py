@@ -6,8 +6,9 @@ Installation script for the Flowtracks package.
 """
 
 import os
-from setuptools import setup, find_packages
 from glob import glob
+
+from setuptools import find_packages, setup
 
 # Metadata (name, version, dependencies, python_requires, classifiers, ...)
 # lives in pyproject.toml's [project] table, which setuptools treats as

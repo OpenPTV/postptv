@@ -22,13 +22,14 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import numpy as np
-    import matplotlib.pyplot as plt
     from pathlib import Path
 
-    from flowtracks.scene import Scene
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+
     from flowtracks.io import read_zarr_trajectories, save_zarr_trajectories
+    from flowtracks.scene import Scene
 
     return Path, Scene, mo, np, plt, read_zarr_trajectories, save_zarr_trajectories
 

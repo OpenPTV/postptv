@@ -10,7 +10,8 @@ All RNGs are seeded with ``np.random.default_rng(42)`` for reproducibility.
 
 import numpy as np
 import pytest
-from flowtracks.interpolation import InverseDistanceWeighter, Interpolant
+
+from flowtracks.interpolation import Interpolant, InverseDistanceWeighter
 
 
 def _make(n, m, d, rng):

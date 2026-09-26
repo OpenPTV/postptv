@@ -9,11 +9,14 @@ Created on Tue Feb  4 11:52:38 2014
 @author: yosef
 """
 
-import unittest
 import os
-import numpy as np
+import unittest
 from configparser import ConfigParser
+
+import numpy as np
+
 from flowtracks import interpolation
+
 
 class TestIDWCallUnified(unittest.TestCase):
     def setUp(self):
@@ -214,8 +217,8 @@ class MethodInterp(unittest.TestCase):
         interp = interpolation.interpolant("rbf", 4, param=1e5)
         interp.set_scene(tracer_pos, interp_points, data)
 
-        interped = interp.interpolate()
-        use_parts = interp.current_active_neighbs()
+        interp.interpolate()
+        interp.current_active_neighbs()
         # If we reached this line, we tested what we wanted.
 
 

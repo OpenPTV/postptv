@@ -8,9 +8,11 @@ the refactor in SPEEDUP_PLAN Phase 3.4).
 """
 
 import unittest
+
 import numpy as np
-from flowtracks.trajectory import Trajectory
+
 from flowtracks import smoothing
+from flowtracks.trajectory import Trajectory
 
 
 def _old_savitzky_golay(trajs, fps, window_size, order):

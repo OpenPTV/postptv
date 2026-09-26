@@ -10,8 +10,10 @@ import pytest
 import xarray as xr
 
 from flowtracks.eulerian import (
-    align_phases, find_phase_shift,
-    apply_masks, shift_phase,
+    align_phases,
+    apply_masks,
+    find_phase_shift,
+    shift_phase,
 )
 from flowtracks.writers import write_eulerian_series
 
