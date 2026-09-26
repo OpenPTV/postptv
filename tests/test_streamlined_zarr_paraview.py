@@ -14,12 +14,12 @@ from flowtracks.eulerian import (
     apply_cf_metadata,
     derived_fields,
     eulerian_grid,
-    export_vtk,
     run_post_analysis_ds,
     save_dataset,
     save_netcdf,
     save_zarr,
 )
+from flowtracks.writers import write_eulerian_series
 from flowtracks.pipeline import streamlined_pipeline
 
 
@@ -171,17 +171,18 @@ def test_in_memory_vs_disk_pipeline_equivalence(tmp_path):
         np.testing.assert_allclose(ds_in_memory[var].values, ds_from_zarr[var].values)
 
 
-def test_export_vtk_structured_grid(sample_dataset, tmp_path):
-    """export_vtk must write valid binary VTK structured grid files for all phases."""
-    pytest.importorskip("vtk")
-    vtk_dir = tmp_path / "vtk"
-    paths = export_vtk(sample_dataset, vtk_dir, prefix="test_phase")
+def test_write_eulerian_series_writes_all_phases(sample_dataset, tmp_path):
+    """write_eulerian_series must write one grid per phase plus a .pvd series."""
+    pv = pytest.importorskip("pyvista")
+    eul_dir = tmp_path / "eul"
+    pvd = write_eulerian_series(sample_dataset, eul_dir, prefix="test_phase")
 
-    assert len(paths) == len(sample_dataset.phase)
-    for p in paths:
-        assert p.exists()
-        header = p.read_bytes()[:100].decode("ascii", errors="ignore")
-        assert "STRUCTURED_GRID" in header or "vtk" in header.lower()
+    assert pvd.exists()
+    files = sorted(eul_dir.glob("test_phase_*.vti"))
+    assert len(files) == len(sample_dataset.phase)
+    grid = pv.read(files[0])
+    assert grid.point_data.get_array("velocity") is not None
+    assert grid.n_points == 3 * 3 * 2
 
 
 def test_streamlined_pipeline_full_integration(tmp_path, monkeypatch):

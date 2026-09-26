@@ -2,7 +2,8 @@
 
 Loads per-set trajectories.h5 files directly, performs in-memory
 Eulerian grid binning, phase-averaging, turbulent statistics calculation,
-attaches CF metadata for ParaView, and exports Zarr, NetCDF, and binary VTK files.
+attaches CF metadata for ParaView, and exports Zarr, NetCDF, and a ParaView
+series (.vti/.vtr + .pvd).
 """
 
 import sys
@@ -19,7 +20,8 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 from flowtracks.io import Scene
-from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset, export_vtk
+from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset
+from flowtracks.writers import write_eulerian_series
 
 
 def setup_logging(log_file: Path) -> logging.Logger:
@@ -169,14 +171,14 @@ def run_pipeline(data_dir: Path) -> None:
     t_nc = time.perf_counter() - t0_nc
     logger.info(f"NetCDF File Saved in {t_nc:.2f} seconds ({nc_out.stat().st_size / (1024*1024):.2f} MB).")
 
-    # VTK Output
+    # ParaView Output (.vti/.vtr series + .pvd)
     vtk_dir = data_dir / recipe.get("vtk", {}).get("dir", "vtk_output")
     prefix = recipe.get("vtk", {}).get("prefix", "phase")
-    logger.info(f"Exporting Binary Structured VTK Files to: {vtk_dir}")
+    logger.info(f"Exporting ParaView series to: {vtk_dir}")
     t0_vtk = time.perf_counter()
-    vtk_files = export_vtk(out_ds, vtk_dir, prefix=prefix)
+    pvd = write_eulerian_series(out_ds, vtk_dir, prefix=prefix)
     t_vtk = time.perf_counter() - t0_vtk
-    logger.info(f"Exported {len(vtk_files)} VTK Files in {t_vtk:.2f} seconds.")
+    logger.info(f"Exported ParaView series ({pvd.name}) in {t_vtk:.2f} seconds.")
 
     t_total = time.perf_counter() - t0_total
     logger.info("=" * 70)

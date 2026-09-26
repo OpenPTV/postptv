@@ -1,4 +1,4 @@
-"""Derived fields vs the legacy sample_vtkcode per-slice formulas; masks;
+"""Derived fields physical-gradient correctness; masks;
 weighted phase average; binary VTK round-trip; netCDF encoding."""
 
 import sys
@@ -11,14 +11,12 @@ import xarray as xr
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from flowtracks.phase_average import phase_average
 from flowtracks.eulerian import (
-    ALL_DERIVED,
     VEL_VARS,
     apply_masks,
     derived_fields,
-    export_vtk,
     save_netcdf,
 )
-from flowtracks.vtk_export import max_eigenvalue_spread
+from flowtracks.writers import write_eulerian_series
 
 RHO, MU = 1000.0, 0.001
 DIMS4 = ("x", "y", "z", "phase")
@@ -39,74 +37,39 @@ def _random_inputs(seed=1, shape=(4, 3, 3, 5)):
     return avg, stats
 
 
-def _legacy_slice(avg, stats, t):
-    """Verbatim re-execution of sample_vtkcode.py main() math for one slice."""
-    u = avg["u_ins_mean"].values[..., t]
-    v = avg["v_ins_mean"].values[..., t]
-    w = avg["w_ins_mean"].values[..., t]
-    uu = stats["u_ins_u_ins"].values[..., t].copy()
-    vv = stats["v_ins_v_ins"].values[..., t].copy()
-    ww = stats["w_ins_w_ins"].values[..., t].copy()
-    uv = stats["u_ins_v_ins"].values[..., t].copy()
-    uw = stats["u_ins_w_ins"].values[..., t].copy()
-    vw = stats["v_ins_w_ins"].values[..., t].copy()
-    gridx = float(avg.x[1] - avg.x[0])
-    dy = float(avg.y[1] - avg.y[0])
-    dz = float(avg.z[1] - avg.z[0])
-    dx = dz
-    out = {}
-    out["MKE"] = 0.5 * RHO * (u**2 + v**2 + w**2)
-    out["TKE"] = 0.5 * RHO * (uu + vv + ww)
-    VEL = np.sqrt(u**2 + v**2 + w**2)
-    out["VEL"] = VEL
-    out["PRT"] = np.divide(gridx * 1000.0, VEL, out=np.zeros_like(VEL),
-                           where=VEL != 0)
-    uy, ux, uz = np.gradient(-u, dy, dx, dz)
-    vy, vx, vz = np.gradient(v, dy, dx, dz)
-    wy, wx, wz = np.gradient(w, dy, dx, dz)
-    p2, p3, p6 = uy + vx, uz + wx, vz + wy
-    p1 = 2 * ux - (2 / 3) * (ux + uy + uz)
-    p5 = 2 * vy - (2 / 3) * (vx + vy + vz)
-    p9 = 2 * wz - (2 / 3) * (wx + wy + wz)
-    out["VSS"] = max_eigenvalue_spread(
-        p1.copy(), p2.copy(), p3.copy(), p2.copy(), p5.copy(), p6.copy(),
-        p3.copy(), p6.copy(), p9.copy()) * RHO * MU
-    out["RSS"] = max_eigenvalue_spread(
-        uu.copy(), uv.copy(), uw.copy(), uv.copy(), vv.copy(), vw.copy(),
-        uw.copy(), vw.copy(), ww.copy()) * RHO
-    meandiss = (2 * (uy + vx)**2 + 2 * (uz + wx)**2 + 2 * (vz + wy)**2
-                + p1**2 + p5**2 + p9**2)
-    out["ML"] = meandiss * MU * RHO
-    prod = (-uu * ux - vv * vy - ww * wz - uv * uy - uw * uz - vw * vz
-            - uv * vx - uw * wx - vw * wy)
-    out["TL"] = prod * RHO
-    t11 = RHO * MU * 2 * ux - RHO * uu
-    t22 = RHO * MU * 2 * vy - RHO * vv
-    t33 = RHO * MU * 2 * wz - RHO * ww
-    t12 = RHO * MU * (uy + vx) - RHO * uv
-    t13 = RHO * MU * (uz + wx) - RHO * uw
-    t23 = RHO * MU * (vz + wy) - RHO * vw
-    out["ScalarShear"] = (1 / np.sqrt(3)) * np.sqrt(
-        t11**2 + t22**2 + t33**2 - (t11 * t22 + t22 * t33 + t11 * t33)
-        + 3 * (t12**2 + t23**2 + t13**2))
-    w1, w2, w3 = wy - vz, uz - wx, vx - uy
-    h1 = w1 * u + w2 * v + w3 * w
-    h2 = np.sqrt((w1 * u)**2 + (w2 * v)**2 + (w3 * w)**2)
-    out["H1"], out["H2"] = h1, h2
-    out["H3"] = np.divide(h1, h2, out=np.zeros_like(h1), where=h2 != 0)
-    out["H4"] = np.divide(np.abs(h1), h2, out=np.zeros_like(h1), where=h2 != 0)
-    return out
+def _linear_field_inputs(a=1.5):
+    """Analytic linear field u = a*x on a fully anisotropic grid.
+
+    True gradients: ux = a, everything else 0 — np.gradient is exact for
+    linears, so VSS/ML have closed forms below. Deliberately dx != dy != dz
+    so any spacing mix-up (e.g. dx := dz) fails loudly.
+    """
+    nx, ny, nz, nph = 4, 3, 3, 2
+    x = np.linspace(0.0, 0.03, nx)  # dx = 0.01
+    y = np.linspace(0.0, 0.04, ny)  # dy = 0.02
+    z = np.linspace(0.0, 0.10, nz)  # dz = 0.05
+    u = (a * x)[:, None, None, None] * np.ones((1, ny, nz, nph))
+    zeros = np.zeros((nx, ny, nz, nph))
+    coords = {"x": x, "y": y, "z": z, "phase": np.arange(nph)}
+    avg = xr.Dataset({"u_ins_mean": (DIMS4, u),
+                      "v_ins_mean": (DIMS4, zeros.copy()),
+                      "w_ins_mean": (DIMS4, zeros.copy())}, coords=coords)
+    names = ["u_ins_u_ins", "v_ins_v_ins", "w_ins_w_ins",
+             "u_ins_v_ins", "u_ins_w_ins", "v_ins_w_ins"]
+    stats = xr.Dataset({n: (DIMS4, np.zeros((nx, ny, nz, nph))) for n in names},
+                       coords=coords)
+    return avg, stats
 
 
-def test_all_derived_fields_match_legacy_per_slice():
-    avg, stats = _random_inputs()
-    new = derived_fields(avg, stats, rho=RHO, mu=MU, fields=ALL_DERIVED)
-    for t in range(avg.sizes["phase"]):
-        legacy = _legacy_slice(avg, stats, t)
-        for name in ALL_DERIVED:
-            np.testing.assert_allclose(
-                new[name].values[..., t], legacy[name],
-                rtol=1e-10, atol=1e-12, err_msg=f"{name} @ phase {t}")
+def test_derived_physical_gradients_linear_field():
+    # u = a*x, a = 1.5 -> ux = a, all other gradient components 0.
+    # p1 = 2a - 2a/3 = 4a/3 = 2.0; p5 = p9 = off-diagonals = 0.
+    # VSS = 0.5*(4a/3)*RHO*MU = 1.0 (eig spread carries a 0.5 factor);
+    # ML = (4a/3)^2*MU*RHO = 4.0.
+    avg, stats = _linear_field_inputs(a=1.5)
+    out = derived_fields(avg, stats, rho=RHO, mu=MU, fields=["VSS", "ML"])
+    np.testing.assert_allclose(out["VSS"].values, 1.0, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(out["ML"].values, 4.0, rtol=1e-12, atol=1e-12)
 
 
 def test_unknown_derived_field_rejected():
@@ -167,20 +130,46 @@ def test_weighted_phase_average():
 # --- outputs -----------------------------------------------------------------
 
 
-def test_binary_vtk_round_trip(tmp_path):
-    vtk = pytest.importorskip("vtk")
-    from vtk.util import numpy_support
+def test_eulerian_series_round_trip(tmp_path):
+    pv = pytest.importorskip("pyvista")
 
     ds = xr.Dataset(
         {"TKE": (DIMS4, np.arange(8.0).reshape(2, 2, 2, 1))},
         coords={"x": [0.0, 1.0], "y": [0.0, 1.0], "z": [0.0, 1.0], "phase": [0]})
-    (path,) = export_vtk(ds, tmp_path)
-    reader = vtk.vtkStructuredGridReader()
-    reader.SetFileName(str(path))
-    reader.Update()
-    data = reader.GetOutput().GetPointData().GetArray("TKE")
-    back = numpy_support.vtk_to_numpy(data).reshape((2, 2, 2), order="F")
-    np.testing.assert_allclose(back, ds["TKE"].values[..., 0])
+    pvd = write_eulerian_series(ds, tmp_path)
+    assert pvd.exists()
+    grid = pv.read(tmp_path / "phase_0000.vti")
+    back = np.asarray(grid.point_data["TKE"]).reshape((2, 2, 2), order="F")
+    np.testing.assert_allclose(back, ds["TKE"].values[..., 0], rtol=1e-6)
+
+
+def _reference_eig_spread(*comps):
+    """Independent per-voxel reference of the symmetric 3x3 spread."""
+    clean = [np.nan_to_num(np.asarray(c, dtype=float),
+                           nan=0.0, posinf=0.0, neginf=0.0) for c in comps]
+    shape = clean[0].shape
+    out = np.zeros(shape)
+    for idx in np.ndindex(shape):
+        a = np.array([[clean[0][idx], clean[1][idx], clean[2][idx]],
+                      [clean[3][idx], clean[4][idx], clean[5][idx]],
+                      [clean[6][idx], clean[7][idx], clean[8][idx]]])
+        r = np.linalg.eigvalsh(a)
+        out[idx] = 0.5 * (np.max(r) - np.min(r))
+    return out
+
+
+def test_eig_spread_matches_per_voxel_reference():
+    from flowtracks.eulerian import _eig_spread
+    rng = np.random.default_rng(42)
+    shape = (4, 5, 6, 2)
+    comps = [xr.DataArray(rng.normal(size=shape),
+                          dims=("x", "y", "z", "phase")) for _ in range(9)]
+    comps[0].values[0, 0, 0, 0] = np.nan  # NaN zero-filled like the kernel
+    got = _eig_spread(*comps)
+    assert got.shape == shape
+    np.testing.assert_allclose(
+        got.values, _reference_eig_spread(*[c.values for c in comps]),
+        rtol=1e-12)
 
 
 def test_save_netcdf_compression_and_attrs(tmp_path):

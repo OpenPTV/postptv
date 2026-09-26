@@ -19,6 +19,7 @@ import flowtracks
 from flowtracks.io import trajectories_ptvis, save_particles_table, Scene
 from flowtracks import eulerian as post_analysis_xr
 from flowtracks.phase_average import phase_average, fluctuations
+from flowtracks.writers import write_eulerian_series
 
 def process_folder_trajectories(folder_path: Path, first_frame: int = 1, last_frame: int = 847, frate: float = 1.0):
     res_dir = folder_path / "res"
@@ -116,8 +117,8 @@ def run_postptv_analysis(exp_root: Path):
     post_analysis_xr.save_netcdf(final_ds, nc_out)
     
     vtk_dir = output_res / "paraview_vtk"
-    print(f"[postptv] Exporting ParaView 3D VTK snapshots -> {vtk_dir}")
-    post_analysis_xr.export_vtk(final_ds, vtk_dir)
+    print(f"[postptv] Exporting ParaView series -> {vtk_dir}")
+    write_eulerian_series(final_ds, vtk_dir)
     
     print("\n============================================================")
     print(f"  PostPTV Analysis Complete! Results written to {output_res}")

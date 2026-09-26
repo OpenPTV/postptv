@@ -2,16 +2,18 @@
 
 Covers: find_phase_shift recovers a known injected shift, align_phases makes
 two differently-shifted synthetic runs agree after shifting, mask_array NaNs
-outside a boolean ROI, and export_vtk_rectilinear_series writes a readable
-.vtr + .pvd pair (round-tripped with vtk's own reader).
+outside a boolean ROI, and write_eulerian_series writes a readable
+.vtr + .pvd pair on a non-uniform grid (round-tripped with pyvista).
 """
 import numpy as np
+import pytest
 import xarray as xr
 
 from flowtracks.eulerian import (
-    align_phases, export_vtk_rectilinear_series, find_phase_shift,
+    align_phases, find_phase_shift,
     apply_masks, shift_phase,
 )
+from flowtracks.writers import write_eulerian_series
 
 N = 24
 
@@ -56,12 +58,13 @@ def test_mask_array_nans_outside_roi():
     assert not np.isnan(out["u_ins_mean"].isel(x=0, y=0).values).any()
 
 
-def test_export_vtk_rectilinear_series_writes_readable_pvd_and_vtr(tmp_path):
-    import vtk
+def test_write_eulerian_series_writes_readable_pvd_and_vtr(tmp_path):
+    pv = pytest.importorskip("pyvista")
 
-    ds = _bump_dataset(peak=0, nx=4, ny=3, nz=2)[["u_ins_mean", "v_ins_mean", "w_ins_mean"]]
+    ds = _bump_dataset(peak=0, nx=4, ny=3, nz=3)[["u_ins_mean", "v_ins_mean", "w_ins_mean"]]
+    ds = ds.assign_coords(z=("z", [0.0, 0.5, 2.0]))  # non-uniform -> .vtr
     ds = ds.isel(phase=slice(0, 3))
-    pvd = export_vtk_rectilinear_series(ds, tmp_path / "vtr_out", prefix="wp1", dt=0.5)
+    pvd = write_eulerian_series(ds, tmp_path / "vtr_out", prefix="wp1", dt=0.5)
 
     assert pvd.exists()
     text = pvd.read_text()
@@ -69,12 +72,9 @@ def test_export_vtk_rectilinear_series_writes_readable_pvd_and_vtr(tmp_path):
     vtr_files = sorted((tmp_path / "vtr_out").glob("wp1_*.vtr"))
     assert len(vtr_files) == 3
 
-    reader = vtk.vtkXMLRectilinearGridReader()
-    reader.SetFileName(str(vtr_files[0]))
-    reader.Update()
-    grid = reader.GetOutput()
-    assert grid.GetPointData().GetArray("velocity") is not None
-    assert grid.GetNumberOfPoints() == 4 * 3 * 2
+    grid = pv.read(vtr_files[0])
+    assert grid.point_data.get_array("velocity") is not None
+    assert grid.n_points == 4 * 3 * 3
 
 
 if __name__ == "__main__":
@@ -84,5 +84,5 @@ if __name__ == "__main__":
     import tempfile
     from pathlib import Path
     with tempfile.TemporaryDirectory() as d:
-        test_export_vtk_rectilinear_series_writes_readable_pvd_and_vtr(Path(d))
+        test_write_eulerian_series_writes_readable_pvd_and_vtr(Path(d))
     print("ok")

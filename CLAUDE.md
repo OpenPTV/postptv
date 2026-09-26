@@ -96,7 +96,9 @@ the xr modules or `examples/` scripts; nothing is implemented twice here.
   interpolation onto grids.
 - `analysis.py`, `combine.py`, `pairs.py` — trajectory-level statistics and
   multi-run combination.
-- `vtk_export.py`, `graphics.py`, `nhist.py` — visualization/export helpers.
+- `writers.py`, `graphics.py`, `nhist.py` — visualization/export helpers
+  (ParaView export goes through `writers.write_eulerian_series` /
+  `write_trajectories_vtp`; the legacy `vtk_export.py` module is removed).
 - `an_scene.py` — an alternate/legacy scene analysis path; check before
   extending whether logic belongs there or in `scene.py`/`zarr_scene.py`.
 

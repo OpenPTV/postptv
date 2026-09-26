@@ -62,10 +62,10 @@ def compute_turbulent_statistics(config):
     ts_main()
 
 
-# --- Step 6: VTK Export (per set or central) ---
-def export_vtk(config):
-    from flowtracks.vtk_export import main as vtk_main
-    vtk_main()
+# --- Step 6: ParaView export (per set or central) ---
+# Legacy raw-vtk `export_vtk(config)` step was removed: ParaView export goes
+# through :func:`flowtracks.writers.write_eulerian_series` (see the `vtk:`
+# recipe stage in `streamlined_pipeline` below).
 
 
 def streamlined_pipeline(config_path="config.yaml", grid_path="grid.yaml", recipe_path="post_recipe.yaml", base="."):

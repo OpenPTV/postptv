@@ -15,6 +15,7 @@ import xarray as xr
 from flowtracks import eulerian as post_analysis_xr
 from flowtracks.phase_average import phase_average, fluctuations
 from flowtracks.io import Scene
+from flowtracks.writers import write_eulerian_series
 
 
 def run_combine(data_dir: str | Path = "."):
@@ -100,8 +101,8 @@ def run_combine(data_dir: str | Path = "."):
     print(f"[postptv-combine] Saving Zarr output -> {zarr_out}")
     post_analysis_xr.save_zarr(final_ds, zarr_out)
 
-    print(f"[postptv-combine] Exporting VTK phase snapshots -> {vtk_dir}")
-    post_analysis_xr.export_vtk(final_ds, vtk_dir)
+    print(f"[postptv-combine] Exporting ParaView series -> {vtk_dir}")
+    write_eulerian_series(final_ds, vtk_dir)
     print(f"[postptv-combine] Complete! Saved {zarr_out.name}")
 
 

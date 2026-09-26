@@ -3,7 +3,7 @@
 Covers the vector-validation pipeline tricks (NaN+valid,
 QC gates, FD velocity, sliding windows, chunked accumulation) and the
 legacy MATLAB ports (upfront clean, fluidMask>100, PRT=counts*dt,
-gradient conventions). Performance tests use wall-clock budgets (not
+physical-gradient derived fields). Performance tests use wall-clock budgets (not
 pytest-benchmark) so they run in the default suite.
 """
 
@@ -227,17 +227,29 @@ def test_derived_prt_counts_mode():
         derived_fields(avg, stats, fields=["PRT"], prt_mode="bogus")
 
 
-def test_derived_gradient_conventions_both_finite_and_differ():
-    avg, stats = _avg_stats(shape=(5, 4, 3, 2))  # anisotropic spacing
-    m = derived_fields(avg, stats, fields=["VSS"])
-    p = derived_fields(avg, stats, fields=["VSS"],
-                       gradient_convention="physical")
-    assert np.isfinite(m["VSS"].values).all()
-    assert np.isfinite(p["VSS"].values).all()
-    assert not np.allclose(m["VSS"].values, p["VSS"].values)
-    with pytest.raises(ValueError):
-        derived_fields(avg, stats, fields=["VSS"],
-                       gradient_convention="bogus")
+def test_derived_tl_sign_uses_true_gradients():
+    # u = a*x with constant uu = U2: only prod term is -uu*ux = -U2*a.
+    # TL = -U2*a*rho is sign-sensitive: a negated-u convention would flip it.
+    nx, ny, nz, nph = 4, 3, 3, 2
+    x = np.linspace(0.0, 0.03, nx)  # dx = 0.01
+    y = np.linspace(0.0, 0.04, ny)  # dy = 0.02
+    z = np.linspace(0.0, 0.10, nz)  # dz = 0.05
+    a, u2, rho = 2.0, 0.5, 1000.0
+    u = (a * x)[:, None, None, None] * np.ones((1, ny, nz, nph))
+    zeros = np.zeros((nx, ny, nz, nph))
+    coords = {"x": x, "y": y, "z": z, "phase": np.arange(nph)}
+    avg = xr.Dataset({"u_ins_mean": (DIMS4, u),
+                      "v_ins_mean": (DIMS4, zeros.copy()),
+                      "w_ins_mean": (DIMS4, zeros.copy())}, coords=coords)
+    names = ["u_ins_u_ins", "v_ins_v_ins", "w_ins_w_ins",
+             "u_ins_v_ins", "u_ins_w_ins", "v_ins_w_ins"]
+    stats = xr.Dataset(
+        {"u_ins_u_ins": (DIMS4, np.full((nx, ny, nz, nph), u2)),
+         **{n: (DIMS4, zeros.copy()) for n in names[1:]}},
+        coords=coords)
+    out = derived_fields(avg, stats, rho=rho, fields=["TL"])
+    np.testing.assert_allclose(out["TL"].values, -u2 * a * rho,
+                               rtol=1e-12, atol=1e-12)
 
 
 # --- performance ---------------------------------------------------------------

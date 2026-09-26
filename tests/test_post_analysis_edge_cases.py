@@ -13,10 +13,10 @@ from flowtracks.phase_average import fluctuations, open_sets, phase_average
 from flowtracks.eulerian import (
     derived_fields,
     eulerian_grid,
-    export_vtk,
     shift_phase,
     turbulent_statistics,
 )
+from flowtracks.writers import write_eulerian_series
 from test_phase_average_xr import VARS, _write_grid
 
 GRID_1x1 = {"stepx": 1, "stepy": 1, "stepz": 1,
@@ -195,7 +195,7 @@ def test_stats_weighting_ignores_zero_count_set():
     assert float(stats["u_ins_u_ins"].mean()) == 4.0
 
 
-# --- derived_fields / export_vtk --------------------------------------------
+# --- derived_fields / writers -----------------------------------------------
 
 
 def test_derived_fields_propagate_nan():
@@ -205,13 +205,14 @@ def test_derived_fields_propagate_nan():
     assert np.isnan(float(derived_fields(avg, stats)["TKE"]))
 
 
-def test_export_vtk_scalar_only_dataset(tmp_path):
-    pytest.importorskip("vtk")
+def test_write_eulerian_series_scalar_only_dataset(tmp_path):
+    pytest.importorskip("pyvista")
     ds = xr.Dataset(
         {"TKE": (("x", "y", "z", "phase"), np.ones((2, 2, 2, 2)))},
         coords={"x": [0.0, 1.0], "y": [0.0, 1.0], "z": [0.0, 1.0],
                 "phase": [0, 1]},
     )
-    files = export_vtk(ds, tmp_path / "vtk")
-    assert [f.name for f in files] == ["phase_000.vtk", "phase_001.vtk"]
-    assert all(f.stat().st_size > 0 for f in files)
+    pvd = write_eulerian_series(ds, tmp_path / "eul")
+    assert [f.name for f in sorted((tmp_path / "eul").glob("phase_*.vti"))] == [
+        "phase_0000.vti", "phase_0001.vti"]
+    assert pvd.exists()

@@ -1,7 +1,7 @@
 """Post-analysis pipeline as pure Dataset -> Dataset stages, driven by one YAML recipe.
 
 xarray re-expression of batch_Lagrangian_to_Eulerian.py, turbulent_statistics.py
-and the derived-field part of sample_vtkcode.py, chained after phase_average_xr.
+and per-slice derived turbulence fields, chained after phase_average_xr.
 
 Run:  uv run python src/post_analysis_xr.py [post_recipe.yaml]
 """
@@ -564,9 +564,9 @@ def reference_derived(u, v, w, dx, dy, dz, mask=None, rho=1000.0, mu=None,
 
     Exact port of the legacy MATLAB derived-field scripts on
     bare numpy arrays (one 3D phase field at a time — loop over phases at the
-    call site). Unlike :func:`derived_fields` (a port of the old
-    ``sample_vtkcode.py`` demo with its sign convention and zero-filled
-    gradients), this preserves the legacy quirks validated against Octave:
+    call site). Unlike :func:`derived_fields` (physical gradients with
+    zero-filled NaNs via :func:`clean_field`), this preserves the legacy
+    quirks validated against Octave:
 
     - NaN-preserving gradients (no zero-fill): NaN propagates from any
       stencil voxel, matching the reference validity mask;
@@ -651,19 +651,16 @@ ALL_DERIVED = ["MKE", "TKE", "VEL", "PRT", "VSS", "RSS", "ML", "TL",
 def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
                    mu: float = 1.0, fields: list[str] | None = None, *,
                    counts=None, fluid_min=None, clean_nan: bool = True,
-                   gradient_convention: str = "matlab",
                    prt_mode: str = "velocity",
                    prt_dt: float = 1.0) -> xr.Dataset:
     """Derived turbulence/flow fields, vectorized over ALL phases.
 
     Port of sample_vtkcode.py main() (which loops per time slice).
-    ``gradient_convention="matlab"`` (default) preserves the legacy quirks
-    exactly: the u component is negated, np.gradient axis naming follows the
-    Matlab meshgrid convention (axis0 spacing dy), and dx is set to the z
-    spacing. ``"physical"`` instead uses ``np.gradient(u, dx, dy, dz)`` with
-    no negation — the physically consistent choice (matches
-    ``flowtracks.vortex``); expect ~tens-of-percent differences in
-    gradient-based fields between conventions on anisotropic grids.
+    Gradients are always physical: ``np.gradient`` with the true
+    ``(dx, dy, dz)`` spacings and no sign flips (matches
+    ``flowtracks.vortex``). Callers that need a flipped sign convention
+    (e.g. a negated ``u`` component for legacy-number reproduction) can
+    negate the input component themselves before calling.
 
     clean_nan: zero-out NaN/+-Inf gradient inputs upfront (MATLAB VTR
     convention via :func:`clean_field`) so one masked voxel does not poison
@@ -696,35 +693,19 @@ def derived_fields(avg: xr.Dataset, stats: xr.Dataset, rho: float = 1.0,
     grad_needed = want & {"PRT", "VSS", "ML", "TL", "ScalarShear",
                           "H1", "H2", "H3", "H4"}
     if grad_needed:
-        if gradient_convention not in ("matlab", "physical"):
-            raise ValueError("gradient_convention must be 'matlab' or 'physical'")
         gridx = float(avg.x[1] - avg.x[0])
         dy = float(avg.y[1] - avg.y[0])
         dz = float(avg.z[1] - avg.z[0])
-        if gradient_convention == "matlab":
-            dx = dz  # legacy: sample_vtkcode.py:142
-            gu, gv, gw = -u.values, v.values, w.values
-            uy, ux, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gu) if clean_nan else gu,
-                                      dy, dx, dz, axis=(0, 1, 2)))
-            vy, vx, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gv) if clean_nan else gv,
-                                      dy, dx, dz, axis=(0, 1, 2)))
-            wy, wx, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gw) if clean_nan else gw,
-                                      dy, dx, dz, axis=(0, 1, 2)))
-        else:
-            dx = gridx
-            gu, gv, gw = u.values, v.values, w.values
-            ux, uy, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gu) if clean_nan else gu,
-                                      dx, dy, dz, axis=(0, 1, 2)))
-            vx, vy, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gv) if clean_nan else gv,
-                                      dx, dy, dz, axis=(0, 1, 2)))
-            wx, wy, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
-                          np.gradient(clean_field(gw) if clean_nan else gw,
-                                      dx, dy, dz, axis=(0, 1, 2)))
+        dx = gridx
+        ux, uy, uz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                      np.gradient(clean_field(u.values) if clean_nan else u.values,
+                                  dx, dy, dz, axis=(0, 1, 2)))
+        vx, vy, vz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                      np.gradient(clean_field(v.values) if clean_nan else v.values,
+                                  dx, dy, dz, axis=(0, 1, 2)))
+        wx, wy, wz = (xr.DataArray(g, dims=u.dims, coords=u.coords) for g in
+                      np.gradient(clean_field(w.values) if clean_nan else w.values,
+                                  dx, dy, dz, axis=(0, 1, 2)))
 
     if "PRT" in want:
         if prt_mode == "velocity":
@@ -793,147 +774,6 @@ def _eig_spread(*components):
         input_core_dims=[["i", "j"]], output_core_dims=[["e"]],
     )
     return 0.5 * (evals.max("e") - evals.min("e"))
-
-
-def export_vtk(ds: xr.Dataset, out_dir: Path, prefix: str = "phase") -> list[Path]:
-    """Write one BINARY .vtk structured-grid file per phase from a Dataset.
-
-    Bulk numpy_support arrays instead of the legacy per-point Python loop,
-    and binary instead of ASCII — smaller files, much faster.
-
-    Deprecated: prefer :func:`flowtracks.writers.write_eulerian_series`
-    (pyvista-based, writes modern `.vti`/`.vtr` + a `.pvd` time series
-    instead of one legacy `.vtk` per phase). Kept for `combine.py` and
-    existing callers/tests until they migrate — see WRITERS_PLAN.md.
-    """
-    import vtk
-    from vtk.util import numpy_support
-
-    x3, y3, z3 = np.meshgrid(ds["x"], ds["y"], ds["z"], indexing="ij")
-    nx, ny, nz = x3.shape
-    # VTK structured grids expect x varying fastest -> Fortran-order flatten
-    pts = np.column_stack([a.ravel(order="F") for a in (x3, y3, z3)])
-    points = vtk.vtkPoints()
-    points.SetData(numpy_support.numpy_to_vtk(
-        np.ascontiguousarray(pts, dtype=np.float32), deep=True))
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    written = []
-    for p in ds["phase"].values:
-        snap = ds.sel(phase=p)
-        grid = vtk.vtkStructuredGrid()
-        grid.SetDimensions(nx, ny, nz)
-        grid.SetPoints(points)
-        if all(v in snap for v in VEL_VARS):
-            vec = np.stack(
-                [np.nan_to_num(snap[v].values).ravel(order="F")
-                 for v in VEL_VARS], axis=-1)
-            arr = numpy_support.numpy_to_vtk(
-                np.ascontiguousarray(vec, dtype=np.float32), deep=True)
-            arr.SetName("velocity")
-            grid.GetPointData().AddArray(arr)
-        for name, da in snap.data_vars.items():
-            if name in VEL_VARS:
-                continue
-            arr = numpy_support.numpy_to_vtk(np.ascontiguousarray(
-                np.nan_to_num(da.values).ravel(order="F"), dtype=np.float32),
-                deep=True)
-            arr.SetName(name)
-            grid.GetPointData().AddArray(arr)
-        writer = vtk.vtkStructuredGridWriter()
-        writer.SetFileTypeToBinary()
-        path = out_dir / f"{prefix}_{int(p):03d}.vtk"
-        writer.SetFileName(str(path))
-        writer.SetInputData(grid)
-        writer.Write()
-        written.append(path)
-    return written
-
-
-def export_vtk_rectilinear_series(ds: xr.Dataset, out_dir: Path,
-                                  prefix: str = "phase", dt: float = 1.0) -> Path:
-    """Write one binary .vtr (XML RectilinearGrid) per phase plus a .pvd
-    time-series collection, ParaView's native pattern for an axis-aligned grid.
-
-    A rectilinear grid stores only the 1-D x/y/z coordinate arrays (not a
-    full 3-D point cloud like vtkStructuredGrid / export_vtk above), and a
-    .pvd Collection is what lets ParaView step through phases as a time
-    series instead of opening files one by one.
-    Binary encoding here instead of the legacy ASCII per-point fprintf loop —
-    same data, far smaller files, no behavior change.
-
-    Deprecated: superseded by :func:`flowtracks.writers.write_eulerian_series`,
-    which additionally auto-picks `.vti` when spacing is uniform. Kept only
-    until remaining callers/tests migrate — see WRITERS_PLAN.md.
-    """
-    import vtk
-    from vtk.util import numpy_support
-
-    out_dir = Path(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    nx, ny, nz = ds.sizes["x"], ds.sizes["y"], ds.sizes["z"]
-
-    def _clean(values):
-        # nan=0 matches legacy NaN-masking; posinf/neginf=0 too (default
-        # nan_to_num maps +-inf to +-1.8e308, which overflows the float32 cast)
-        return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
-
-    def vtk_array(values):
-        return numpy_support.numpy_to_vtk(
-            np.ascontiguousarray(_clean(values).ravel(order="F"), dtype=np.float32),
-            deep=True)
-
-    files = []
-    for p in ds["phase"].values:
-        snap = ds.sel(phase=p)
-        grid = vtk.vtkRectilinearGrid()
-        grid.SetDimensions(nx, ny, nz)
-        grid.SetXCoordinates(numpy_support.numpy_to_vtk(
-            np.ascontiguousarray(ds["x"].values, dtype=np.float32)))
-        grid.SetYCoordinates(numpy_support.numpy_to_vtk(
-            np.ascontiguousarray(ds["y"].values, dtype=np.float32)))
-        grid.SetZCoordinates(numpy_support.numpy_to_vtk(
-            np.ascontiguousarray(ds["z"].values, dtype=np.float32)))
-
-        if all(v in snap for v in VEL_VARS):
-            vec = np.stack([_clean(snap[v].values).ravel(order="F")
-                            for v in VEL_VARS], axis=-1)
-            arr = numpy_support.numpy_to_vtk(np.ascontiguousarray(vec, dtype=np.float32), deep=True)
-            arr.SetName("velocity")
-            grid.GetPointData().AddArray(arr)
-        for name, da in snap.data_vars.items():
-            if name in VEL_VARS:
-                continue
-            arr = vtk_array(da.values)
-            arr.SetName(name)
-            grid.GetPointData().AddArray(arr)
-
-        writer = vtk.vtkXMLRectilinearGridWriter()
-        writer.SetDataModeToBinary()
-        path = out_dir / f"{prefix}_{int(p):04d}.vtr"
-        writer.SetFileName(str(path))
-        writer.SetInputData(grid)
-        writer.Write()
-        files.append(path)
-
-    pvd_path = out_dir / f"{prefix}_series.pvd"
-    _write_pvd(pvd_path, files, dt)
-    return pvd_path
-
-
-def _write_pvd(pvd_path: Path, files: list, dt: float) -> None:
-    """Minimal ParaView Collection (.pvd) indexing time-series files by
-    path relative to the .pvd itself, so the output directory stays portable
-    (the legacy write_pvd_collection_abs used absolute Windows paths)."""
-    lines = ['<?xml version="1.0"?>',
-             '<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">',
-             '  <Collection>']
-    for i, f in enumerate(files):
-        rel = Path(f).relative_to(pvd_path.parent).as_posix()
-        lines.append(f'    <DataSet timestep="{i * dt:.9g}" group="" part="0" file="{rel}"/>')
-    lines += ['  </Collection>', '</VTKFile>']
-    pvd_path.write_text("\n".join(lines) + "\n")
-
 
 CF_ATTRS = {
     "u_ins_mean": {"units": "m s-1", "long_name": "phase-mean velocity x"},
@@ -1036,8 +876,6 @@ def run_post_analysis_ds(ds_sets: dict[str, xr.Dataset], recipe: dict) -> xr.Dat
                              if COUNT_VAR in ds and "set" in ds.dims else None,
                              fluid_min=d_cfg.get("fluid_min"),
                              clean_nan=d_cfg.get("clean_nan", True),
-                             gradient_convention=d_cfg.get(
-                                 "gradient_convention", "matlab"),
                              prt_mode=d_cfg.get("prt_mode", "velocity"),
                              prt_dt=d_cfg.get("prt_dt", 1.0))
 

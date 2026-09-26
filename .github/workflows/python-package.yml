@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest numpy scipy tables vtk
+        python -m pip install pytest numpy scipy tables vtk pyvista
         python -m pip install -e .
     - name: Test with pytest
       run: |
