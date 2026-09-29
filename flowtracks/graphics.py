@@ -149,26 +149,100 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
     return fig
 
 
-def select_trajectories(source, by="length", n=10):
-    """Trajectory ids of the ``n`` longest (``by="length"``, points) or fastest
-    (``by="speed"``, max point speed) trajectories, best first.
-
-    ``source``: a zarr path with a ``trajectories/`` group or a ``Scene``/
-    ``ZarrScene`` (anything :func:`flowtracks.writers.trajectory_polydata`
-    accepts).
-    """
+def trajectory_summary(source):
+    """Per-trajectory table: ids, points, mean position, mean velocity,
+    spatial extent (bounding-box diagonal), path length (sum of step lengths:
+    distance actually travelled, back-and-forth motion included) and largest
+    jump -- the largest
+    one-frame spike: |step_k - (step_(k-1) + step_(k+1)) / 2|, a step that
+    disagrees with its two neighbours (a smooth speed-up is not a jump), in
+    position units per time unit of ``time`` (frames), so a step across a
+    bridged gap is not mistaken for one. Rows sorted by trajid."""
     from flowtracks.writers import _trajectory_arrays
 
-    _, vel, _, trajid = _trajectory_arrays(source)
-    ids, inverse, counts = np.unique(trajid, return_inverse=True, return_counts=True)
+    pos, vel, time, trajid = _trajectory_arrays(source)
+    order = np.lexsort((time, trajid))
+    pos, vel, time, trajid = pos[order], vel[order], time[order], trajid[order]
+    starts = np.flatnonzero(np.r_[True, trajid[1:] != trajid[:-1]])
+    n = np.diff(np.r_[starts, len(trajid)])
+    mean_pos = np.add.reduceat(pos, starts, axis=0) / n[:, None]
+    mean_vel = np.add.reduceat(vel, starts, axis=0) / n[:, None]
+    extent = np.linalg.norm(np.maximum.reduceat(pos, starts, axis=0)
+                            - np.minimum.reduceat(pos, starts, axis=0), axis=1)
+    jump = np.zeros(len(starts))
+    step = np.r_[0.0, np.linalg.norm(np.diff(pos, axis=0), axis=1)]
+    step[starts] = 0.0                      # no step across two trajectories
+    path = np.add.reduceat(step, starts)
+    for k, (a, b) in enumerate(zip(starts, np.r_[starts[1:], len(trajid)])):
+        if b - a > 3:
+            d = np.diff(pos[a:b], axis=0) / np.diff(time[a:b]).astype(float)[:, None]
+            jump[k] = np.linalg.norm(d[1:-1] - 0.5 * (d[:-2] + d[2:]), axis=1).max()
+    speed = np.linalg.norm(vel, axis=1)
+    return {"trajid": trajid[starts], "n": n, "mean_pos": mean_pos, "mean_vel": mean_vel,
+            "extent": extent, "path": path, "jump": jump, "max_speed": np.maximum.reduceat(speed, starts)}
+
+
+def select_trajectories(source, by="length", n=10, min_points=20, min_extent=0.0, seed=0):
+    """Trajectory ids of ``n`` trajectories chosen ``by``:
+
+    "length"   - longest (points), best first.
+    "speed"    - fastest (max point speed), best first.
+    "path"     - longest path travelled (sum of step lengths), best first:
+                 long AND moving -- back-and-forth motion counts in full,
+                 tracks that sit still (wall points) rank low.
+    "typical"  - one per main flow pattern: k-means (k = n) of the tracks'
+                 standardized mean position + mean velocity; from each cluster
+                 the track nearest its centre, largest cluster first -- the
+                 "most common" tracks in position and velocity.
+    "coverage" - fill the flow: k-means (k = n) of the tracks' mean
+                 positions splits the volume into n regions; the longest track
+                 of each region.
+    "jumps"    - largest one-frame spike (see :func:`trajectory_summary`),
+                 largest first.
+
+    typical / coverage / jumps only consider tracks with at least
+    ``min_points`` points and a spatial extent of at least ``min_extent``
+    (position units) -- e.g. to leave out points on a solid, reflecting wall
+    that never move. ``source``: anything :func:`trajectory_summary` reads.
+    """
+    tab = trajectory_summary(source)
+    ids = tab["trajid"]
     if by == "length":
-        score = counts
-    elif by == "speed":
-        score = np.full(len(ids), -np.inf)
-        np.maximum.at(score, inverse, np.linalg.norm(vel, axis=1))
-    else:
-        raise ValueError(f"by must be 'length' or 'speed', got {by!r}")
-    return ids[np.argsort(-score, kind="stable")[:n]]
+        return ids[np.argsort(-tab["n"], kind="stable")[:n]]
+    if by == "speed":
+        return ids[np.argsort(-tab["max_speed"], kind="stable")[:n]]
+    if by == "path":
+        return ids[np.argsort(-tab["path"], kind="stable")[:n]]
+    if by not in ("typical", "coverage", "jumps"):
+        raise ValueError(f"by must be length/speed/path/typical/coverage/jumps, got {by!r}")
+    keep = np.flatnonzero((tab["n"] >= min_points) & (tab["extent"] >= min_extent))
+    if len(keep) == 0:
+        return ids[:0]
+    if by == "jumps":
+        return ids[keep[np.argsort(-tab["jump"][keep], kind="stable")[:n]]]
+    from scipy.cluster.vq import kmeans2
+
+    def standardize(x):
+        sd = x.std(0)
+        return (x - x.mean(0)) / np.where(sd > 0, sd, 1.0)   # a flat axis stays 0, not NaN
+
+    mp = tab["mean_pos"][keep]
+    k = min(n, len(keep))
+    if by == "coverage":
+        _, label = kmeans2(standardize(mp), k, minit="++", seed=seed)
+        lengths = tab["n"][keep]
+        picks = [np.flatnonzero(label == c)[np.argmax(lengths[label == c])]
+                 for c in range(k) if np.any(label == c)]
+        return ids[keep[picks]]
+    feats = standardize(np.column_stack([mp, tab["mean_vel"][keep]]))
+    centres, label = kmeans2(feats, k, minit="++", seed=seed)
+    sizes = np.bincount(label, minlength=k)
+    picks = []
+    for c in np.argsort(-sizes, kind="stable"):
+        members = np.flatnonzero(label == c)
+        if len(members):
+            picks.append(members[np.argmin(np.linalg.norm(feats[members] - centres[c], axis=1))])
+    return ids[keep[picks]]
 
 
 def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,

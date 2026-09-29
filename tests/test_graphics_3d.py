@@ -50,3 +50,60 @@ def test_plot_builds_tracks_points_and_context_without_rendering():
     assert {"tracks", "points", "context"} <= set(pl.actors)
     assert pl.mesh.n_points == 3  # last mesh added: the fastest track's points
     pl.close()
+
+
+class Flow:
+    """id 1: long, sits still (a wall point); id 2: shorter, travels far
+    back and forth; id 3: short, moves steadily; id 4: steady with ONE
+    one-frame spike; id 5: steady with a 2-frame gap (not a jump)."""
+
+    def __init__(self):
+        rows = []
+        for k in range(200):                                   # wall point
+            rows.append((1, k, (0.0, 0.0, 0.0)))
+        for k in range(60):                                    # back and forth, 1 unit/frame
+            x = k if k < 30 else 60 - k
+            rows.append((2, k, (float(x), 5.0, 0.0)))
+        for k in range(25):                                    # steady
+            rows.append((3, k, (0.2 * k, 10.0, 0.0)))
+        for k in range(25):                                    # spike at k=12
+            rows.append((4, k, (0.2 * k + (3.0 if k == 12 else 0.0), 15.0, 0.0)))
+        for k in [*range(12), *range(14, 26)]:                 # gap: frames 12-13 missing
+            rows.append((5, k, (0.2 * k, 20.0, 0.0)))
+        self.trajid = np.array([r[0] for r in rows])
+        self.time = np.array([r[1] for r in rows])
+        self.pos = np.array([r[2] for r in rows], dtype=float)
+        self.vel = np.zeros_like(self.pos)
+
+    def collect(self, keys):
+        cols = {"pos": self.pos, "velocity": self.vel, "time": self.time, "trajid": self.trajid}
+        return [cols[k] for k in keys]
+
+
+def test_path_ranks_travel_not_duration():
+    src = Flow()
+    assert select_trajectories(src, "length", 1).tolist() == [1]   # the wall point
+    assert select_trajectories(src, "path", 1).tolist() == [2]     # travels 59 units
+
+
+def test_jumps_finds_the_spike_not_the_gap():
+    assert select_trajectories(Flow(), "jumps", 1, min_points=10).tolist() == [4]
+
+
+def test_min_extent_skips_wall_points():
+    for by in ("typical", "coverage", "jumps"):
+        ids = select_trajectories(Flow(), by, 5, min_points=10, min_extent=1.0)
+        assert 1 not in ids.tolist(), by
+        assert len(ids) >= 1
+
+
+def test_summary_path_and_jump_values():
+    from flowtracks.graphics import trajectory_summary
+
+    tab = trajectory_summary(Flow())
+    row = dict(zip(tab["trajid"].tolist(), range(len(tab["trajid"]))))
+    assert tab["path"][row[2]] == pytest.approx(59.0)
+    assert tab["path"][row[1]] == pytest.approx(0.0)
+    assert tab["jump"][row[5]] == pytest.approx(0.0, abs=1e-12)   # gap spaced correctly
+    # one point displaced by 3 bends two neighbouring steps: 3 + 3/2 = 4.5
+    assert tab["jump"][row[4]] == pytest.approx(4.5)
