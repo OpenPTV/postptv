@@ -79,11 +79,10 @@ class TestSavitzkyGolay(unittest.TestCase):
         smoothed = smoothing.savitzky_golay([traj], fps=1., window_size=9,
                                             order=3)[0]
 
-        # pos is a cubic -> reproduced exactly in the interior (the mirror
-        # padding at the very ends is not a polynomial, so boundaries differ,
-        # exactly as the original per-component convolve loop did).
-        si = slice(10, -10)
-        np.testing.assert_allclose(smoothed.pos()[si], traj.pos()[si], atol=1e-9)
+        # pos is a cubic -> reproduced exactly everywhere, ends included:
+        # the ends are evaluated on the polynomial fitted to the first/last
+        # window, not on mirror padding.
+        np.testing.assert_allclose(smoothed.pos(), traj.pos(), atol=1e-7)
 
         t = traj.time()
         vel = np.stack([a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2
@@ -91,13 +90,12 @@ class TestSavitzkyGolay(unittest.TestCase):
         acc = np.stack([2 * a[c, 2] + 6 * a[c, 3] * t for c in range(3)],
                       axis=1)
 
-        # Derivatives are exact away from the mirrored boundaries.
-        sl = slice(10, -10)
-        np.testing.assert_allclose(smoothed.velocity()[sl], vel[sl], atol=1e-8)
-        np.testing.assert_allclose(smoothed.accel()[sl], acc[sl], atol=1e-8)
+        np.testing.assert_allclose(smoothed.velocity(), vel, atol=1e-6)
+        np.testing.assert_allclose(smoothed.accel(), acc, atol=1e-6)
 
-    def test_matches_old_implementation(self):
-        """Vectorized version == original per-component convolve loop."""
+    def test_matches_old_implementation_in_the_interior(self):
+        """Vectorized version == original per-component convolve loop away
+        from the ends (the ends intentionally differ: no mirror padding)."""
         rng = np.random.default_rng(7)
         trajs = []
         for trid in range(4):
@@ -110,10 +108,39 @@ class TestSavitzkyGolay(unittest.TestCase):
         old = _old_savitzky_golay(trajs, fps=30., window_size=11, order=3)
 
         self.assertEqual(len(new), len(old))
+        si = slice(5, -5)  # half_window = 5
         for nt, ot in zip(new, old):
-            np.testing.assert_allclose(nt.pos(), ot.pos(), atol=1e-8)
-            np.testing.assert_allclose(nt.velocity(), ot.velocity(), atol=1e-8)
-            np.testing.assert_allclose(nt.accel(), ot.accel(), atol=1e-8)
+            np.testing.assert_allclose(nt.pos()[si], ot.pos()[si], atol=1e-8)
+            np.testing.assert_allclose(nt.velocity()[si], ot.velocity()[si], atol=1e-8)
+            np.testing.assert_allclose(nt.accel()[si], ot.accel()[si], atol=1e-8)
+
+    def test_decreasing_motion_exact_at_the_ends(self):
+        """Uniform motion in -x: the old abs()-mirror padding folded the
+        track back at both ends and pulled the end velocity toward zero."""
+        n, v = 30, -2.0
+        t = np.arange(n, dtype=np.float64)
+        pos = np.column_stack([v * t, 0.5 * t, np.zeros(n)])
+        sm = smoothing.savitzky_golay([Trajectory(pos, np.zeros_like(pos), t, 0)],
+                                      fps=1., window_size=11, order=2)[0]
+        np.testing.assert_allclose(sm.velocity(), np.tile([v, 0.5, 0.0], (n, 1)), atol=1e-9)
+
+    def test_frame_gap_is_spaced_correctly(self):
+        """Missing frames (a repair join) must not be treated as consecutive:
+        a cubic with frames removed keeps exact velocities at every observed
+        frame."""
+        rng = np.random.default_rng(3)
+        a = rng.normal(size=(3, 4))
+        full = _poly_trajectory(a, n=60, fps=1.)
+        keep = np.setdiff1d(np.arange(60), [20, 35, 36])
+        t = full.time()[keep]
+        traj = Trajectory(full.pos()[keep], np.zeros((len(keep), 3)), t, 0)
+        sm = smoothing.savitzky_golay([traj], fps=1., window_size=9, order=3)[0]
+        vel = np.stack([a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2 for c in range(3)], axis=1)
+        np.testing.assert_array_equal(sm.time(), t)
+        # interpolated fill is linear, so allow the cubic's error near the gap
+        far = np.abs(t[:, None] - np.array([20, 35, 36])).min(axis=1) > 4
+        np.testing.assert_allclose(sm.velocity()[far], vel[far], atol=1e-6)
+        self.assertLess(np.abs(sm.velocity() - vel).max(), 0.05 * np.abs(vel).max())
 
     def test_short_trajectory_dropped(self):
         t = np.arange(3, dtype=np.float64)
@@ -122,6 +149,21 @@ class TestSavitzkyGolay(unittest.TestCase):
         self.assertEqual(
             smoothing.savitzky_golay([traj], fps=1., window_size=9, order=3),
             [])
+
+    def test_min_window_smooths_short_tracks_instead_of_dropping(self):
+        """A 12-point quadratic track is dropped at window 21, but smoothed
+        exactly (largest odd window it fills = 11) with min_window=7; a
+        5-point track is still dropped."""
+        t = np.arange(12, dtype=np.float64)
+        pos = np.column_stack([0.5 * t**2, -3.0 * t, np.ones(12)])
+        tr = Trajectory(pos, np.zeros_like(pos), t, 0)
+        short = Trajectory(pos[:5], np.zeros((5, 3)), t[:5], 1)
+        self.assertEqual(smoothing.savitzky_golay([tr], fps=1., window_size=21, order=2), [])
+        out = smoothing.savitzky_golay([tr, short], fps=1., window_size=21, order=2, min_window=7)
+        self.assertEqual(len(out), 1)
+        np.testing.assert_allclose(out[0].velocity(), np.column_stack([t, -3.0 * np.ones(12), np.zeros(12)]), atol=1e-9)
+        with self.assertRaises(TypeError):
+            smoothing.savitzky_golay([tr], fps=1., window_size=21, order=2, min_window=8)
 
 
 if __name__ == '__main__':
