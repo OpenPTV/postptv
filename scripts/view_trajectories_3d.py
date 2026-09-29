@@ -47,7 +47,7 @@ TITLES = {"typical": "typical", "coverage": "filling the flow", "jumps": "larges
 
 
 def run_label(store: Path) -> str:
-    """Short name for a store: .../wp1/test/res/run.zarr -> wp1/test."""
+    """Short name for a store: .../run1/test/res/run.zarr -> run1/test."""
     parts = [p for p in store.resolve().parts if p not in ("res", store.name)]
     return "/".join(parts[-2:])
 
