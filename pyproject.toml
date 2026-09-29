@@ -31,6 +31,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# flowtracks/flux.py centerline() (3D skeleton of the fluid domain).
+# Import-guarded at call time; the rest of flowtracks.flux needs nothing extra.
+flux = ["scikit-image"]
 # flowtracks/writers.py (pyvista-based .vtp/.vti/.vtr/.pvd ParaView export).
 # Import-guarded at call time, so this is a convenience installer.
 vtk = ["vtk", "pyvista"]
