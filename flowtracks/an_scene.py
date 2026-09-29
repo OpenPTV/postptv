@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import tables
+
+try:
+    import tables
+except ImportError:  # optional legacy dependency; zarr paths do not need it
+    tables = None
 
 from .scene import gen_query_string, read_dual_scene
 from .trajectory import Trajectory
@@ -21,6 +25,12 @@ class AnalysedScene(object):
         Arguments:
         analysis_file - path to the HDF file containing analysis results.
         """
+        if tables is None:
+            raise ImportError(
+                "PyTables ('tables') is required for the legacy AnalysedScene. "
+                "The project now uses Zarr; install the 'legacy-io' extra "
+                "only if you need the old format."
+            )
         self._file = tables.open_file(analysis_file, "r")
         self._table = self._file.get_node('/analysis')
 

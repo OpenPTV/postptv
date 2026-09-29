@@ -4,10 +4,11 @@
 """
 The main entry points for using the module are the :func:`trajectories`
 function (or its counterpart :func:`iter_trajectories`) for reading the data
-for a scene; and either :func:`save_trajectories` or
-:func:`save_particles_table` for saving scene data in, respectively, an obsolete
-format based on a directory of NPZ files, or in the newer, recommended, HDF5
-format.
+for a scene; and either :func:`save_zarr_trajectories` /
+:func:`read_zarr_trajectories` for the current Zarr format, or the legacy
+:func:`save_trajectories` (obsolete directory of NPZ files) and
+:func:`save_particles_table` (legacy PyTables HDF5, requires the optional
+``tables`` dependency).
 
 The trajectory reader, unless otherwise noted, will try to infer the format
 from the file name (see :func:`infer_format`).
@@ -24,7 +25,6 @@ from configparser import ConfigParser
 from io import StringIO
 
 import numpy as np
-import tables
 from scipy import io
 
 from .particle import Particle
@@ -36,6 +36,22 @@ from .trajectory import (
     take_snapshot,
     trajectories_in_frame,
 )
+
+try:
+    import tables
+except ImportError:  # optional legacy dependency; zarr paths do not need it
+    tables = None
+
+
+def _require_tables():
+    if tables is None:
+        raise ImportError(
+            "PyTables ('tables') is required for legacy HDF5 I/O "
+            "(save_particles_table, save_frames_hdf, trajectories_table, "
+            "Scene with .h5 files). The project now uses Zarr "
+            "(save_zarr_trajectories, read_zarr_trajectories, ZarrScene); "
+            "install the 'legacy-io' extra only if you need the old format."
+        )
 
 
 class FramesIterator(object):
@@ -540,6 +556,7 @@ def trajectories(fname, first=None, last=None, frate=1.0, fmt=None, traj_min_len
             traj_min_len=traj_min_len)
 
     elif fmt == 'hdf':
+        _require_tables()
         scene = Scene(fname, (first, last))
         it = scene.iter_trajectories()
         if iter_allowed:
@@ -728,6 +745,10 @@ def save_particles_table(filename, trajects, trim=None):
     (frame number) and trajid - the last one may be indexed. Note that no extra
     (per-trajectory or meta) data is allowed here, unlike the npz save format.
 
+    .. deprecated::
+        Legacy PyTables/HDF5 format. Prefer
+        :func:`save_zarr_trajectories` + :class:`ZarrScene`.
+
     Arguments:
     filename - name of output PyTables HDF5 file to create. The 'h5' extension
         is recommended so that infer_format() knows what to do with it.
@@ -735,6 +756,7 @@ def save_particles_table(filename, trajects, trim=None):
     trim - if None, remove this many time points from each end of each
         trajectory before saving.
     """
+    _require_tables()
     table = None
     trim_len = 0 if trim is None else trim * 2
 
@@ -794,6 +816,7 @@ def save_frames_hdf(filename, frames):
         is recommended so that ``infer_format()`` knows what to do with it.
     frames - an iterable sequence of ParticleSnapshot objects to save.
     """
+    _require_tables()
     table = None
     outfile = tables.open_file(filename, mode='w')
     min_pos = np.full(3, np.inf)
@@ -862,6 +885,10 @@ def trajectories_table(fname, first=None, last=None):
     Reads trajectories from a PyTables HDF5 file, as saved by
     save_particles_table().
 
+    .. deprecated::
+        Legacy PyTables/HDF5 format. Prefer
+        :func:`read_zarr_trajectories` + :class:`ZarrScene`.
+
     Arguments:
     fname - path to file to read.
     first, last - inclusive range of frames to read.
@@ -869,6 +896,7 @@ def trajectories_table(fname, first=None, last=None):
     Returns:
     trajects - a list of Trajectory objects, each trimmed to the frame range.
     """
+    _require_tables()
     outfile = tables.open_file(fname, mode='r')
     table = outfile.get_node('/particles')
 

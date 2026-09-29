@@ -68,23 +68,33 @@ class TestPtvis(unittest.TestCase):
         trjs = io.trajectories_ptvis(inName, xuap = True, traj_min_len = None)
         self.assertEqual(len(trjs), 332)
 
-    def test_trajectories_hdf(self):
-        """HDF reading works"""
-        outfile = 'tests/testing_fodder/table.h5'
-        io.save_particles_table(outfile, self.correct)
-        loaded = io.trajectories_table(outfile)
-        self.compare_trajectories(loaded, self.correct)
-        os.remove(outfile)
+    def test_trajectories_zarr(self):
+        """Zarr round-trip works"""
+        import tempfile
 
-    def test_trim_hdf(self):
-        """HDF trajectory trimming"""
-        correct = io.trajectories_ptvis(self.tmpl, self.first+1, self.last-1)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zarr_path = os.path.join(tmpdir, 'table.zarr')
+            io.save_zarr_trajectories(self.correct, zarr_path)
+            loaded = io.read_zarr_trajectories(zarr_path)
+            self.compare_trajectories(
+                sorted(loaded, key=lambda t: t.trajid()),
+                sorted(self.correct, key=lambda t: t.trajid()),
+            )
 
-        outfile = 'tests/testing_fodder/table.h5'
-        io.save_particles_table(outfile, self.correct, trim=1)
+    def test_trim_zarr(self):
+        """Zarr trajectory trimming via frame-range read"""
+        import tempfile
 
-        loaded = io.trajectories_table(outfile)
-        self.compare_trajectories(loaded, correct)
+        correct = io.trajectories_ptvis(self.tmpl, self.first + 1, self.last - 1)
 
-        os.remove(outfile)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zarr_path = os.path.join(tmpdir, 'table.zarr')
+            io.save_zarr_trajectories(self.correct, zarr_path)
+
+            loaded = io.read_zarr_trajectories(
+                zarr_path, first=self.first + 1, last=self.last - 1)
+            self.compare_trajectories(
+                sorted(loaded, key=lambda t: t.trajid()),
+                sorted(correct, key=lambda t: t.trajid()),
+            )
 

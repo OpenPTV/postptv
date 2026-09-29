@@ -14,7 +14,6 @@ fluid velocity around a particle from its surrounding tracers.
 """
 
 import numpy as np
-import tables
 
 
 def companion_indices(trids, companions):
@@ -132,6 +131,14 @@ def analysis(scene, analysis_file, conf_file, analysers, frame_range=-1):
         descr.extend(analyser.descr())
     descr = np.dtype(descr)
 
+    try:
+        import tables
+    except ImportError:
+        raise ImportError(
+            "PyTables ('tables') is required for analysis() HDF5 output. "
+            "The project now uses Zarr; install the 'legacy-io' extra only "
+            "if you need the old format."
+        )
     outfile = tables.open_file(analysis_file, "w", title="Analysis results.")
     table = outfile.create_table('/', 'analysis', descr)
     table.attrs['config'] = conf_file

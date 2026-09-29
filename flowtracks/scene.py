@@ -19,7 +19,11 @@ import itertools as it
 from configparser import ConfigParser
 
 import numpy as np
-import tables
+
+try:
+    import tables
+except ImportError:  # optional legacy dependency; ZarrScene needs no tables
+    tables = None
 
 from .particle import Particle
 from .trajectory import ParticleSnapshot, Trajectory
@@ -73,6 +77,11 @@ class Scene(object):
     This class is the programmer's interface to an HDF files containing
     particle trajectory data. It manages access by frames or trajectories,
     as well as by segments.
+
+    .. deprecated::
+        Legacy PyTables/HDF5 backend. Prefer
+        :class:`flowtracks.zarr_scene.ZarrScene` (duck-typed compatible)
+        and open stores via :func:`open_scene`.
     """
     def __init__(self, file_name, frame_range=None):
         """
@@ -81,6 +90,12 @@ class Scene(object):
         frame_range - use only frames in this range for iterating the data.
             the default is None, meaning to use all present frams.
         """
+        if tables is None:
+            raise ImportError(
+                "PyTables ('tables') is required for the legacy HDF5 Scene. "
+                "The project now uses Zarr (ZarrScene); install the "
+                "'legacy-io' extra only if you need the old format."
+            )
         self._file = tables.open_file(file_name)
         self._table = self._file.get_node('/particles')
         try:
