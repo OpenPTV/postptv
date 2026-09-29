@@ -69,9 +69,11 @@ def bump_version(version_type):
         pyproject_content = pyproject_file.read_text()
         if '[project]' in pyproject_content:
             pyproject_new = re.sub(
-                r'version\s*=\s*["\"][^"\"]*["\"]',
+                r'^version\s*=\s*"[^"]*"',          # the [project] key only, not ruff's target-version
                 f'version = "{new_version}"',
-                pyproject_content
+                pyproject_content,
+                count=1,
+                flags=re.MULTILINE,
             )
             pyproject_file.write_text(pyproject_new)
             print(f"Updated pyproject.toml to version {new_version}")

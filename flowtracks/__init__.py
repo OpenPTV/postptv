@@ -1,6 +1,6 @@
 """Flowtracks: Complete 3D PTV Lagrangian & Eulerian Post-Processing Toolkit."""
 
-__version__ = '1.5.0'
+__version__ = '1.5.1'
 
 from flowtracks.eulerian import (
     clean_field,
