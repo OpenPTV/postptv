@@ -11,3 +11,4 @@ doc/build/*
 *.json
 .pypi_token
 uv.lock
+flowtracks/_version.py

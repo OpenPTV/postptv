@@ -1,6 +1,10 @@
 """Flowtracks: Complete 3D PTV Lagrangian & Eulerian Post-Processing Toolkit."""
 
-__version__ = '1.5.1'
+# flowtracks/_version.py is written by setuptools-scm at build/install time
+try:
+    from flowtracks._version import __version__
+except ImportError:  # a bare source tree, never installed
+    __version__ = "0+unknown"
 
 from flowtracks.eulerian import (
     clean_field,

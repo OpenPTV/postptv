@@ -1,14 +1,20 @@
-# This workflow will upload a Python Package to PyPI when a release is created
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+# Publishes flowtracks to PyPI (trusted publishing, environment "pypi"):
+#
+# - every push to master -> a DEVELOPMENT release, X.Y.(Z+1).devN, N = commits
+#   since the last vX.Y.Z tag (setuptools-scm). pip and uv skip development
+#   releases unless asked for one (`pip install --pre`, or a requirement such
+#   as `flowtracks>=1.5.2.dev3`), so stable users are unaffected while
+#   downstream projects can pin the newest code;
+# - a published GitHub release (tag vX.Y.Z) -> the stable X.Y.Z.
+#
+# Tests and ruff gate both. This is the only workflow that publishes.
 
 name: Upload Python Package
 
 on:
+  push:
+    branches: [master]
+    paths-ignore: ["**.md", "doc/**"]
   release:
     types: [published]
   workflow_dispatch:
@@ -17,33 +23,50 @@ permissions:
   contents: read
 
 jobs:
-  release-build:
+  test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test and lint
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ruff tables vtk pyvista scikit-image
+          python -m pip install -e .
+          pytest -q
+          ruff check .
+
+  release-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # setuptools-scm derives the version from tags
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      - name: Verify release tag matches package version
-        run: |
-          # Release tag is like v1.2.2; package __version__ must be 1.2.2.
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PACKAGE_VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\'\"](.*?)[\'\"]', open('flowtracks/__init__.py').read()).group(1))")
-          echo "Tag version: $TAG_VERSION"
-          echo "Package version: $PACKAGE_VERSION"
-          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
-            echo "Error: Tag version ($TAG_VERSION) does not match package version ($PACKAGE_VERSION)"
-            exit 1
-          fi
-
       - name: Build release distributions
         run: |
-          # NOTE: put your own distribution build steps here.
           python -m pip install build
           python -m build
+
+      - name: Check the version
+        run: |
+          VERSION=$(ls dist/*.whl | sed -E 's/.*flowtracks-([^-]+)-.*/\1/')
+          echo "Built version: $VERSION"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # a release must build exactly its tag's version (v1.2.2 -> 1.2.2)
+            if [ "$VERSION" != "${GITHUB_REF#refs/tags/v}" ]; then
+              echo "Error: tag ${GITHUB_REF#refs/tags/} builds $VERSION"; exit 1
+            fi
+          else
+            case "$VERSION" in *.dev*) ;; *) echo "Error: $VERSION is not a dev version"; exit 1 ;; esac
+          fi
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -58,17 +81,9 @@ jobs:
     permissions:
       # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
-
-    # Dedicated environments with protections for publishing are strongly recommended.
-    # For more information, see: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#deployment-protection-rules
     environment:
       name: pypi
-      # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
-      # url: https://pypi.org/p/YOURPROJECT
-      #
-      # ALTERNATIVE: if your GitHub Release name is the PyPI project version string
-      # ALTERNATIVE: exactly, uncomment the following line instead:
-      # url: https://pypi.org/project/YOURPROJECT/${{ github.event.release.name }}
+      url: https://pypi.org/p/flowtracks
 
     steps:
       - name: Retrieve release distributions
@@ -81,3 +96,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          skip-existing: true     # a re-run of the same commit is not an error

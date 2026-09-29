@@ -1,67 +1,39 @@
 # Release Process
 
-This document describes the process for releasing new versions of the `flowtracks` package.
+Versions come from git tags ([setuptools-scm](https://setuptools-scm.readthedocs.io));
+nothing in the source tree holds a version number.
 
-## Version Numbering
+## Development releases (automatic)
 
-We follow [Semantic Versioning](https://semver.org/):
+Every push to `master` that passes the tests is published to PyPI as a
+development release: `X.Y.(Z+1).devN`, where `vX.Y.Z` is the last tag and `N`
+the number of commits since it (e.g. `1.5.2.dev3`).
 
-- **MAJOR** version when you make incompatible API changes
-- **MINOR** version when you add functionality in a backward compatible manner
-- **PATCH** version when you make backward compatible bug fixes
-
-## Bumping the Version
-
-To bump the version, use the provided script:
+`pip install flowtracks` and `uv add flowtracks` ignore development releases,
+so users of the stable version never get them by accident. To use one:
 
 ```bash
-# Bump the patch version (e.g., 1.0.1 -> 1.0.2)
-python bump_version.py patch
-
-# Bump the minor version (e.g., 1.0.1 -> 1.1.0)
-python bump_version.py minor
-
-# Bump the major version (e.g., 1.0.1 -> 2.0.0)
-python bump_version.py major
+pip install --pre flowtracks                  # newest, including dev releases
+pip install "flowtracks>=1.5.2.dev3"          # at least this commit
 ```
 
-## Release Process
+(uv accepts a dev release whenever the requirement itself names one, as in
+the second line.)
 
-1. Make sure all your changes are committed and pushed to the repository.
+## Stable releases
 
-2. Bump the version using the script above.
+We follow [Semantic Versioning](https://semver.org/): MAJOR for incompatible
+API changes, MINOR for new backward-compatible functionality, PATCH for
+backward-compatible bug fixes.
 
-3. Commit the version change:
+1. Make sure `master` is pushed and its CI is green.
+2. Create the release on GitHub (this creates the tag):
    ```bash
-   git add flowtracks/__init__.py
-   git commit -m "Bump version to x.y.z"
+   gh release create vX.Y.Z --title vX.Y.Z --notes "..."
    ```
+3. `.github/workflows/python-publish.yml` runs the tests, builds `X.Y.Z` from
+   the tag (and fails if the tag and the built version differ) and publishes
+   it to PyPI via trusted publishing (GitHub environment `pypi`).
 
-4. Create a tag for the new version:
-   ```bash
-   git tag -a vx.y.z -m "Release version x.y.z"
-   ```
-
-5. Push the changes and the tag:
-   ```bash
-   git push origin master
-   git push origin vx.y.z
-   ```
-
-6. GitHub Actions will automatically:
-   - Run tests on the tagged version
-   - Build the package
-   - Upload it to PyPI (if tests pass)
-
-## PyPI Configuration
-
-To enable automatic publishing to PyPI, you need to:
-
-1. Create an API token on PyPI:
-   - Go to https://pypi.org/manage/account/
-   - Create an API token with scope "Upload to project"
-
-2. Add the token as a secret in your GitHub repository:
-   - Go to your repository on GitHub
-   - Navigate to Settings > Secrets > Actions
-   - Create a new secret named `PYPI_API_TOKEN` with the value of your PyPI token
+The installed version is `flowtracks.__version__` (written to
+`flowtracks/_version.py` at build/install time; not in git).

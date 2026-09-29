@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowtracks"
-version = "1.5.1"
+dynamic = ["version"]   # from git tags (setuptools-scm); see RELEASE.md
 description = "Library for handling 3D PTV trajectory databases and Lagrangian/Eulerian turbulence post-processing."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,13 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering"
 ]
+
+[tool.setuptools_scm]
+# vX.Y.Z tag -> X.Y.Z; N commits after it -> X.Y.(Z+1).devN. No local
+# "+g<sha>" suffix: PyPI rejects local versions, and every master push is
+# published as a development release (pip skips those unless asked).
+version_file = "flowtracks/_version.py"
+local_scheme = "no-local-version"
 
 [project.optional-dependencies]
 # flowtracks/flux.py centerline() (3D skeleton of the fluid domain).
@@ -90,7 +97,6 @@ ignore = ["E501", "E701", "E741"]
 "scripts/**" = ["E402", "F401", "F841"]
 "benchmarks/**" = ["E402", "F401", "F841"]
 "doc/**" = ["E402", "F401"]
-"bump_version.py" = ["E402", "F401", "F841"]
 # F401: test modules import names to prove they are importable / to be
 # used by other tests via `from test_x import ...`.
 "tests/**" = ["E402", "F401"]
