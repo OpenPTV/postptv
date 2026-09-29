@@ -8,7 +8,9 @@ import numpy as np
 import pytest
 
 from flowtracks.flux import (
+    Domain,
     centerline,
+    domain_boundary,
     field_flux,
     fluid_domain,
     section_flux,
@@ -116,3 +118,21 @@ def test_field_flux_is_exact():
                          rmax=10.0, h=0.1)
     assert q == pytest.approx(q_exact(np.array([0.5, 0.6])), rel=0.01)
     assert area == pytest.approx(np.pi * R**2, rel=0.01)
+
+
+def test_domain_boundary_of_a_cube():
+    """A 4x4x4 fluid cube inside a 6x6x6 grid: 6 faces x 16 boundary faces,
+    outward normals, centres on the cube's surface."""
+    mask = np.zeros((6, 6, 6), bool)
+    mask[1:5, 1:5, 1:5] = True
+    b = domain_boundary(Domain(mask, np.zeros(3), 2.0))
+    assert len(b["cell"]) == 6 * 16
+    assert b["area"] == 4.0
+    for ax in range(3):
+        for side in (1, -1):
+            sel = (b["axis"] == ax) & (b["side"] == side)
+            assert sel.sum() == 16
+            assert np.allclose(b["normal"][sel][:, ax], side)
+            assert np.allclose(b["centre"][sel][:, ax], 2.0 if side < 0 else 10.0)
+    full = domain_boundary(Domain(np.ones((3, 3, 3), bool), np.zeros(3), 1.0))
+    assert len(full["cell"]) == 6 * 9            # the grid edge counts as a boundary

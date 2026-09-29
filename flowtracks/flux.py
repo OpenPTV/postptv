@@ -36,7 +36,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["Domain", "Centerline", "Section", "fluid_domain", "centerline",
+__all__ = ["Domain", "Centerline", "Section", "fluid_domain", "domain_boundary", "centerline",
            "section_lumen", "section_flux", "field_flux"]
 
 
@@ -150,6 +150,38 @@ def fluid_domain(points, voxel, min_density=3.0, smooth=1.0, margin=3):
     np.add.at(count, tuple(idx.T), 1)
     mask = binary_fill_holes(binary_closing(gaussian_filter(count, smooth) >= min_density, iterations=2))
     return Domain(_largest_component(mask), lo, float(voxel))
+
+
+def domain_boundary(domain):
+    """Every voxel face between a fluid voxel and a non-fluid one (or the grid
+    edge): the conduit walls plus its openings. Returns a dict of arrays
+
+    cell   (N, 3) int  -- the fluid voxel owning the face
+    axis   (N,)   int  -- 0/1/2: the face is normal to x/y/z
+    side   (N,)   int  -- +1/-1: the outward normal is side * e_axis
+    centre (N, 3)      -- face centre
+    normal (N, 3)      -- outward unit normal
+    area   float       -- face area (voxel^2)
+
+    E.g. to mark which faces are openings (flow crosses) and which are walls.
+    """
+    cells, axes, sides = [], [], []
+    pad = np.pad(domain.mask, 1, constant_values=False)
+    for ax in range(3):
+        for side in (1, -1):
+            neighbour = np.roll(pad, -side, axis=ax)[1:-1, 1:-1, 1:-1]
+            c = np.argwhere(domain.mask & ~neighbour)
+            cells.append(c)
+            axes.append(np.full(len(c), ax))
+            sides.append(np.full(len(c), side))
+    cell = np.vstack(cells)
+    axis = np.concatenate(axes)
+    side = np.concatenate(sides)
+    normal = np.zeros((len(cell), 3))
+    normal[np.arange(len(cell)), axis] = side
+    centre = domain.origin + domain.voxel * (cell + 0.5) + 0.5 * domain.voxel * normal
+    return {"cell": cell, "axis": axis, "side": side, "centre": centre, "normal": normal,
+            "area": domain.voxel**2}
 
 
 def centerline(domain, spacing, smooth=7, tangent_span=None):
