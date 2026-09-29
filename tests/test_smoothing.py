@@ -142,6 +142,16 @@ class TestSavitzkyGolay(unittest.TestCase):
         np.testing.assert_allclose(sm.velocity()[far], vel[far], atol=1e-6)
         self.assertLess(np.abs(sm.velocity() - vel).max(), 0.05 * np.abs(vel).max())
 
+    def test_gap_not_a_multiple_of_smallest_step(self):
+        """Frames 37, 40, 43, 46, 68: the fill grid must reach frame 68
+        (step 1), not stop at 67 on a step-3 grid (was an IndexError)."""
+        t = np.array([37, 40, 43, 46, 68], dtype=np.float64)
+        pos = np.column_stack([2.0 * t, -t, np.ones(5)])
+        sm = smoothing.savitzky_golay([Trajectory(pos, np.zeros_like(pos), t, 0)],
+                                      fps=1., window_size=9, order=3, min_window=5)[0]
+        np.testing.assert_array_equal(sm.time(), t)
+        np.testing.assert_allclose(sm.velocity(), np.tile([2.0, -1.0, 0.0], (5, 1)), atol=1e-9)
+
     def test_short_trajectory_dropped(self):
         t = np.arange(3, dtype=np.float64)
         traj = Trajectory(np.random.default_rng(1).normal(size=(3, 3)),

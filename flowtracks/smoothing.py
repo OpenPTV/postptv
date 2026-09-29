@@ -112,7 +112,12 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
         steps = np.diff(time)
         observed = slice(None)
         if len(steps) and np.any(steps != steps.min()) and steps.min() > 0:
-            grid = np.arange(time[0], time[-1] + steps.min() / 2, steps.min())
+            # grid step must divide every step (frames 37,40,43,46,68: 1, not
+            # 3), or observed frames fall between grid points
+            step = steps.min()
+            if np.all(steps == np.round(steps)):
+                step = np.gcd.reduce(np.round(steps).astype(np.int64))
+            grid = np.arange(time[0], time[-1] + step / 2, step)
             pos = np.column_stack([np.interp(grid, time, pos[:, k]) for k in range(pos.shape[1])])
             observed = np.searchsorted(grid, time)
         if len(pos) < min_window:
