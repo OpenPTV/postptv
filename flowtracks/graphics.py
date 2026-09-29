@@ -11,6 +11,11 @@ result.
 The other facility here is a function to plot a time-dependent 3D vector as
 3 component subplots, which is another customary presentation in fluid
 dynamics circles. See :func:`plot_vectors`.
+
+3D trajectories: :func:`select_trajectories` picks the longest or fastest
+tracks of a store, :func:`plot_trajectories_3d` draws them interactively with
+PyVista (VTK, GPU-rendered polylines -- the ``vtk`` extra), from the same
+PolyData the ``.vtp`` ParaView writer saves.
 """
 
 import matplotlib.pyplot as pl
@@ -142,3 +147,75 @@ def plot_vectors(vecs, indep, xlabel, fig=None, marker='-',
     pl.gca().get_xaxis().set_visible(True)
     pl.xlabel(xlabel)
     return fig
+
+
+def select_trajectories(source, by="length", n=10):
+    """Trajectory ids of the ``n`` longest (``by="length"``, points) or fastest
+    (``by="speed"``, max point speed) trajectories, best first.
+
+    ``source``: a zarr path with a ``trajectories/`` group or a ``Scene``/
+    ``ZarrScene`` (anything :func:`flowtracks.writers.trajectory_polydata`
+    accepts).
+    """
+    from flowtracks.writers import _trajectory_arrays
+
+    _, vel, _, trajid = _trajectory_arrays(source)
+    ids, inverse, counts = np.unique(trajid, return_inverse=True, return_counts=True)
+    if by == "length":
+        score = counts
+    elif by == "speed":
+        score = np.full(len(ids), -np.inf)
+        np.maximum.at(score, inverse, np.linalg.norm(vel, axis=1))
+    else:
+        raise ValueError(f"by must be 'length' or 'speed', got {by!r}")
+    return ids[np.argsort(-score, kind="stable")[:n]]
+
+
+def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,
+                         plotter=None, cmap="plasma", clim=None, line_width=3,
+                         point_size=6, title=None, bar_title=None, show=True):
+    """Interactive 3D trajectory view (PyVista): polylines coloured by a point
+    array (``speed``, ``time``, ``trajid``), points drawn as spheres so short
+    tracks stay visible.
+
+    trajids - draw only these (e.g. from :func:`select_trajectories`);
+        None draws every trajectory.
+    context - also draw this many randomly sampled points of ALL
+        trajectories, faint grey, to show where the selection sits.
+    plotter - draw into an existing ``pyvista.Plotter`` (or a subplot of
+        one); a new one is created otherwise.
+    bar_title - colour-bar title (default: ``scalars``). PyVista merges bars
+        with the same title into one shared colour range, so give each
+        subplot its own title to keep its own range.
+    show - call ``plotter.show()``; pass False to compose or screenshot.
+
+    Returns the plotter.
+    """
+    import pyvista as pv
+
+    from flowtracks.writers import _trajectory_arrays, trajectory_polydata
+
+    poly = trajectory_polydata(source, trajids)
+    if plotter is None:
+        plotter = pv.Plotter()
+    if context:
+        pos = _trajectory_arrays(source)[0]
+        pick = np.random.default_rng(0).choice(len(pos), min(context, len(pos)), replace=False)
+        plotter.add_points(pos[pick], color="grey", opacity=0.15, point_size=2,
+                           name="context")
+    if poly.n_points:
+        bar = {"title": bar_title or scalars}
+        plotter.add_mesh(poly, scalars=scalars, cmap=cmap, clim=clim, line_width=line_width,
+                         render_lines_as_tubes=True, scalar_bar_args=bar, name="tracks")
+        plotter.add_mesh(poly.extract_points(np.arange(poly.n_points), adjacent_cells=False),
+                         scalars=scalars, cmap=cmap, clim=clim, point_size=point_size,
+                         render_points_as_spheres=True, style="points",
+                         show_scalar_bar=False, name="points")
+    plotter.show_grid(xtitle="x", ytitle="y", ztitle="z", fmt="%.3g",
+                      n_xlabels=3, n_ylabels=3, n_zlabels=3)
+    plotter.add_axes()
+    if title:
+        plotter.add_text(title, font_size=10)
+    if show:
+        plotter.show()
+    return plotter

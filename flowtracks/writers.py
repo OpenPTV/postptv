@@ -67,25 +67,24 @@ def _trajectory_arrays(source):
     raise TypeError(f"Unsupported trajectory source: {type(source)!r}")
 
 
-def write_trajectories_vtp(source, out_path: Path) -> Path:
-    """Write Lagrangian trajectories as VTK PolyData (points + polylines per trajid).
+def trajectory_polydata(source, trajids=None):
+    """Lagrangian trajectories as VTK PolyData: points + one polyline per trajid.
 
-    ``source`` is a zarr path holding a ``trajectories/`` group with
-    ``pos``/``vel``/``time``/``trajid`` arrays (a flowtracks Zarr export or an
-    openptv2 RunStore -- no conversion needed, see ``ZarrScene``), or any
-    object exposing ``.collect(["pos", "velocity", "time", "trajid"])``
-    (``ZarrScene``/``Scene``).
+    ``source`` as for :func:`write_trajectories_vtp`. ``trajids`` optionally
+    keeps only those trajectories. Point data: ``trajid``, ``time``,
+    ``velocity``, ``speed``. Shared by the ``.vtp`` writer and
+    :func:`flowtracks.graphics.plot_trajectories_3d`.
     """
     import pyvista as pv
 
     pos, vel, time, trajid = _trajectory_arrays(source)
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if trajids is not None:
+        keep = np.isin(trajid, np.asarray(trajids))
+        pos, vel, time, trajid = pos[keep], vel[keep], time[keep], trajid[keep]
 
     poly = pv.PolyData()
     if len(trajid) == 0:
-        poly.save(str(out_path))
-        return out_path
+        return poly
 
     order = np.lexsort((time, trajid))
     pos, vel, time, trajid = pos[order], vel[order], time[order], trajid[order]
@@ -103,7 +102,21 @@ def write_trajectories_vtp(source, out_path: Path) -> Path:
     poly.point_data["time"] = time
     poly.point_data["velocity"] = vel
     poly.point_data["speed"] = np.linalg.norm(vel, axis=1)
-    poly.save(str(out_path))
+    return poly
+
+
+def write_trajectories_vtp(source, out_path: Path) -> Path:
+    """Write Lagrangian trajectories as VTK PolyData (points + polylines per trajid).
+
+    ``source`` is a zarr path holding a ``trajectories/`` group with
+    ``pos``/``vel``/``time``/``trajid`` arrays (a flowtracks Zarr export or an
+    openptv2 RunStore -- no conversion needed, see ``ZarrScene``), or any
+    object exposing ``.collect(["pos", "velocity", "time", "trajid"])``
+    (``ZarrScene``/``Scene``).
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    trajectory_polydata(source).save(str(out_path))
     return out_path
 
 
