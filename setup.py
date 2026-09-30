@@ -17,9 +17,8 @@ setup(
     packages=find_packages(),
     data_files=[('flowtracks-examples', [f for f in glob('examples/*') if os.path.isfile(f)])],
     scripts=['scripts/analyse_fhdf.py'],
-    entry_points={
-        'console_scripts': [
-            'postptv-combine = flowtracks.combine:main',
-        ],
-    },
+    # NOTE: console_scripts live in pyproject.toml [project.scripts], which
+    # setuptools treats as authoritative; defining entry_points here as well
+    # would be silently ignored (setuptools warns "`scripts` defined outside
+    # of `pyproject.toml` is ignored").
 )

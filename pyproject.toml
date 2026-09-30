@@ -30,6 +30,9 @@ classifiers = [
     "Topic :: Scientific/Engineering"
 ]
 
+[project.scripts]
+postptv-combine = "flowtracks.combine:main"
+
 [tool.setuptools_scm]
 # vX.Y.Z tag -> X.Y.Z; N commits after it -> X.Y.(Z+1).devN. No local
 # "+g<sha>" suffix: PyPI rejects local versions, and every master push is
