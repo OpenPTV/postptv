@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """
 Trajectory stitching routines for reconnecting broken trajectory segments.
 """

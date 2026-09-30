@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """A Zarr-backed counterpart to :class:`flowtracks.scene.Scene`.
 
 ``Scene`` reads a PyTables HDF5 ``/particles`` table via ``read_where()``

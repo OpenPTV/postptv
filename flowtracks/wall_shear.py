@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Near-wall shear stress and cyclic wall-shear indices from a velocity field.
 
 General-purpose: works with any triangulated surface -- an explicit wall

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Post-analysis pipeline as pure Dataset -> Dataset stages, driven by one YAML recipe.
 
 xarray re-expression of batch_Lagrangian_to_Eulerian.py, turbulent_statistics.py

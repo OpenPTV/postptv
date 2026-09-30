@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Unified pyvista-based ParaView writers.
 
 Lagrangian trajectories -> VTK PolyData (``.vtp``, polylines per ``trajid``).

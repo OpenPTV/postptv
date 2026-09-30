@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Vortex-identification scalars from a 3-D velocity field.
 
 Q-criterion, lambda2 (Jeong & Hussain 1995), and enstrophy -- standard,

@@ -15,8 +15,24 @@ sources in the doc/ directory. It is also available online:
 Please refer to that documentation for the full information on installing,
 reference documentation and usage examples contained in the package.
 
-The program is distributed under the terms of the GNU General Public 
-License, version 3.0. For details, see the LICENSE.txt file.
+License
+=======
+
+The original `flowtracks` core stays under the GNU General Public License,
+version 3.0 (see `LICENSE.txt`): `trajectory`, `particle`, `sequence`,
+`scene`, `an_scene`, `analysis`, `io`, `smoothing`, `interpolation`,
+`pairs`, `graphics`, `format_docstrings`, and `__init__`.
+
+Newer modules — the Zarr backend and the xarray post-processing track
+(`zarr_scene`, `eulerian`, `phase_average`, `pipeline`, `combine`,
+`stitching`, `repair`, `writers`, `provenance`, `vortex`, `wall_shear`,
+`flux`, `nhist`, `future_idea_xarray_dask_zarr`) — are BSD-3-Clause
+(see `LICENSES/BSD-3-Clause.txt`).
+
+Every module states its license in an SPDX header at the top of the file.
+Note that the package as a whole combines both, so a distributed
+`flowtracks` follows GPL-3.0 terms; the BSD modules are reusable under BSD
+only when used standalone, without the GPL core.
 
 How to cite this work
 =====================

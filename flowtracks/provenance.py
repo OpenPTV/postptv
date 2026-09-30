@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Run provenance: what was run, with which parameters, and what it produced.
 
 Appends a small JSON-serializable record to run.zarr/meta.attrs["runs"] --

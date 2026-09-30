@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Modular pipeline for 3DPTV data processing.
 
 Each function is one independently-runnable stage (the decomposition the

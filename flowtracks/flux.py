@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Volume flow rate through cross-sections of an internal flow, from particles.
 
 For Lagrangian (PTV) data in a pipe, channel or vessel: in an incompressible

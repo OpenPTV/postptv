@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileCopyrightText: Yosef Meller, Alex Liberzon
 # -*- coding: utf-8 -*-
 # Created on Tue May 28 10:27:15 2013
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """
 Trajectory repair: cut links that fail a gap check, attach single points, and
 join trajectory pieces with a checked join.

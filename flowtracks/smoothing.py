@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileCopyrightText: Yosef Meller, Alex Liberzon
 """
 Trajectory smoothing routines. These are routines that are out of the
 Trajectory object because they precompute values that are dependent only on the

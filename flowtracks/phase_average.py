@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """Phase averaging as pure Dataset -> Dataset functions, driven by a YAML recipe.
 
 xarray re-expression of phase_average_fluctuations.py (pyorc-style):

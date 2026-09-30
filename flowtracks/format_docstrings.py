@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileCopyrightText: Yosef Meller, Alex Liberzon
 # A Sphinx extension that, in collaboration with the autodoc extension,
 # parses the docstring format used in this project.
 

@@ -9,7 +9,8 @@ description = "Library for handling 3D PTV trajectory databases and Lagrangian/E
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Yosef Meller", email = "yosefm@gmail.com" }]
-license = { file = "LICENSE.txt" }
+license = "GPL-3.0-only AND BSD-3-Clause"
+license-files = ["LICENSE.txt", "LICENSES/*"]
 dependencies = [
     "numpy",
     "scipy",
@@ -22,7 +23,6 @@ dependencies = [
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

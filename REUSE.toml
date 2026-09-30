@@ -1,0 +1,34 @@
+version = 1
+SPDX-PackageName = "flowtracks"
+SPDX-PackageSupplier = "Alex Liberzon"
+SPDX-PackageDownloadLocation = "https://github.com/OpenPTV/postptv"
+
+[[annotations]]
+path = ["tests/**", "doc/**", "**.ipynb"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Yosef Meller, Alex Liberzon"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = ["examples/**", "scripts/**", "benchmarks/**", ".github/**", "**.toml", "**.txt", "**.md", "peek_zarr.py", "uv.lock", ".gitignore"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Alex Liberzon"
+SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = ["examples/hdf5_scene_analysis.ipynb", "examples/repeated_interpolation.ipynb", "scripts/analyse_fhdf.py", "setup.py", "data/particles.h5", "data/particles/**", "data/tracers/**", "data/seq_hdf.cfg", "data/readme.txt", "README.md"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Yosef Meller, Alex Liberzon"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "data/tracers.zarr/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Alex Liberzon"
+SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = "LICENSE.txt"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Free Software Foundation, Inc."
+SPDX-License-Identifier = "GPL-3.0-only"

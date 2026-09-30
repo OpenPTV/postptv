@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 """flowtracks.combine - CLI entrypoint for postptv-combine
 
 Vectorized 3D Eulerian binning, ensemble phase-averaging across realizations/subfolders,

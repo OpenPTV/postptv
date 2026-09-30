@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-FileCopyrightText: Yosef Meller, Alex Liberzon
 """Flowtracks: Complete 3D PTV Lagrangian & Eulerian Post-Processing Toolkit."""
 
 # flowtracks/_version.py is written by setuptools-scm at build/install time

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-FileCopyrightText: Alex Liberzon
 #!/usr/bin/env python3
 """
 Boilerplate for 3D-PTV trajectory post-processing
