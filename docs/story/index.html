@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+<base href="./">
+<link data-marimo-studio-runtime rel="stylesheet" crossorigin="anonymous" href="./_marimo-studio/assets/zero-python/cells.css"><link data-marimo-studio-runtime rel="stylesheet" crossorigin="anonymous" href="./_marimo-studio/assets/zero-python/glide-data-editor.css"><link data-marimo-studio-runtime rel="stylesheet" crossorigin="anonymous" href="./_marimo-studio/assets/zero-python/swiper-component.css"><link data-marimo-studio-runtime rel="stylesheet" crossorigin="anonymous" href="./_marimo-studio/assets/zero-python/mount.css"><link data-marimo-studio-runtime rel="stylesheet" crossorigin="anonymous" href="./_marimo-studio/assets/zero-python/zero-python.css"><script data-marimo-studio-runtime>Object.defineProperty(window,'__MARIMO_MOUNT_CONFIG__',{value:Object.freeze({"supportUrl":"./_marimo-studio/views/story","version":"0.25.0","revision":"2cacd5fb19de5dfe4eff0ed2c597a7293910d5fe751ef3469edf2c49ef6122c6","runtime":"zero-python","runtimeExplicit":false,"replay":false}),writable:false,configurable:false,enumerable:true});</script><script data-marimo-studio-runtime type="module" src="./_marimo-studio/assets/zero-python.js"></script>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>flowtracks basics — from particles to fields</title>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@unocss/runtime@66.10.5/uno.global.js"
+      integrity="sha384-iX+gEyr2u+Tmd8XxbySu2iimH7dOfTZn9xahADx38mJHYzAI2CJUCo5+PPGOSU2b"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.3/dist/iconify-icon.min.js"
+      integrity="sha384-jypoV+nlFXLykSFUJkpVjPG/eid90inFxyvUI1corcUR778eMGexPBFzNC94eOc+"
+      crossorigin="anonymous"
+    ></script>
+    <style>
+      :root {
+        --ink: #0f172a;
+        --ink-soft: #334155;
+        --accent: #0369a1;
+        --accent-ink: #075985;
+        --paper: #f8fafc;
+        --card: #ffffff;
+        --line: #e2e8f0;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--text-font, system-ui, -apple-system, "Segoe UI", sans-serif);
+      }
+      #progress {
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: 4px;
+        background: linear-gradient(90deg, #0369a1, #22d3ee);
+        width: 0%;
+        z-index: 50;
+      }
+      .hero {
+        background: radial-gradient(1200px 500px at 20% -10%, #0ea5e933, transparent),
+          radial-gradient(900px 420px at 90% 0%, #6366f122, transparent),
+          linear-gradient(180deg, #0b1526 0%, #10233d 100%);
+        color: #f1f5f9;
+      }
+      .hero marimo-cell {
+        --marimo-cell-foreground: #e2e8f0;
+        --marimo-cell-accent: #7dd3fc;
+        --marimo-cell-font-size: 1.05rem;
+      }
+      .pipe-chip {
+        border: 1px solid #ffffff2e;
+        background: #ffffff12;
+        border-radius: 999px;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.8rem;
+        white-space: nowrap;
+      }
+      .pipe-arrow {
+        color: #7dd3fc;
+        font-weight: 700;
+      }
+      .controls-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 24px -16px #0f172a55;
+      }
+      .controls-card marimo-cell {
+        --marimo-cell-font-size: 0.85rem;
+      }
+      .story-section {
+        scroll-margin-top: 24px;
+      }
+      .reveal {
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      .reveal.visible {
+        opacity: 1;
+        transform: none;
+      }
+      .fig-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 24px -16px #0f172a55;
+      }
+      .fig-card img {
+        max-width: 100%;
+        height: auto;
+      }
+      .fig-card marimo-cell {
+        --marimo-cell-font-size: 0.95rem;
+      }
+      .prose-cell marimo-cell {
+        --marimo-cell-font-size: 1rem;
+        --marimo-cell-heading-font: var(--text-font, system-ui, sans-serif);
+        --marimo-cell-accent: var(--accent);
+      }
+      .prose-cell marimo-cell h3 {
+        margin-top: 0;
+      }
+      .step-num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        color: var(--accent-ink);
+        text-transform: uppercase;
+      }
+      .side-col {
+        display: grid;
+        gap: 1rem;
+        align-content: start;
+      }
+      @media (min-width: 1024px) {
+        .side-col {
+          position: sticky;
+          top: 1.5rem;
+        }
+      }
+      .rail {
+        display: flex;
+        gap: 0.25rem;
+        overflow-x: auto;
+      }
+      @media (min-width: 1024px) {
+        .rail {
+          display: block;
+          overflow: visible;
+        }
+      }
+      .rail a {
+        display: inline-block;
+        padding: 0.3rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      @media (min-width: 1024px) {
+        .rail a {
+          display: block;
+          border: none;
+          border-left: 2px solid var(--line);
+          border-radius: 0;
+        }
+      }
+      .rail a.active {
+        border-color: var(--accent);
+        color: var(--ink);
+        font-weight: 700;
+      }
+      @media (min-width: 1024px) {
+        .rail a.active {
+          border-color: transparent;
+          border-left-color: var(--accent);
+        }
+      }
+      @media print {
+        #progress,
+        .rail {
+          display: none;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="progress" aria-hidden="true"></div>
+    <main id="app-shell" data-marimo-lens-scope="article, section, header, footer, nav, aside, figure, fieldset, li, tr, [role=region], [role=group], div:has(&gt; :is(h1, h2, h3, h4, h5, h6))">
+      <!-- Hero -->
+      <header class="hero px-4 py-14 sm:px-6 lg:px-12">
+        <div class="mx-auto w-full max-w-6xl">
+          <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-300">
+            <iconify-icon inline icon="lucide:waves" aria-hidden="true"></iconify-icon>
+            flowtracks · 3D-PTV post-processing
+          </p>
+          <h1 class="mt-3 max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
+            From particles to fields
+          </h1>
+          <p class="mt-4 max-w-2xl text-lg text-slate-300">
+            A scrollytelling tour of <strong>flowtracks</strong>: read trajectories,
+            clean them, grid them onto Eulerian fields, phase-average periodic flows,
+            and export to ParaView — all on a tiny synthetic dataset that runs anywhere.
+          </p>
+          <nav class="mt-6 flex flex-wrap items-center gap-2" aria-label="Pipeline stages">
+            <span class="pipe-chip">1 · Read</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">2 · See</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">3 · Smooth</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">4 · Stitch</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">5 · Grid</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">6 · Average</span>
+          </nav>
+          <div class="prose-cell mt-6 max-w-3xl">
+            <marimo-cell name="cell-2" data-marimo-studio-site="site-5dd85f0c21f0c9b74bf3ed147eb1ccda2ed66a15cb9c17136df8e568f55b51e7"></marimo-cell>
+          </div>
+        </div>
+      </header>
+
+      <div class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[280px_1fr] lg:px-8">
+        <!-- Left sidebar: reactive controls + section nav -->
+        <aside class="side-col" aria-label="Controls and sections">
+          <div class="controls-card">
+            <p class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sky-800">
+              <iconify-icon inline icon="lucide:sliders-horizontal" aria-hidden="true"></iconify-icon>
+              Try it live
+            </p>
+            <p class="mt-1 text-xs text-slate-500">Move a slider — every figure recomputes.</p>
+            <div class="mt-2"><marimo-cell name="cell-3" data-marimo-studio-site="site-45bb1062438666c418c2ca453eefd4193d04ea2afff76b178704c1a739983209"></marimo-cell></div>
+          </div>
+          <nav class="rail" id="rail-nav" aria-label="Story sections">
+            <a href="#s-read" data-spy="s-read">1 · Read</a>
+            <a href="#s-see" data-spy="s-see">2 · See</a>
+            <a href="#s-smooth" data-spy="s-smooth">3 · Smooth</a>
+            <a href="#s-stitch" data-spy="s-stitch">4 · Stitch</a>
+            <a href="#s-grid" data-spy="s-grid">5 · Grid</a>
+            <a href="#s-average" data-spy="s-average">6 · Average</a>
+          </nav>
+        </aside>
+
+        <div class="grid min-w-0 gap-14">
+          <section id="s-read" class="story-section reveal" data-marimo-lens-label="Read: Lagrangian data model">
+            <p class="step-num">Step 1 · Read</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-4" data-marimo-studio-site="site-31c09fcd7f991b7a64c13ef55ec22d5bfb5737affbf2998c5a77824f5dff78b7"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-5" data-marimo-studio-site="site-1e3558d02308f7ee2882f6c67d2c42d690710902026e7f20d56fb9b17a485e1b"></marimo-cell></div>
+          </section>
+
+          <section id="s-see" class="story-section reveal" data-marimo-lens-label="See: 3D trajectory view">
+            <p class="step-num">Step 2 · See</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-6" data-marimo-studio-site="site-88d0bf6f1cd93559049be681158241c06bbfd2f1ba1c3fbe17249125d31dae78"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-7" data-marimo-studio-site="site-ff2225fb9ad3120dff077c287cbd5db96a80bc5dc2e3054916757b6d010adbd2"></marimo-cell></div>
+          </section>
+
+          <section id="s-smooth" class="story-section reveal" data-marimo-lens-label="Smooth: Savitzky-Golay filtering">
+            <p class="step-num">Step 3 · Smooth</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-8" data-marimo-studio-site="site-f5724f60166c2f0fca69449ab45cf2a9243d598d3803cb83c9eb1f322b0c5c7c"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-9" data-marimo-studio-site="site-f63491fb04643643a554cb0397f4dc9f3876a861c5322baea1ec7259a9e10117"></marimo-cell></div>
+          </section>
+
+          <section id="s-stitch" class="story-section reveal" data-marimo-lens-label="Stitch: relinking broken tracks">
+            <p class="step-num">Step 4 · Stitch</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-10" data-marimo-studio-site="site-f5066c24d94970ad9070bba248b66bce7bb5b6398c2cacc308c5c0dc648954d1"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-11" data-marimo-studio-site="site-18a40e0fd58964eda0972f558bc343e711401c919cfb773c620ab98593c4b128"></marimo-cell></div>
+          </section>
+
+          <section id="s-grid" class="story-section reveal" data-marimo-lens-label="Grid: Eulerian mean-velocity field">
+            <p class="step-num">Step 5 · Grid</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-12" data-marimo-studio-site="site-ca09cd9f803cc5b0b0540b03799183d26b022512a1b83ddea2ea52a575ba8d5b"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-13" data-marimo-studio-site="site-0ac0d025b7b551b4a6314e3a3c598399b71cb554d08f40837f67b84e78851013"></marimo-cell></div>
+          </section>
+
+          <section id="s-average" class="story-section reveal" data-marimo-lens-label="Average: phase averaging and pipeline">
+            <p class="step-num">Step 6 · Average</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-14" data-marimo-studio-site="site-9ba77778dea6cfccb63a238287b073d608e73af77ed083ee9ddf3bde4eec0503"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-15" data-marimo-studio-site="site-ce2d909b63d27c3a671da0f51f6df20e6f4f72cb5a25706837f4167915501d26"></marimo-cell></div>
+          </section>
+
+          <section class="story-section reveal" data-marimo-lens-label="Takeaway">
+            <div class="rounded-2xl border border-sky-200 bg-sky-50 p-6">
+              <p class="step-num">Takeaway</p>
+              <div class="prose-cell mt-2"><marimo-cell name="cell-16" data-marimo-studio-site="site-559d648d3e67f6cae0c6e2f666324976c617e5100cf4eeeb0ca3b3cfe937c94c"></marimo-cell></div>
+              <p class="mt-4 text-sm text-slate-600">
+                Install: <code>pip install flowtracks</code> · ParaView export:
+                <code>pip install "flowtracks[vtk]"</code> · Cite: Meller &amp; Liberzon 2016,
+                J. Open Research Software, 4:e23.
+              </p>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="border-t border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+        Built with marimo Studio from <code>flowtracks_basics.py</code> — notebook owns the
+        computation, this page owns the presentation.
+      </footer>
+    </main>
+    <script type="module">
+      /** Subscribe an explicit `mo-value` host to current values and later updates. */
+      const observeMarimoValue = (host, { onValue, onError = () => {} }) => {
+        const sync = (event) => onValue(event.detail.value);
+        const fail = (event) => onError(event.detail);
+        host.addEventListener("marimo-value-updated", sync);
+        host.addEventListener("marimo-value-error", fail);
+        if (host.dataset.marimoError !== undefined) {
+          onError({
+            selector: host.getAttribute("mo-value")?.trim() ?? "",
+            code: host.dataset.marimoErrorCode,
+            message: host.dataset.marimoError,
+            hint: host.dataset.marimoDiagnosticHint,
+          });
+        } else if (host.marimoValue !== undefined) {
+          onValue(host.marimoValue);
+        }
+        return () => {
+          host.removeEventListener("marimo-value-updated", sync);
+          host.removeEventListener("marimo-value-error", fail);
+        };
+      };
+
+      // Reading-progress bar.
+      const bar = document.querySelector("#progress");
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (bar && max > 0) {
+          bar.style.width = `${(window.scrollY / max) * 100}%`;
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      // Reveal sections on scroll + highlight the rail link of the section in view.
+      const sections = Array.from(document.querySelectorAll(".story-section"));
+      const links = new Map(
+        Array.from(document.querySelectorAll("#rail-nav a")).map((a) => [a.dataset.spy, a]),
+      );
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              const link = links.get(entry.target.id);
+              if (link) {
+                for (const other of links.values()) {
+                  other.classList.remove("active");
+                }
+                link.classList.add("active");
+              }
+            }
+          }
+        },
+        { rootMargin: "-30% 0px -55% 0px" },
+      );
+      for (const section of sections) {
+        spy.observe(section);
+      }
+
+      document.querySelector("#app-shell")?.setAttribute("data-ready", "");
+    </script>
+  
+<div id="marimo-runtime-root" hidden hx-preserve></div>
+<marimo-filename hidden>notebook.py</marimo-filename>
+</body>
+</html>
