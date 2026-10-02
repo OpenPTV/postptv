@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>flowtracks basics — from particles to fields</title>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@unocss/runtime@66.10.5/uno.global.js"
+      integrity="sha384-iX+gEyr2u+Tmd8XxbySu2iimH7dOfTZn9xahADx38mJHYzAI2CJUCo5+PPGOSU2b"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/iconify-icon@3.0.3/dist/iconify-icon.min.js"
+      integrity="sha384-jypoV+nlFXLykSFUJkpVjPG/eid90inFxyvUI1corcUR778eMGexPBFzNC94eOc+"
+      crossorigin="anonymous"
+    ></script>
+    <style>
+      :root {
+        --ink: #0f172a;
+        --ink-soft: #334155;
+        --accent: #0369a1;
+        --accent-ink: #075985;
+        --paper: #f8fafc;
+        --card: #ffffff;
+        --line: #e2e8f0;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--text-font, system-ui, -apple-system, "Segoe UI", sans-serif);
+      }
+      #progress {
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: 4px;
+        background: linear-gradient(90deg, #0369a1, #22d3ee);
+        width: 0%;
+        z-index: 50;
+      }
+      .hero {
+        background: radial-gradient(1200px 500px at 20% -10%, #0ea5e933, transparent),
+          radial-gradient(900px 420px at 90% 0%, #6366f122, transparent),
+          linear-gradient(180deg, #0b1526 0%, #10233d 100%);
+        color: #f1f5f9;
+      }
+      .hero marimo-cell {
+        --marimo-cell-foreground: #e2e8f0;
+        --marimo-cell-accent: #7dd3fc;
+        --marimo-cell-font-size: 1.05rem;
+      }
+      .pipe-chip {
+        border: 1px solid #ffffff2e;
+        background: #ffffff12;
+        border-radius: 999px;
+        padding: 0.3rem 0.8rem;
+        font-size: 0.8rem;
+        white-space: nowrap;
+      }
+      .pipe-arrow {
+        color: #7dd3fc;
+        font-weight: 700;
+      }
+      .controls-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 24px -16px #0f172a55;
+      }
+      .controls-card marimo-cell {
+        --marimo-cell-font-size: 0.85rem;
+      }
+      .story-section {
+        scroll-margin-top: 24px;
+      }
+      .reveal {
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity 0.6s ease, transform 0.6s ease;
+      }
+      .reveal.visible {
+        opacity: 1;
+        transform: none;
+      }
+      .fig-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        padding: 1rem;
+        box-shadow: 0 8px 24px -16px #0f172a55;
+      }
+      .fig-card img {
+        max-width: 100%;
+        height: auto;
+      }
+      .fig-card marimo-cell {
+        --marimo-cell-font-size: 0.95rem;
+      }
+      .prose-cell marimo-cell {
+        --marimo-cell-font-size: 1rem;
+        --marimo-cell-heading-font: var(--text-font, system-ui, sans-serif);
+        --marimo-cell-accent: var(--accent);
+      }
+      .prose-cell marimo-cell h3 {
+        margin-top: 0;
+      }
+      .step-num {
+        font-variant-numeric: tabular-nums;
+        font-weight: 800;
+        font-size: 0.8rem;
+        letter-spacing: 0.12em;
+        color: var(--accent-ink);
+        text-transform: uppercase;
+      }
+      .side-col {
+        display: grid;
+        gap: 1rem;
+        align-content: start;
+      }
+      @media (min-width: 1024px) {
+        .side-col {
+          position: sticky;
+          top: 1.5rem;
+        }
+      }
+      .rail {
+        display: flex;
+        gap: 0.25rem;
+        overflow-x: auto;
+      }
+      @media (min-width: 1024px) {
+        .rail {
+          display: block;
+          overflow: visible;
+        }
+      }
+      .rail a {
+        display: inline-block;
+        padding: 0.3rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      @media (min-width: 1024px) {
+        .rail a {
+          display: block;
+          border: none;
+          border-left: 2px solid var(--line);
+          border-radius: 0;
+        }
+      }
+      .rail a.active {
+        border-color: var(--accent);
+        color: var(--ink);
+        font-weight: 700;
+      }
+      @media (min-width: 1024px) {
+        .rail a.active {
+          border-color: transparent;
+          border-left-color: var(--accent);
+        }
+      }
+      @media print {
+        #progress,
+        .rail {
+          display: none;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="progress" aria-hidden="true"></div>
+    <main id="app-shell">
+      <!-- Hero -->
+      <header class="hero px-4 py-14 sm:px-6 lg:px-12">
+        <div class="mx-auto w-full max-w-6xl">
+          <p class="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-300">
+            <iconify-icon inline icon="lucide:waves" aria-hidden="true"></iconify-icon>
+            flowtracks · 3D-PTV post-processing
+          </p>
+          <h1 class="mt-3 max-w-3xl text-4xl font-extrabold leading-tight sm:text-5xl">
+            From particles to fields
+          </h1>
+          <p class="mt-4 max-w-2xl text-lg text-slate-300">
+            A scrollytelling tour of <strong>flowtracks</strong>: read trajectories,
+            clean them, grid them onto Eulerian fields, phase-average periodic flows,
+            and export to ParaView — all on a tiny synthetic dataset that runs anywhere.
+          </p>
+          <nav class="mt-6 flex flex-wrap items-center gap-2" aria-label="Pipeline stages">
+            <span class="pipe-chip">1 · Read</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">2 · See</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">3 · Smooth</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">4 · Stitch</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">5 · Grid</span>
+            <span class="pipe-arrow" aria-hidden="true">→</span>
+            <span class="pipe-chip">6 · Average</span>
+          </nav>
+          <div class="prose-cell mt-6 max-w-3xl">
+            <marimo-cell name="cell-2"></marimo-cell>
+          </div>
+        </div>
+      </header>
+
+      <div class="mx-auto grid w-full max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[280px_1fr] lg:px-8">
+        <!-- Left sidebar: reactive controls + section nav -->
+        <aside class="side-col" aria-label="Controls and sections">
+          <div class="controls-card">
+            <p class="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-sky-800">
+              <iconify-icon inline icon="lucide:sliders-horizontal" aria-hidden="true"></iconify-icon>
+              Try it live
+            </p>
+            <p class="mt-1 text-xs text-slate-500">Move a slider — every figure recomputes.</p>
+            <div class="mt-2"><marimo-cell name="cell-3"></marimo-cell></div>
+          </div>
+          <nav class="rail" id="rail-nav" aria-label="Story sections">
+            <a href="#s-read" data-spy="s-read">1 · Read</a>
+            <a href="#s-see" data-spy="s-see">2 · See</a>
+            <a href="#s-smooth" data-spy="s-smooth">3 · Smooth</a>
+            <a href="#s-stitch" data-spy="s-stitch">4 · Stitch</a>
+            <a href="#s-grid" data-spy="s-grid">5 · Grid</a>
+            <a href="#s-average" data-spy="s-average">6 · Average</a>
+          </nav>
+        </aside>
+
+        <div class="grid min-w-0 gap-14">
+          <section id="s-read" class="story-section reveal" data-marimo-lens-label="Read: Lagrangian data model">
+            <p class="step-num">Step 1 · Read</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-4"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-5"></marimo-cell></div>
+          </section>
+
+          <section id="s-see" class="story-section reveal" data-marimo-lens-label="See: 3D trajectory view">
+            <p class="step-num">Step 2 · See</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-6"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-7"></marimo-cell></div>
+          </section>
+
+          <section id="s-smooth" class="story-section reveal" data-marimo-lens-label="Smooth: Savitzky-Golay filtering">
+            <p class="step-num">Step 3 · Smooth</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-8"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-9"></marimo-cell></div>
+          </section>
+
+          <section id="s-stitch" class="story-section reveal" data-marimo-lens-label="Stitch: relinking broken tracks">
+            <p class="step-num">Step 4 · Stitch</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-10"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-11"></marimo-cell></div>
+          </section>
+
+          <section id="s-grid" class="story-section reveal" data-marimo-lens-label="Grid: Eulerian mean-velocity field">
+            <p class="step-num">Step 5 · Grid</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-12"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-13"></marimo-cell></div>
+          </section>
+
+          <section id="s-average" class="story-section reveal" data-marimo-lens-label="Average: phase averaging and pipeline">
+            <p class="step-num">Step 6 · Average</p>
+            <div class="prose-cell mt-2"><marimo-cell name="cell-14"></marimo-cell></div>
+            <div class="fig-card mt-4"><marimo-cell name="cell-15"></marimo-cell></div>
+          </section>
+
+          <section class="story-section reveal" data-marimo-lens-label="Takeaway">
+            <div class="rounded-2xl border border-sky-200 bg-sky-50 p-6">
+              <p class="step-num">Takeaway</p>
+              <div class="prose-cell mt-2"><marimo-cell name="cell-16"></marimo-cell></div>
+              <p class="mt-4 text-sm text-slate-600">
+                Install: <code>pip install flowtracks</code> · ParaView export:
+                <code>pip install "flowtracks[vtk]"</code> · Cite: Meller &amp; Liberzon 2016,
+                J. Open Research Software, 4:e23.
+              </p>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="border-t border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
+        Built with marimo Studio from <code>flowtracks_basics.py</code> — notebook owns the
+        computation, this page owns the presentation.
+      </footer>
+    </main>
+    <script type="module">
+      /** Subscribe an explicit `mo-value` host to current values and later updates. */
+      const observeMarimoValue = (host, { onValue, onError = () => {} }) => {
+        const sync = (event) => onValue(event.detail.value);
+        const fail = (event) => onError(event.detail);
+        host.addEventListener("marimo-value-updated", sync);
+        host.addEventListener("marimo-value-error", fail);
+        if (host.dataset.marimoError !== undefined) {
+          onError({
+            selector: host.getAttribute("mo-value")?.trim() ?? "",
+            code: host.dataset.marimoErrorCode,
+            message: host.dataset.marimoError,
+            hint: host.dataset.marimoDiagnosticHint,
+          });
+        } else if (host.marimoValue !== undefined) {
+          onValue(host.marimoValue);
+        }
+        return () => {
+          host.removeEventListener("marimo-value-updated", sync);
+          host.removeEventListener("marimo-value-error", fail);
+        };
+      };
+
+      // Reading-progress bar.
+      const bar = document.querySelector("#progress");
+      const onScroll = () => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        if (bar && max > 0) {
+          bar.style.width = `${(window.scrollY / max) * 100}%`;
+        }
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+
+      // Reveal sections on scroll + highlight the rail link of the section in view.
+      const sections = Array.from(document.querySelectorAll(".story-section"));
+      const links = new Map(
+        Array.from(document.querySelectorAll("#rail-nav a")).map((a) => [a.dataset.spy, a]),
+      );
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              const link = links.get(entry.target.id);
+              if (link) {
+                for (const other of links.values()) {
+                  other.classList.remove("active");
+                }
+                link.classList.add("active");
+              }
+            }
+          }
+        },
+        { rootMargin: "-30% 0px -55% 0px" },
+      );
+      for (const section of sections) {
+        spy.observe(section);
+      }
+
+      document.querySelector("#app-shell")?.setAttribute("data-ready", "");
+    </script>
+  </body>
+</html>

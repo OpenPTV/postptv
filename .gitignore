@@ -12,3 +12,4 @@ doc/build/*
 .pypi_token
 uv.lock
 flowtracks/_version.py
+/__marimo__/cache

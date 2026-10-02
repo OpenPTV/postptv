@@ -1,0 +1,19 @@
+schema: marimo-export.states.v1
+default_state: default
+states:
+  default:
+    n_traj_ui: 40
+    segs_ui: 50
+    noise_ui: 1.5
+  dense:
+    n_traj_ui: 100
+    segs_ui: 80
+    noise_ui: 1.0
+  sparse:
+    n_traj_ui: 20
+    segs_ui: 30
+    noise_ui: 3.0
+  noisy:
+    n_traj_ui: 40
+    segs_ui: 50
+    noise_ui: 5.0

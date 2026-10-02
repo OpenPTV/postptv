@@ -1,0 +1,48 @@
+# Deploys the prebuilt flowtracks story (docs/story) to GitHub Pages.
+#
+# The story is exported locally with marimo-studio -- CI intentionally does
+# NOT rebuild it (the export needs the notebook kernel + view catalog):
+#   1. re-export after any notebook/view change (see
+#      __marimo__/studio/flowtracks_basics/story/AGENTS.md)
+#   2. copy the result to docs/story/
+#   3. push -- this workflow publishes it.
+#
+# First-time setup (org admin, once): repo Settings -> Pages ->
+# Source "GitHub Actions". The page then lives at
+# https://openptv.github.io/postptv/story/  (requires the stale
+# www.openptv.net CNAME in OpenPTV/openptv.github.com to be removed,
+# otherwise openptv.github.io/* keeps redirecting to openptv.net).
+
+name: Deploy story to Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/story/**'
+      - '.github/workflows/deploy-story.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-story
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}postptv/story/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/story
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,65 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+button {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--card-foreground);
+  font: inherit;
+}
+
+.page {
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+  padding-block: clamp(2rem, 7vw, 6rem);
+}
+
+.page-header {
+  display: flex;
+  gap: 2rem;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+}
+
+.page-header p {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 6rem);
+  letter-spacing: -0.05em;
+}
+
+.results {
+  display: grid;
+  gap: 1.5rem;
+}
+
+marimo-cell,
+marimo-output {
+  display: block;
+  min-width: 0;
+}
+
+@media (max-width: 40rem) {
+  .page-header {
+    align-items: start;
+    flex-direction: column;
+  }
+}

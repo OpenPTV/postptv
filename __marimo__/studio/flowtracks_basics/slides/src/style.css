@@ -1,0 +1,77 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#app-shell {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f4f1e9;
+}
+
+#app-shell {
+  min-height: 100%;
+}
+
+.reveal.studio-deck {
+  --r-background-color: #f4f1e9;
+  --r-main-color: #22241f;
+  --r-heading-color: #18291f;
+  --r-link-color: #315f46;
+  --r-link-color-hover: #244a35;
+  --r-selection-background-color: #c8d8c8;
+  --r-main-font: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --r-heading-font: Georgia, "Times New Roman", serif;
+  --r-heading-font-weight: 500;
+  --r-heading-letter-spacing: -0.035em;
+  font-size: 34px;
+}
+
+.reveal.studio-deck .slides {
+  text-align: left;
+}
+
+.reveal.studio-deck .slides section {
+  box-sizing: border-box;
+  padding: 2.5rem 3rem;
+}
+
+.reveal.studio-deck h1,
+.reveal.studio-deck h2 {
+  max-width: 14ch;
+  text-transform: none;
+}
+
+.reveal.studio-deck h1 {
+  font-size: 2.5em;
+}
+
+.reveal.studio-deck h2 {
+  font-size: 1.8em;
+}
+
+.deck-kicker {
+  margin: 0 0 1.2rem;
+  color: #4f6957;
+  font-size: 0.48em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+marimo-cell {
+  /* Scale notebook Markdown with the slide. */
+  --marimo-cell-font-size: 1em;
+  display: block;
+  min-width: 0;
+}
+
+.reveal.studio-deck .controls,
+.reveal.studio-deck .progress {
+  color: #315f46;
+}

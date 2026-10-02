@@ -1,0 +1,68 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:@revealjs/react@0.2.1": "0.2.1_react@19.2.4_react-dom@19.2.4__react@19.2.4_reveal.js@6.0.1",
+    "npm:@types/react-dom@19.2.3": "19.2.3_@types+react@19.2.10",
+    "npm:@types/react@19.2.10": "19.2.10",
+    "npm:react-dom@19.2.4": "19.2.4_react@19.2.4",
+    "npm:react@19.2.4": "19.2.4",
+    "npm:reveal.js@6.0.1": "6.0.1",
+    "npm:typescript@6.0.3": "6.0.3"
+  },
+  "npm": {
+    "@revealjs/react@0.2.1_react@19.2.4_react-dom@19.2.4__react@19.2.4_reveal.js@6.0.1": {
+      "integrity": "sha512-bEivSQ1W0WpiSUPd4KNLkFGSkdywuno2jjzBHQCO+SN3ChFWP6Y3Z2OLRih3Qeel5k1bwKsSsmr5AMUMA5ZdyQ==",
+      "dependencies": [
+        "react",
+        "react-dom",
+        "reveal.js"
+      ]
+    },
+    "@types/react-dom@19.2.3_@types+react@19.2.10": {
+      "integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
+      "dependencies": [
+        "@types/react"
+      ]
+    },
+    "@types/react@19.2.10": {
+      "integrity": "sha512-WPigyYuGhgZ/cTPRXB2EwUw+XvsRA3GqHlsP4qteqrnnjDrApbS7MxcGr/hke5iUoeB7E/gQtrs9I37zAJ0Vjw==",
+      "dependencies": [
+        "csstype"
+      ]
+    },
+    "csstype@3.2.3": {
+      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="
+    },
+    "react-dom@19.2.4_react@19.2.4": {
+      "integrity": "sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==",
+      "dependencies": [
+        "react",
+        "scheduler"
+      ]
+    },
+    "react@19.2.4": {
+      "integrity": "sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ=="
+    },
+    "reveal.js@6.0.1": {
+      "integrity": "sha512-9eacArNIgqO2HGWOK+93gJNn+gvdGDVbSq+i2u3Ja9kjiHps0XNLpgYTZTYjKRH91uXy3clGimeGiw4umHG/tg=="
+    },
+    "scheduler@0.27.0": {
+      "integrity": "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="
+    },
+    "typescript@6.0.3": {
+      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+      "bin": true
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:@revealjs/react@0.2.1",
+      "npm:@types/react-dom@19.2.3",
+      "npm:@types/react@19.2.10",
+      "npm:react-dom@19.2.4",
+      "npm:react@19.2.4",
+      "npm:reveal.js@6.0.1",
+      "npm:typescript@6.0.3"
+    ]
+  }
+}
