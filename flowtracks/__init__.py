@@ -21,6 +21,12 @@ from flowtracks.eulerian import (
     save_zarr,
 )
 from flowtracks.phase_average import fluctuations, phase_average
+from flowtracks.phasing import (
+    assign_bins,
+    bin_of_frame,
+    phase_of_frame,
+    validate_bins,
+)
 from flowtracks.smoothing import savitzky_golay
 from flowtracks.stitching import stitch_trajectories
 from flowtracks.writers import (

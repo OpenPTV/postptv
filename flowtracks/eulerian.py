@@ -128,17 +128,27 @@ def _bin_counts_sums_ceil(pos, vel, ti, mins, deltas, shape):
     return counts, sums
 
 
-def eulerian_grid(scene, grid_params, first, last, cycletime,
+def eulerian_grid(scene, grid_params, first, last, cycletime=None,
                   deltat=90, base_time=100000, min_count=50,
                   smoothing_sigma=None, *, fill_value=float("nan"),
                   qc=None, chunk_frames=None, add_valid=True, fin=None,
-                  voxel_rule="half-open") -> xr.Dataset:
+                  voxel_rule="half-open", n_frames_in_period=None,
+                  n_phases=None, phase_zero_frame=None) -> xr.Dataset:
     """Bin Lagrangian particles onto a (x, y, z, phase) grid of mean velocities.
 
     Same math as batch_Lagrangian_to_Eulerian.eulerian_grid, but: reads the
     whole particles table in ONE call (scene.collect) instead of one HDF5
     query per frame, bins every particle at once with np.histogramdd, and
     returns a self-describing Dataset instead of writing HDF5.
+
+    Phase-bin naming (shared with openptv-cloud/openptv-analysis — same
+    users, one vocabulary; see :mod:`flowtracks.phasing` for the full
+    definition and its rules): ``n_frames_in_period`` is ``cycletime``,
+    ``n_phases`` is ``fin``, ``phase_zero_frame`` is ``base_time``. Pass
+    either style; when both are given the new-style name wins. Narrow
+    (gappy) bins — ``phase_width`` in :mod:`flowtracks.phasing` — are a
+    caller-side frame selection (see :func:`flowtracks.phasing.bin_of_frame`);
+    this gridder always tiles contiguously.
 
     smoothing_sigma (in grid cells, scalar or per-axis (sx, sy, sz)) applies
     Gaussian kernel smoothing to the velocity sums AND the counts before the
@@ -171,6 +181,17 @@ def eulerian_grid(scene, grid_params, first, last, cycletime,
     prefilter to the strict exclusive box (both bounds exclusive), so
     the binned set matches the legacy inputs exactly.
     """
+    if n_frames_in_period is not None:
+        cycletime = n_frames_in_period
+    if cycletime is None:
+        raise ValueError(
+            "eulerian_grid() needs a period: pass cycletime (legacy) or "
+            "n_frames_in_period (shared vocabulary)."
+        )
+    if n_phases is not None:
+        fin = n_phases
+    if phase_zero_frame is not None:
+        base_time = phase_zero_frame
     zaman = deltat * 2 + 1
     fin = int(np.ceil(cycletime / zaman)) if fin is None else int(fin)
     edges = [np.linspace(grid_params[f"min_{d}"], grid_params[f"max_{d}"],
