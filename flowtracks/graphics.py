@@ -20,9 +20,9 @@ PyVista (VTK, GPU-rendered polylines -- the ``vtk`` extra), from the same
 PolyData the ``.vtp`` ParaView writer saves.
 """
 
-import matplotlib.pyplot as pl
 from pathlib import Path
 
+import matplotlib.pyplot as pl
 import numpy as np
 
 
