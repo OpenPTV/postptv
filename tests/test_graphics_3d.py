@@ -107,3 +107,44 @@ def test_summary_path_and_jump_values():
     assert tab["jump"][row[5]] == pytest.approx(0.0, abs=1e-12)   # gap spaced correctly
     # one point displaced by 3 bends two neighbouring steps: 3 + 3/2 = 4.5
     assert tab["jump"][row[4]] == pytest.approx(4.5)
+
+
+def test_polydata_carries_recorded_units_as_field_data(tmp_path):
+    import zarr
+
+    from flowtracks.writers import trajectory_units
+
+    store = tmp_path / "run.zarr"
+    root = zarr.open_group(str(store), mode="w")
+    grp = root.require_group("trajectories")
+    grp.create_array("pos", data=np.zeros((2, 3)))
+    grp.create_array("vel", data=np.zeros((2, 3)))
+    grp.create_array("time", data=np.zeros(2, dtype=np.int64))
+    grp.create_array("trajid", data=np.zeros(2, dtype=np.int64))
+    grp.attrs.update({"pos_units": "m", "vel_units": "m s-1", "time_units": "frame"})
+
+    assert trajectory_units(store) == {
+        "pos": "m", "vel": "m s-1", "time": "frame",
+    }
+    poly = trajectory_polydata(store)
+    assert poly.field_data["units:pos"] == ["m"]
+    assert poly.field_data["units:vel"] == ["m s-1"]
+
+
+def test_plot_titles_show_recorded_units(tmp_path):
+    import zarr
+
+    store = tmp_path / "run.zarr"
+    root = zarr.open_group(str(store), mode="w")
+    grp = root.require_group("trajectories")
+    n = 6
+    grp.create_array("pos", data=np.tile([0.01, 0.0, 0.0], (n, 1)))
+    grp.create_array("vel", data=np.tile([1.0, 0.0, 0.0], (n, 1)))
+    grp.create_array("time", data=np.arange(n, dtype=np.int64))
+    grp.create_array("trajid", data=np.ones(n, dtype=np.int64))
+    grp.attrs.update({"pos_units": "m", "vel_units": "m s-1", "time_units": "frame"})
+
+    pl = pv.Plotter(off_screen=True)
+    plot_trajectories_3d(store, plotter=pl, show=False)
+    assert "speed [m s-1]" in dict(pl.scalar_bars)
+    pl.close()

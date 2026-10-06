@@ -69,17 +69,43 @@ def _trajectory_arrays(source):
     raise TypeError(f"Unsupported trajectory source: {type(source)!r}")
 
 
-def trajectory_polydata(source, trajids=None):
+def trajectory_units(source) -> dict:
+    """Units recorded on a trajectories store ({pos, vel, time, ...} units).
+
+    Zarr paths report what the writer recorded; anything else reports {} --
+    the caller then labels without units rather than guessing.
+    """
+    if isinstance(source, (str, Path)):
+        try:
+            import zarr
+
+            group = zarr.open_group(str(source), mode="r")
+            target = group["trajectories"] if "trajectories" in group else group
+            return {
+                k[:-6]: v
+                for k, v in dict(target.attrs).items()
+                if k.endswith("_units")
+            }
+        except Exception:
+            pass
+    return {}
+
+
+def trajectory_polydata(source, trajids=None, units=None):
     """Lagrangian trajectories as VTK PolyData: points + one polyline per trajid.
 
     ``source`` as for :func:`write_trajectories_vtp`. ``trajids`` optionally
     keeps only those trajectories. Point data: ``trajid``, ``time``,
-    ``velocity``, ``speed``. Shared by the ``.vtp`` writer and
-    :func:`flowtracks.graphics.plot_trajectories_3d`.
+    ``velocity``, ``speed``. ``units`` (e.g. ``{"pos": "m"}``) is stored as
+    field data (``units:<name>``); when omitted and ``source`` is a Zarr path,
+    whatever the writer recorded is carried over. Shared by the ``.vtp``
+    writer and :func:`flowtracks.graphics.plot_trajectories_3d`.
     """
     import pyvista as pv
 
     pos, vel, time, trajid = _trajectory_arrays(source)
+    if units is None and isinstance(source, (str, Path)):
+        units = trajectory_units(source)
     if trajids is not None:
         keep = np.isin(trajid, np.asarray(trajids))
         pos, vel, time, trajid = pos[keep], vel[keep], time[keep], trajid[keep]
@@ -104,6 +130,8 @@ def trajectory_polydata(source, trajids=None):
     poly.point_data["time"] = time
     poly.point_data["velocity"] = vel
     poly.point_data["speed"] = np.linalg.norm(vel, axis=1)
+    for k, val in (units or {}).items():
+        poly.field_data[f"units:{k}"] = np.array([str(val)])
     return poly
 
 

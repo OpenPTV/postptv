@@ -21,6 +21,8 @@ PolyData the ``.vtp`` ParaView writer saves.
 """
 
 import matplotlib.pyplot as pl
+from pathlib import Path
+
 import numpy as np
 
 
@@ -249,7 +251,8 @@ def select_trajectories(source, by="length", n=10, min_points=20, min_extent=0.0
 
 def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,
                          plotter=None, cmap="plasma", clim=None, line_width=3,
-                         point_size=6, title=None, bar_title=None, show=True):
+                         point_size=6, title=None, bar_title=None, show=True,
+                         units=None):
     """Interactive 3D trajectory view (PyVista): polylines coloured by a point
     array (``speed``, ``time``, ``trajid``), points drawn as spheres so short
     tracks stay visible.
@@ -264,14 +267,30 @@ def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,
         with the same title into one shared colour range, so give each
         subplot its own title to keep its own range.
     show - call ``plotter.show()``; pass False to compose or screenshot.
+    units - ``{"pos": "m", "vel": "m s-1", "time": "frame"}`` for axis and
+        colour-bar titles (``x [m]``, ``speed [m s-1]``). When omitted and
+        ``source`` is a Zarr path, whatever the writer recorded is used;
+        otherwise titles stay bare rather than guessed.
 
     Returns the plotter.
     """
     import pyvista as pv
 
-    from flowtracks.writers import _trajectory_arrays, trajectory_polydata
+    from flowtracks.writers import (
+        _trajectory_arrays,
+        trajectory_polydata,
+        trajectory_units,
+    )
 
-    poly = trajectory_polydata(source, trajids)
+    if units is None and isinstance(source, (str, Path)):
+        units = trajectory_units(source)
+    units = units or {}
+    pos_u = f" [{units['pos']}]" if units.get("pos") else ""
+    scalar_u = f" [{units['vel']}]" if scalars in ("speed", "velocity") and units.get("vel") else ""
+    if not scalar_u and scalars == "time" and units.get("time"):
+        scalar_u = f" [{units['time']}]"
+
+    poly = trajectory_polydata(source, trajids, units=units or None)
     if plotter is None:
         plotter = pv.Plotter()
     if context:
@@ -280,14 +299,15 @@ def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,
         plotter.add_points(pos[pick], color="grey", opacity=0.15, point_size=2,
                            name="context")
     if poly.n_points:
-        bar = {"title": bar_title or scalars}
+        bar = {"title": (bar_title or scalars) + scalar_u}
         plotter.add_mesh(poly, scalars=scalars, cmap=cmap, clim=clim, line_width=line_width,
                          render_lines_as_tubes=True, scalar_bar_args=bar, name="tracks")
         plotter.add_mesh(poly.extract_points(np.arange(poly.n_points), adjacent_cells=False),
                          scalars=scalars, cmap=cmap, clim=clim, point_size=point_size,
                          render_points_as_spheres=True, style="points",
                          show_scalar_bar=False, name="points")
-    plotter.show_grid(xtitle="x", ytitle="y", ztitle="z", fmt="%.3g",
+    plotter.show_grid(xtitle=f"x{pos_u}", ytitle=f"y{pos_u}", ztitle=f"z{pos_u}",
+                       fmt="%.3g",
                       n_xlabels=3, n_ylabels=3, n_zlabels=3)
     plotter.add_axes()
     if title:
