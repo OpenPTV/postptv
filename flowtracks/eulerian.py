@@ -150,6 +150,12 @@ def eulerian_grid(scene, grid_params, first, last, cycletime=None,
     caller-side frame selection (see :func:`flowtracks.phasing.bin_of_frame`);
     this gridder always tiles contiguously.
 
+    Input contract (NOT validated — the caller states it): positions in
+    METRES, velocities in METRES PER SECOND. The output dataset is labelled
+    ``m`` / ``m s-1`` (CF) on that basis. Per-frame velocities (no frame
+    rate known) average arithmetically fine, but the ``m s-1`` label is then
+    wrong — relabel to ``m frame-1`` downstream, or state the frame rate.
+
     smoothing_sigma (in grid cells, scalar or per-axis (sx, sy, sz)) applies
     Gaussian kernel smoothing to the velocity sums AND the counts before the
     division (Shepard/kernel estimate); min_count then acts on smoothed counts.

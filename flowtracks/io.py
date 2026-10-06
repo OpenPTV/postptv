@@ -1226,7 +1226,8 @@ def read_zarr_trajectories(zarr_path, first=None, last=None, group="trajectories
     return []
 
 
-def save_zarr_trajectories(trajects, zarr_path, group="trajectories", overwrite=True):
+def save_zarr_trajectories(trajects, zarr_path, group="trajectories", overwrite=True,
+                           units=None):
     """
     Save a list of Trajectory objects into a Zarr directory store.
 
@@ -1235,6 +1236,11 @@ def save_zarr_trajectories(trajects, zarr_path, group="trajectories", overwrite=
     zarr_path - path to the target .zarr directory.
     group - sub-group name inside the Zarr store.
     overwrite - if True, overwrite existing arrays in the group.
+    units - dict of per-array units recorded on the group, e.g.
+        {"pos": "m", "vel": "m s-1", "accel": "m s-2", "time": "frame"}.
+        The writer never guesses: omit it only when the caller truly does
+        not know, in which case no unit claim is stored. Honest rule: no
+        frame rate means per-frame velocity units ("m frame-1"), never "m s-1".
     """
     import zarr
 
@@ -1274,5 +1280,8 @@ def save_zarr_trajectories(trajects, zarr_path, group="trajectories", overwrite=
         all_accel = [tr.accel() for tr in trajects]
         accel_arr = np.concatenate(all_accel, axis=0)
         target_group.create_array("accel", data=accel_arr, overwrite=overwrite)
+
+    if units:
+        target_group.attrs.update({f"{k}_units": v for k, v in units.items()})
 
 

@@ -157,3 +157,14 @@ def test_export_run_to_paraview_with_eulerian_ds(tmp_path):
     result = export_run_to_paraview(store, tmp_path / "out", eulerian_ds=ds)
     assert result["trajectories"].exists()
     assert result["eulerian"].exists()
+
+
+def test_eulerian_series_carries_units_as_field_data(tmp_path):
+    import pyvista as pv
+
+    ds = _eulerian_dataset(np.linspace(0, 2, 4))
+    ds["u_ins_mean"].attrs["units"] = "m s-1"
+    write_eulerian_series(ds, tmp_path, units={"par_ave2": "1"})
+    grid = pv.read(str(tmp_path / "phase_0000.vti"))
+    assert grid.field_data["units:velocity"] == ["m s-1"]
+    assert grid.field_data["units:par_ave2"] == ["1"]

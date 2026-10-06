@@ -134,13 +134,20 @@ def _clean(values: np.ndarray) -> np.ndarray:
 
 
 def write_eulerian_series(ds: xr.Dataset, out_dir: Path, prefix: str = "phase",
-                          time_dim: str = "phase", dt: float = 1.0) -> Path:
+                           time_dim: str = "phase", dt: float = 1.0,
+                           units: dict | None = None) -> Path:
     """Write one Eulerian grid file per ``time_dim`` step plus a ``.pvd`` series.
 
     Grid type is chosen from axis spacing: ``vtkImageData`` (``.vti``) when x,
     y and z are each uniformly spaced, ``vtkRectilinearGrid`` (``.vtr``)
     otherwise. Vector fields named by ``VEL_VARS`` are combined into a single
     "velocity" array; every other data variable is written as a scalar.
+
+    ``units`` maps array name to unit string (e.g. ``{"velocity": "m s-1"}``)
+    and is stored as grid field data (``units:<name>``); when omitted, the
+    dataset's own ``units`` attrs are carried over where present. VTK has no
+    unit system, so this is annotation, not enforcement — but the reader no
+    longer has to guess.
     """
     import pyvista as pv
 
@@ -179,6 +186,17 @@ def write_eulerian_series(ds: xr.Dataset, out_dir: Path, prefix: str = "phase",
                 # skip rather than silently reshape/truncate them.
                 continue
             grid.point_data[name] = _clean(da.values).ravel(order="F")
+        fields = dict(units) if units else {}
+        for name, da in snap.data_vars.items():
+            if name not in fields and da.attrs.get("units"):
+                fields[name] = da.attrs["units"]
+        if "velocity" in grid.point_data:
+            for v in VEL_VARS:
+                if v in fields:
+                    fields["velocity"] = fields.pop(v)
+                    break
+        for k, val in fields.items():
+            grid.field_data[f"units:{k}"] = np.array([str(val)])
         path = out_dir / f"{prefix}_{i:04d}.{ext}"
         grid.save(str(path))
         entries.append((i * dt, path))

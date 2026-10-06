@@ -74,3 +74,23 @@ def test_eulerian_grid_new_style_aliases_match_old_style():
         new["u_ins_mean"].values, old["u_ins_mean"].values, equal_nan=True
     )
     assert new.sizes["phase"] == old.sizes["phase"]
+
+
+def test_save_zarr_trajectories_records_units(tmp_path):
+    import zarr
+
+    from flowtracks.io import save_zarr_trajectories
+    from flowtracks.trajectory import Trajectory
+
+    tr = Trajectory(
+        pos=np.zeros((3, 3)), velocity=np.ones((3, 3)),
+        time=np.array([1, 2, 3]), trajid=7,
+    )
+    save_zarr_trajectories(
+        [tr], tmp_path / "run.zarr",
+        units={"pos": "m", "vel": "m s-1", "time": "frame"},
+    )
+    grp = zarr.open_group(str(tmp_path / "run.zarr"), mode="r")["trajectories"]
+    assert grp.attrs["pos_units"] == "m"
+    assert grp.attrs["vel_units"] == "m s-1"
+    assert grp.attrs["time_units"] == "frame"
