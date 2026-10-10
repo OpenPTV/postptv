@@ -148,3 +148,37 @@ def test_plot_titles_show_recorded_units(tmp_path):
     plot_trajectories_3d(store, plotter=pl, show=False)
     assert "speed [m s-1]" in dict(pl.scalar_bars)
     pl.close()
+
+
+def test_far_walls_are_the_faces_away_from_the_camera():
+    from flowtracks.graphics import _far_walls
+
+    walls, grid = _far_walls((0, 4, 0, 2, 0, 6), (-1.0, 1.0, 1.0), 1.0)
+    centres = walls.cell_centers().points
+    # camera on -x, +y, +z: back walls at x = 4 (max), floor y = 0 (min), z = 0 (min)
+    assert sorted(map(tuple, np.round(centres, 6))) == sorted(
+        [(4.0, 1.0, 3.0), (2.0, 0.0, 3.0), (2.0, 1.0, 0.0)])
+    # grid lines every 1.0 across each wall: (5+3) + (5+7) + (3+7)
+    assert grid.n_lines == 30
+
+
+def test_animate_writes_frames_with_trailing_beads(tmp_path, monkeypatch):
+    from flowtracks import graphics
+
+    shown = []
+    real = pv.Plotter.add_mesh
+
+    def spy(self, mesh, *args, **kw):
+        if kw.get("name") == "beads":
+            shown.append(mesh.n_points)
+        return real(self, mesh, *args, **kw)
+
+    monkeypatch.setattr(pv.Plotter, "add_mesh", spy)
+    src = Tracks()  # times 0..9 (id 7), 0..2 (id 3), 0..4 (id 5)
+    paths = graphics.animate_trajectories_3d(
+        src, tmp_path, frames=[0, 4, 9], tail=3, window_size=(160, 120),
+        bounds=(0, 0.01, -0.01, 0.01, -0.01, 0.01), grid_step=0.005)
+    assert [p.name for p in paths] == ["frame_0000.png", "frame_0001.png", "frame_0002.png"]
+    assert all(p.stat().st_size > 0 for p in paths)
+    # frame 0: 3 tracks at t=0; frame 4: t=2..4 -> id7 3 + id5 3 + id3 1; frame 9: id7 3
+    assert shown == [3, 7, 3]

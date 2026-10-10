@@ -315,3 +315,189 @@ def plot_trajectories_3d(source, trajids=None, scalars="speed", context=0,
     if show:
         plotter.show()
     return plotter
+
+
+def _far_walls(bounds, toward_camera, step):
+    """Grey back walls (the three box faces away from the camera) and their
+    grid lines every ``step``, as two PolyData."""
+    import pyvista as pv
+
+    lo, hi = np.asarray(bounds[0::2], float), np.asarray(bounds[1::2], float)
+    walls, lines = [], []
+    for ax in range(3):
+        level = lo[ax] if toward_camera[ax] > 0 else hi[ax]
+        u, v = [a for a in range(3) if a != ax]
+        corners = np.zeros((4, 3))
+        corners[:, ax] = level
+        corners[:, u] = [lo[u], hi[u], hi[u], lo[u]]
+        corners[:, v] = [lo[v], lo[v], hi[v], hi[v]]
+        walls.append(pv.PolyData(corners, faces=[4, 0, 1, 2, 3]))
+        # grid lines lifted a hair off the wall so they never z-fight it
+        lift = 1e-3 * (hi[ax] - lo[ax]) * (1 if level == lo[ax] else -1)
+        for a, b in ((u, v), (v, u)):
+            ticks = np.arange(np.ceil(lo[a] / step) * step, hi[a] + 1e-9, step)
+            for t in ticks:
+                seg = np.zeros((2, 3))
+                seg[:, ax] = level + lift
+                seg[:, a] = t
+                seg[:, b] = [lo[b], hi[b]]
+                lines.append(pv.Line(seg[0], seg[1]))
+    return pv.merge(walls), pv.merge(lines)
+
+
+def _box_axis_labels(pl, bounds, toward_camera, step, titles, font_size):
+    """Tick labels every ``step`` and axis titles along the box edges nearest
+    the camera on the floor (x, z) and on the far vertical edge (y), as
+    ParaView draws them. (VTK's cube-axes actor caps the label count at its
+    own tick spacing, so it cannot label every ``step``.)"""
+    lo, hi = np.asarray(bounds[0::2], float), np.asarray(bounds[1::2], float)
+    near = np.where(np.asarray(toward_camera) > 0, hi, lo)
+    far = np.where(np.asarray(toward_camera) > 0, lo, hi)
+    out = np.where(np.asarray(toward_camera) > 0, 1.0, -1.0)  # outward, camera side
+    off = 0.035 * np.max(hi - lo)
+    edges = (  # axis, anchor of the edge, outward offset of its labels
+        (0, np.array([0.0, lo[1], near[2]]), np.array([0.0, -off, out[2] * off])),
+        (2, np.array([near[0], lo[1], 0.0]), np.array([out[0] * off, -off, 0.0])),
+        (1, np.array([far[0], 0.0, near[2]]), np.array([-out[0] * off, 0.0, out[2] * off])),
+    )
+    for ax, anchor, shift in edges:
+        ticks = np.arange(np.ceil(lo[ax] / step) * step, hi[ax] + 1e-9, step)
+        pts = np.tile(anchor + shift, (len(ticks), 1))
+        pts[:, ax] = ticks
+        pl.add_point_labels(pts, [f"{t:.0f}" for t in ticks], font_size=font_size,
+                            text_color="black", shape=None, show_points=False,
+                            always_visible=True, name=f"ticks{ax}")
+        mid = anchor + 2.6 * shift
+        mid[ax] = (lo[ax] + hi[ax]) / 2
+        pl.add_point_labels([mid], [titles[ax]], font_size=int(font_size * 1.3),
+                            text_color="black", shape=None, show_points=False,
+                            always_visible=True, name=f"title{ax}")
+
+
+def _use_font_file(pl, font_file):
+    """Point every text of the plotter at a TrueType file. (VTK's built-in
+    sans font draws '[' and ']' as parentheses.)"""
+    props = []
+    for actor in pl.actors.values():
+        if hasattr(actor, "GetTextProperty"):
+            props.append(actor.GetTextProperty())
+        mapper = actor.GetMapper() if hasattr(actor, "GetMapper") else None
+        if mapper is not None and hasattr(mapper, "GetLabelTextProperty"):
+            props.append(mapper.GetLabelTextProperty())
+        # add_point_labels: the style sits on the label hierarchy feeding the mapper
+        source = mapper.GetInputAlgorithm() if hasattr(mapper, "GetInputAlgorithm") else None
+        if source is not None and hasattr(source, "GetTextProperty"):
+            props.append(source.GetTextProperty())
+    for bar in pl.scalar_bars.values():
+        props += [bar.GetTitleTextProperty(), bar.GetLabelTextProperty()]
+    for prop in props:
+        prop.SetFontFamily(4)  # VTK_FONT_FILE
+        prop.SetFontFile(str(font_file))
+
+
+def animate_trajectories_3d(source, out_dir, frames=None, *, component=1, tail=20,
+                            pos_scale=1.0, bounds=None, cmap="coolwarm",
+                            clim=(-0.5, 0.5), bar_title=None, bar_labels=21,
+                            bar_fmt="%.2f", view_direction=(-1.0, 1.0, 1.0),
+                            view_up=(0.0, 1.0, 0.0), zoom=1.0, window_center=(0.0, 0.0),
+                            window_size=(1920, 1080), point_size=6.0,
+                            grid_step=500.0, axis_titles=("x", "y", "z"),
+                            wall_color=(0.54, 0.54, 0.54), background="white",
+                            font_size=20, font_file=None, movie=None, fps=10,
+                            label=None):
+    """Off-screen movie frames of trajectories as trailing beads (PyVista).
+
+    Every frame shows each particle's last ``tail`` positions as shaded
+    spheres coloured by one velocity component (``component``: 0, 1, 2), in a
+    box with grey back walls, a ``grid_step`` grid and labelled axes, seen
+    with a fixed parallel-projection camera -- the usual ParaView look.
+
+    source - zarr path / ZarrScene / Scene, as :func:`plot_trajectories_3d`.
+    out_dir - PNG frames are written as ``frame_0000.png`` ...
+    frames - frame numbers to render (default: every frame of the source).
+    pos_scale - multiplies positions (e.g. 1000 for m -> mm axes).
+    bounds - (x0, x1, y0, y1, z0, z1) of the box, in scaled units (default:
+        the data's 0.5-99.5 percentile box).
+    view_direction - from the scene towards the camera; ``view_up`` the
+        screen's up; ``zoom`` > 1 enlarges; ``window_center`` shifts the
+        projection centre in normalized window units (VTK SetWindowCenter).
+    movie - if given, the frames are also encoded to this .mp4 with ffmpeg.
+    label - optional ``str.format`` text drawn bottom-left, given ``frame``.
+    font_file - TrueType file for all text (VTK's built-in font has no
+        square brackets).
+
+    Returns the list of PNG paths.
+    """
+    import shutil
+    import subprocess
+
+    import pyvista as pv
+
+    from flowtracks.writers import _trajectory_arrays
+
+    pos, vel, time, _ = _trajectory_arrays(source)
+    pos = pos * pos_scale
+    value = vel[:, component]
+    order = np.argsort(time, kind="stable")
+    pos, value, time = pos[order], value[order], time[order]
+    if frames is None:
+        frames = np.unique(time)
+    if bounds is None:
+        lo, hi = np.percentile(pos, 0.5, axis=0), np.percentile(pos, 99.5, axis=0)
+        bounds = (lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    direction = np.asarray(view_direction, float)
+    direction /= np.linalg.norm(direction)
+    walls, grid = _far_walls(bounds, direction, grid_step)
+
+    pl = pv.Plotter(off_screen=True, window_size=list(window_size))
+    pl.set_background(background)
+    pl.add_mesh(walls, color=wall_color, lighting=False, name="walls")
+    pl.add_mesh(grid, color="black", line_width=1.5, name="grid")
+    _box_axis_labels(pl, bounds, direction, grid_step, axis_titles, font_size)
+    pl.add_axes(viewport=(0.0, 0.82, 0.12, 1.0))
+    centre = np.array([(bounds[0] + bounds[1]) / 2, (bounds[2] + bounds[3]) / 2,
+                       (bounds[4] + bounds[5]) / 2])
+    size = np.linalg.norm(np.subtract(bounds[1::2], bounds[0::2]))
+    pl.enable_parallel_projection()
+    pl.camera.focal_point = centre
+    pl.camera.position = centre + direction * 4 * size
+    pl.camera.up = view_up
+    pl.reset_camera(bounds=list(bounds))
+    pl.camera.parallel_scale /= zoom
+    pl.camera.SetWindowCenter(*window_center)
+
+    bar = dict(title=bar_title or "", vertical=True, position_x=0.93, position_y=0.02,
+               height=0.96, width=0.012, n_labels=bar_labels, fmt=bar_fmt,
+               color="black", title_font_size=int(font_size * 1.2),
+               label_font_size=font_size)
+    paths = []
+    starts = np.searchsorted(time, np.asarray(frames) - tail + 1, side="left")
+    ends = np.searchsorted(time, np.asarray(frames), side="right")
+    for i, (frame, s, e) in enumerate(zip(frames, starts, ends)):
+        beads = pv.PolyData(pos[s:e] if e > s else np.zeros((0, 3)))
+        if e > s:
+            beads.point_data["value"] = value[s:e]
+            pl.add_mesh(beads, scalars="value", cmap=cmap, clim=clim,
+                        point_size=point_size, render_points_as_spheres=True,
+                        style="points", scalar_bar_args=bar, name="beads")
+        if label:
+            pl.add_text(label.format(frame=frame), position="lower_left",
+                        font_size=font_size, color="black", name="label")
+        if font_file:
+            _use_font_file(pl, font_file)
+        path = out_dir / f"frame_{i:04d}.png"
+        pl.screenshot(str(path))
+        paths.append(path)
+    pl.close()
+
+    if movie is not None:
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise RuntimeError("ffmpeg not found; the PNG frames are in " + str(out_dir))
+        subprocess.run([ffmpeg, "-v", "error", "-y", "-framerate", str(fps),
+                        "-i", str(out_dir / "frame_%04d.png"), "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", "-crf", "18", str(movie)], check=True)
+    return paths
