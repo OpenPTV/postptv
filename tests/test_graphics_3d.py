@@ -162,6 +162,12 @@ def test_far_walls_are_the_faces_away_from_the_camera():
     assert grid.n_lines == 30
 
 
+# screenshots need an OpenGL context: VTK segfaults on a headless runner
+needs_render = pytest.mark.skipif(not pv.system_supports_plotting(),
+                                  reason="no display for off-screen rendering")
+
+
+@needs_render
 def test_animate_writes_frames_with_trailing_beads(tmp_path, monkeypatch):
     from flowtracks import graphics
 
@@ -182,3 +188,25 @@ def test_animate_writes_frames_with_trailing_beads(tmp_path, monkeypatch):
     assert all(p.stat().st_size > 0 for p in paths)
     # frame 0: 3 tracks at t=0; frame 4: t=2..4 -> id7 3 + id5 3 + id3 1; frame 9: id7 3
     assert shown == [3, 7, 3]
+
+
+@needs_render
+def test_animate_draws_outlines_closed(tmp_path, monkeypatch):
+    from flowtracks import graphics
+
+    seen = {}
+    real = pv.Plotter.add_mesh
+
+    def spy(self, mesh, *args, **kw):
+        if str(kw.get("name", "")).startswith("outline"):
+            seen[kw["name"]] = mesh.n_points
+        return real(self, mesh, *args, **kw)
+
+    monkeypatch.setattr(pv.Plotter, "add_mesh", spy)
+    a = np.linspace(0, 2 * np.pi, 12, endpoint=False)
+    ring = np.column_stack([0.005 * np.cos(a), np.zeros_like(a), 0.005 * np.sin(a)])
+    graphics.animate_trajectories_3d(
+        Tracks(), tmp_path, frames=[0], window_size=(160, 120),
+        bounds=(-0.01, 0.01, -0.01, 0.01, -0.01, 0.01), grid_step=0.005,
+        outlines=[ring, ring + [0, 0.005, 0]])
+    assert seen == {"outline0": 13, "outline1": 13}  # closed: first point repeated

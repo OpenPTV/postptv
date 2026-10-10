@@ -403,8 +403,9 @@ def animate_trajectories_3d(source, out_dir, frames=None, *, component=1, tail=2
                             window_size=(1920, 1080), point_size=6.0,
                             grid_step=500.0, axis_titles=("x", "y", "z"),
                             wall_color=(0.54, 0.54, 0.54), background="white",
-                            font_size=20, font_file=None, movie=None, fps=10,
-                            label=None):
+                            font_size=20, font_file=None, outlines=(),
+                            outline_color="black", outline_width=3.0, movie=None,
+                            fps=10, label=None):
     """Off-screen movie frames of trajectories as trailing beads (PyVista).
 
     Every frame shows each particle's last ``tail`` positions as shaded
@@ -425,6 +426,8 @@ def animate_trajectories_3d(source, out_dir, frames=None, *, component=1, tail=2
     label - optional ``str.format`` text drawn bottom-left, given ``frame``.
     font_file - TrueType file for all text (VTK's built-in font has no
         square brackets).
+    outlines - (N, 3) point arrays in scaled units, each drawn as a closed
+        line (e.g. the top and bottom rims of a cylindrical vessel).
 
     Returns the list of PNG paths.
     """
@@ -456,6 +459,11 @@ def animate_trajectories_3d(source, out_dir, frames=None, *, component=1, tail=2
     pl.set_background(background)
     pl.add_mesh(walls, color=wall_color, lighting=False, name="walls")
     pl.add_mesh(grid, color="black", line_width=1.5, name="grid")
+    for k, ring in enumerate(outlines):
+        ring = np.asarray(ring, float)
+        line = pv.lines_from_points(np.vstack([ring, ring[:1]]))
+        pl.add_mesh(line, color=outline_color, line_width=outline_width,
+                    render_lines_as_tubes=True, name=f"outline{k}")
     _box_axis_labels(pl, bounds, direction, grid_step, axis_titles, font_size)
     pl.add_axes(viewport=(0.0, 0.82, 0.12, 1.0))
     centre = np.array([(bounds[0] + bounds[1]) / 2, (bounds[2] + bounds[3]) / 2,
