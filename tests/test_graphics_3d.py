@@ -162,9 +162,24 @@ def test_far_walls_are_the_faces_away_from_the_camera():
     assert grid.n_lines == 30
 
 
-# screenshots need an OpenGL context: VTK segfaults on a headless runner
-needs_render = pytest.mark.skipif(not pv.system_supports_plotting(),
-                                  reason="no display for off-screen rendering")
+def _can_render():
+    """Screenshots need an OpenGL context. On a headless CI runner VTK
+    segfaults instead of raising (and pyvista.system_supports_plotting()
+    still says yes), so probe one tiny render in a child process."""
+    import subprocess
+    import sys
+
+    probe = ("import pyvista as pv; pl = pv.Plotter(off_screen=True, window_size=[8, 8]); "
+             "pl.add_mesh(pv.Sphere()); pl.screenshot(return_img=True)")
+    try:
+        return subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                              timeout=120).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+needs_render = pytest.mark.skipif(not _can_render(),
+                                  reason="no OpenGL context for off-screen rendering")
 
 
 @needs_render
