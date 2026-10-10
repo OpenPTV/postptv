@@ -100,6 +100,8 @@ ignore = ["E501", "E701", "E741"]
 "scripts/**" = ["E402", "F401", "F841"]
 "benchmarks/**" = ["E402", "F401", "F841"]
 "doc/**" = ["E402", "F401"]
+# manim scenes use manim's documented `from manim import *` idiom
+"videos/**" = ["F403", "F405"]
 # F401: test modules import names to prove they are importable / to be
 # used by other tests via `from test_x import ...`.
 "tests/**" = ["E402", "F401"]
