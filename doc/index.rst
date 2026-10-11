@@ -28,6 +28,8 @@ Contents:
    graphics
    smoothing
    repair
+   clean
+   merge
    pairs
    scene
    analysis
