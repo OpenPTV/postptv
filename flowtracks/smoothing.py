@@ -6,7 +6,9 @@ Trajectory object because they precompute values that are dependent only on the
 smoothing method, and not on the trajectory itself, so they may be shared for
 processing a whole list of trajectories.
 """
+
 import numpy as np
+from scipy.interpolate import make_smoothing_spline
 
 from flowtracks.trajectory import Trajectory
 
@@ -70,12 +72,11 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
     min_window = int(min_window)
     if min_window % 2 != 1 or min_window < order + 2 or min_window > window_size:
         raise TypeError("min_window must be odd, >= order + 2 and <= window_size")
-    order_range = range(order+1)
+    order_range = range(order + 1)
 
     # Properties that should not be copied from the old trajectory because
     # they are obtained otherwise (or copied elsewhere).
-    smoothed_keys = ['pos', 'velocity', 'accel', 'acc_pp', 'time',
-        'trajid']
+    smoothed_keys = ["pos", "velocity", "accel", "acc_pp", "time", "trajid"]
 
     def coeffs(window):
         """(M, M_head, M_tail) for one window size. Least-squares polynomial
@@ -99,7 +100,11 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
                     rows[d] += fall * float(s) ** (p - d) * m[p] * fps**d
             return rows
 
-        return at(0), [at(i - half) for i in range(half)], [at(i + 1) for i in range(half)]
+        return (
+            at(0),
+            [at(i - half) for i in range(half)],
+            [at(i + 1) for i in range(half)],
+        )
 
     cache = {}
 
@@ -120,7 +125,9 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
             if np.all(steps == np.round(steps)):
                 step = np.gcd.reduce(np.round(steps).astype(np.int64))
             grid = np.arange(time[0], time[-1] + step / 2, step)
-            pos = np.column_stack([np.interp(grid, time, pos[:, k]) for k in range(pos.shape[1])])
+            pos = np.column_stack(
+                [np.interp(grid, time, pos[:, k]) for k in range(pos.shape[1])]
+            )
             observed = np.searchsorted(grid, time)
         if len(pos) < min_window:
             continue
@@ -131,12 +138,19 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
         half_window = (window - 1) // 2
 
         windows = np.lib.stride_tricks.sliding_window_view(
-            pos, window, axis=0)                         # (L-w+1, 3, window)
-        out = np.concatenate([
-            np.stack([windows[0] @ Mh.T for Mh in M_head]),
-            windows @ M.T,
-            np.stack([windows[-1] @ Mt.T for Mt in M_tail]),
-        ]) if half_window else windows @ M.T              # (L, 3, 4)
+            pos, window, axis=0
+        )  # (L-w+1, 3, window)
+        out = (
+            np.concatenate(
+                [
+                    np.stack([windows[0] @ Mh.T for Mh in M_head]),
+                    windows @ M.T,
+                    np.stack([windows[-1] @ Mt.T for Mt in M_tail]),
+                ]
+            )
+            if half_window
+            else windows @ M.T
+        )  # (L, 3, 4)
         out = out[observed]
 
         newpos = out[:, :, 0]
@@ -149,11 +163,73 @@ def savitzky_golay(trajs, fps, window_size, order, min_window=None):
         # Delta t treatment is in m_*.
         # Assumed that the first point is trimmed, the zeros are  just for
         # alignment.
-        nextvel = np.vstack((np.zeros(3), newvel + newacc/fps + jerk/2./fps**2))[:-1]
-        nextacc = np.vstack((np.zeros(3), newacc + jerk/fps))[:-1]
+        nextvel = np.vstack((np.zeros(3), newvel + newacc / fps + jerk / 2.0 / fps**2))[
+            :-1
+        ]
+        nextacc = np.vstack((np.zeros(3), newacc + jerk / fps))[:-1]
 
-        newtraj = Trajectory(newpos, newvel, traj.time(), traj.trajid(),
-            accel=newacc, vel_pp=nextvel, acc_pp = nextacc)
+        newtraj = Trajectory(
+            newpos,
+            newvel,
+            traj.time(),
+            traj.trajid(),
+            accel=newacc,
+            vel_pp=nextvel,
+            acc_pp=nextacc,
+        )
+
+        # Copy unsmoothed properties from old trajectory:
+        for k, v in traj.as_dict().items():
+            if k not in smoothed_keys:
+                newtraj.create_property(k, v)
+
+        new_trajs.append(newtraj)
+
+    return new_trajs
+
+
+def smoothing_spline(trajs, fps, lam=None):
+    r"""Smooth (and differentiate) trajectories with a cubic smoothing spline.
+
+    Fits, for each spatial coordinate, a cubic smoothing spline against time
+    using ``scipy.interpolate.make_smoothing_spline``. Unlike
+    :func:`savitzky_golay` this handles non-uniform frame spacing natively
+    (no fill-to-uniform-grid step) and exposes a single smoothing knob
+    ``lam`` (the penalty on the squared second derivative); when ``lam`` is
+    ``None`` Generalized Cross Validation chooses it automatically.
+
+    Parameters:
+    trajs - a list of Trajectory objects.
+    fps - frames per second, used to convert per-frame derivatives to
+        physical velocity (m/s) and acceleration (m/s^2).
+    lam - smoothing parameter (float) or None. None (default) lets GCV
+        pick it. Larger values give smoother curves.
+
+    Returns:
+    new_trajs - a list of Trajectory objects representing the smoothed
+        trajectories. Trajectories shorter than 5 points are discarded
+        (make_smoothing_spline requires at least 5 samples).
+    """
+    smoothed_keys = ["pos", "velocity", "accel", "acc_pp", "time", "trajid", "vel_pp"]
+
+    new_trajs = []
+    for traj in trajs:
+        time = np.asarray(traj.time(), dtype=float)
+        pos = np.asarray(traj.pos(), dtype=float)
+        if len(time) < 5:
+            continue
+        # make_smoothing_spline needs strictly increasing x.
+        if np.any(np.diff(time) <= 0):
+            continue
+        try:
+            spl = make_smoothing_spline(time, pos, lam=lam)
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+        newpos = np.asarray(spl(time))
+        newvel = np.asarray(spl.derivative(1)(time)) * float(fps)
+        newacc = np.asarray(spl.derivative(2)(time)) * float(fps) ** 2
+
+        newtraj = Trajectory(newpos, newvel, traj.time(), traj.trajid(), accel=newacc)
 
         # Copy unsmoothed properties from old trajectory:
         for k, v in traj.as_dict().items():

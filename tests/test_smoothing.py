@@ -20,15 +20,16 @@ def _old_savitzky_golay(trajs, fps, window_size, order):
     order_range = range(order + 1)
     half_window = (window_size - 1) // 2
 
-    b = np.array([[k**i for i in order_range]
-                  for k in range(-half_window, half_window + 1)])
+    b = np.array(
+        [[k**i for i in order_range] for k in range(-half_window, half_window + 1)]
+    )
     m = np.linalg.pinv(b)
     m_pos = m[0]
     m_vel = m[1] * fps
     m_acc = m[2] * (fps**2 * 2)
     m_jerk = m[3] * (fps**3 * 6)
 
-    smoothed_keys = ['pos', 'velocity', 'accel', 'acc_pp', 'time', 'trajid']
+    smoothed_keys = ["pos", "velocity", "accel", "acc_pp", "time", "trajid"]
 
     new_trajs = []
     for traj in trajs:
@@ -37,25 +38,33 @@ def _old_savitzky_golay(trajs, fps, window_size, order):
 
         newpos, newvel, newacc, jerk = [], [], [], []
         for y in traj.pos().T:
-            firstvals = y[0] - np.abs(y[1:half_window + 1][::-1] - y[0])
-            lastvals = y[-1] + np.abs(y[-half_window - 1:-1][::-1] - y[-1])
+            firstvals = y[0] - np.abs(y[1 : half_window + 1][::-1] - y[0])
+            lastvals = y[-1] + np.abs(y[-half_window - 1 : -1][::-1] - y[-1])
             y = np.concatenate((firstvals, y, lastvals))
-            newpos.append(np.convolve(m_pos[::-1], y, mode='valid'))
-            newvel.append(np.convolve(m_vel[::-1], y, mode='valid'))
-            newacc.append(np.convolve(m_acc[::-1], y, mode='valid'))
-            jerk.append(np.convolve(m_jerk[::-1], y, mode='valid'))
+            newpos.append(np.convolve(m_pos[::-1], y, mode="valid"))
+            newvel.append(np.convolve(m_vel[::-1], y, mode="valid"))
+            newacc.append(np.convolve(m_acc[::-1], y, mode="valid"))
+            jerk.append(np.convolve(m_jerk[::-1], y, mode="valid"))
 
         newpos = np.r_[newpos].T
         newvel = np.r_[newvel].T
         newacc = np.r_[newacc].T
         jerk = np.r_[jerk].T
 
-        nextvel = np.vstack((np.zeros(3), newvel + newacc / fps +
-                             jerk / 2. / fps**2))[:-1]
+        nextvel = np.vstack((np.zeros(3), newvel + newacc / fps + jerk / 2.0 / fps**2))[
+            :-1
+        ]
         nextacc = np.vstack((np.zeros(3), newacc + jerk / fps))[:-1]
 
-        newtraj = Trajectory(newpos, newvel, traj.time(), traj.trajid(),
-                             accel=newacc, vel_pp=nextvel, acc_pp=nextacc)
+        newtraj = Trajectory(
+            newpos,
+            newvel,
+            traj.time(),
+            traj.trajid(),
+            accel=newacc,
+            vel_pp=nextvel,
+            acc_pp=nextacc,
+        )
         for k, v in traj.as_dict().items():
             if k not in smoothed_keys:
                 newtraj.create_property(k, v)
@@ -63,10 +72,11 @@ def _old_savitzky_golay(trajs, fps, window_size, order):
     return new_trajs
 
 
-def _poly_trajectory(coeffs, n=80, fps=1., trajid=0):
+def _poly_trajectory(coeffs, n=80, fps=1.0, trajid=0):
     t = np.arange(n, dtype=np.float64)
-    pos = np.stack([sum(coeffs[c, d] * t**d for d in range(4))
-                    for c in range(3)], axis=1)
+    pos = np.stack(
+        [sum(coeffs[c, d] * t**d for d in range(4)) for c in range(3)], axis=1
+    )
     return Trajectory(pos, np.zeros_like(pos), t, trajid)
 
 
@@ -76,8 +86,7 @@ class TestSavitzkyGolay(unittest.TestCase):
         rng = np.random.default_rng(0)
         a = rng.normal(size=(3, 4))
         traj = _poly_trajectory(a, n=80)
-        smoothed = smoothing.savitzky_golay([traj], fps=1., window_size=9,
-                                            order=3)[0]
+        smoothed = smoothing.savitzky_golay([traj], fps=1.0, window_size=9, order=3)[0]
 
         # pos is a cubic -> reproduced exactly everywhere, ends included:
         # the ends are evaluated on the polynomial fitted to the first/last
@@ -85,10 +94,10 @@ class TestSavitzkyGolay(unittest.TestCase):
         np.testing.assert_allclose(smoothed.pos(), traj.pos(), atol=1e-7)
 
         t = traj.time()
-        vel = np.stack([a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2
-                        for c in range(3)], axis=1)
-        acc = np.stack([2 * a[c, 2] + 6 * a[c, 3] * t for c in range(3)],
-                      axis=1)
+        vel = np.stack(
+            [a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2 for c in range(3)], axis=1
+        )
+        acc = np.stack([2 * a[c, 2] + 6 * a[c, 3] * t for c in range(3)], axis=1)
 
         np.testing.assert_allclose(smoothed.velocity(), vel, atol=1e-6)
         np.testing.assert_allclose(smoothed.accel(), acc, atol=1e-6)
@@ -104,8 +113,8 @@ class TestSavitzkyGolay(unittest.TestCase):
             pos = rng.normal(size=(n, 3)).cumsum(axis=0)
             trajs.append(Trajectory(pos, np.zeros_like(pos), t, trid))
 
-        new = smoothing.savitzky_golay(trajs, fps=30., window_size=11, order=3)
-        old = _old_savitzky_golay(trajs, fps=30., window_size=11, order=3)
+        new = smoothing.savitzky_golay(trajs, fps=30.0, window_size=11, order=3)
+        old = _old_savitzky_golay(trajs, fps=30.0, window_size=11, order=3)
 
         self.assertEqual(len(new), len(old))
         si = slice(5, -5)  # half_window = 5
@@ -120,9 +129,15 @@ class TestSavitzkyGolay(unittest.TestCase):
         n, v = 30, -2.0
         t = np.arange(n, dtype=np.float64)
         pos = np.column_stack([v * t, 0.5 * t, np.zeros(n)])
-        sm = smoothing.savitzky_golay([Trajectory(pos, np.zeros_like(pos), t, 0)],
-                                      fps=1., window_size=11, order=2)[0]
-        np.testing.assert_allclose(sm.velocity(), np.tile([v, 0.5, 0.0], (n, 1)), atol=1e-9)
+        sm = smoothing.savitzky_golay(
+            [Trajectory(pos, np.zeros_like(pos), t, 0)],
+            fps=1.0,
+            window_size=11,
+            order=2,
+        )[0]
+        np.testing.assert_allclose(
+            sm.velocity(), np.tile([v, 0.5, 0.0], (n, 1)), atol=1e-9
+        )
 
     def test_frame_gap_is_spaced_correctly(self):
         """Missing frames (a repair join) must not be treated as consecutive:
@@ -130,12 +145,14 @@ class TestSavitzkyGolay(unittest.TestCase):
         frame."""
         rng = np.random.default_rng(3)
         a = rng.normal(size=(3, 4))
-        full = _poly_trajectory(a, n=60, fps=1.)
+        full = _poly_trajectory(a, n=60, fps=1.0)
         keep = np.setdiff1d(np.arange(60), [20, 35, 36])
         t = full.time()[keep]
         traj = Trajectory(full.pos()[keep], np.zeros((len(keep), 3)), t, 0)
-        sm = smoothing.savitzky_golay([traj], fps=1., window_size=9, order=3)[0]
-        vel = np.stack([a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2 for c in range(3)], axis=1)
+        sm = smoothing.savitzky_golay([traj], fps=1.0, window_size=9, order=3)[0]
+        vel = np.stack(
+            [a[c, 1] + 2 * a[c, 2] * t + 3 * a[c, 3] * t**2 for c in range(3)], axis=1
+        )
         np.testing.assert_array_equal(sm.time(), t)
         # interpolated fill is linear, so allow the cubic's error near the gap
         far = np.abs(t[:, None] - np.array([20, 35, 36])).min(axis=1) > 4
@@ -147,18 +164,26 @@ class TestSavitzkyGolay(unittest.TestCase):
         (step 1), not stop at 67 on a step-3 grid (was an IndexError)."""
         t = np.array([37, 40, 43, 46, 68], dtype=np.float64)
         pos = np.column_stack([2.0 * t, -t, np.ones(5)])
-        sm = smoothing.savitzky_golay([Trajectory(pos, np.zeros_like(pos), t, 0)],
-                                      fps=1., window_size=9, order=3, min_window=5)[0]
+        sm = smoothing.savitzky_golay(
+            [Trajectory(pos, np.zeros_like(pos), t, 0)],
+            fps=1.0,
+            window_size=9,
+            order=3,
+            min_window=5,
+        )[0]
         np.testing.assert_array_equal(sm.time(), t)
-        np.testing.assert_allclose(sm.velocity(), np.tile([2.0, -1.0, 0.0], (5, 1)), atol=1e-9)
+        np.testing.assert_allclose(
+            sm.velocity(), np.tile([2.0, -1.0, 0.0], (5, 1)), atol=1e-9
+        )
 
     def test_short_trajectory_dropped(self):
         t = np.arange(3, dtype=np.float64)
-        traj = Trajectory(np.random.default_rng(1).normal(size=(3, 3)),
-                          np.zeros((3, 3)), t, 0)
+        traj = Trajectory(
+            np.random.default_rng(1).normal(size=(3, 3)), np.zeros((3, 3)), t, 0
+        )
         self.assertEqual(
-            smoothing.savitzky_golay([traj], fps=1., window_size=9, order=3),
-            [])
+            smoothing.savitzky_golay([traj], fps=1.0, window_size=9, order=3), []
+        )
 
     def test_min_window_smooths_short_tracks_instead_of_dropping(self):
         """A 12-point quadratic track is dropped at window 21, but smoothed
@@ -168,13 +193,41 @@ class TestSavitzkyGolay(unittest.TestCase):
         pos = np.column_stack([0.5 * t**2, -3.0 * t, np.ones(12)])
         tr = Trajectory(pos, np.zeros_like(pos), t, 0)
         short = Trajectory(pos[:5], np.zeros((5, 3)), t[:5], 1)
-        self.assertEqual(smoothing.savitzky_golay([tr], fps=1., window_size=21, order=2), [])
-        out = smoothing.savitzky_golay([tr, short], fps=1., window_size=21, order=2, min_window=7)
+        self.assertEqual(
+            smoothing.savitzky_golay([tr], fps=1.0, window_size=21, order=2), []
+        )
+        out = smoothing.savitzky_golay(
+            [tr, short], fps=1.0, window_size=21, order=2, min_window=7
+        )
         self.assertEqual(len(out), 1)
-        np.testing.assert_allclose(out[0].velocity(), np.column_stack([t, -3.0 * np.ones(12), np.zeros(12)]), atol=1e-9)
+        np.testing.assert_allclose(
+            out[0].velocity(),
+            np.column_stack([t, -3.0 * np.ones(12), np.zeros(12)]),
+            atol=1e-9,
+        )
         with self.assertRaises(TypeError):
-            smoothing.savitzky_golay([tr], fps=1., window_size=21, order=2, min_window=8)
+            smoothing.savitzky_golay(
+                [tr], fps=1.0, window_size=21, order=2, min_window=8
+            )
 
 
-if __name__ == '__main__':
+class TestSmoothingSpline(unittest.TestCase):
+    def test_basic(self):
+        t = np.arange(20, dtype=float)
+        pos = np.column_stack([np.sin(t / 3.0), np.cos(t / 3.0), 0.1 * t])
+        tr = Trajectory(pos, np.zeros_like(pos), t, 0)
+        out = smoothing.smoothing_spline([tr], fps=10.0)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0].pos().shape, pos.shape)
+        np.testing.assert_array_equal(out[0].time(), t)
+        # A smooth signal with lam=0-ish (GCV) should stay close.
+        np.testing.assert_allclose(out[0].pos(), pos, atol=0.1)
+
+    def test_short_dropped(self):
+        t = np.arange(3, dtype=float)
+        tr = Trajectory(np.zeros((3, 3)), np.zeros((3, 3)), t, 0)
+        self.assertEqual(smoothing.smoothing_spline([tr], fps=1.0), [])
+
+
+if __name__ == "__main__":
     unittest.main()

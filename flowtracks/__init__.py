@@ -27,7 +27,7 @@ from flowtracks.phasing import (
     phase_of_frame,
     validate_bins,
 )
-from flowtracks.smoothing import savitzky_golay
+from flowtracks.smoothing import savitzky_golay, smoothing_spline
 from flowtracks.stitching import stitch_trajectories
 from flowtracks.writers import (
     export_run_to_paraview,
@@ -39,6 +39,7 @@ from flowtracks.writers import (
 __all__ = [
     "stitch_trajectories",
     "savitzky_golay",
+    "smoothing_spline",
     "eulerian_grid",
     "eulerian_windowed",
     "clean_field",
