@@ -1,14 +1,1 @@
-certifi
-flowtracks
-mkl-fft
-mkl-random
-mkl-service
-mock
-pytest
-matplotlib
-numexpr
-numpy
-scipy
-six
-tables
-vtk
+certifi>=2026.10.19
