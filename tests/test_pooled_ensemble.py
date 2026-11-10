@@ -87,6 +87,60 @@ def test_pooled_recovers_bin_masked_out_per_run():
     assert stats["mean"][0] == pytest.approx(2.0)
 
 
+def test_pooled_single_run():
+    """Pooled with one run: counts_per_run has 1 run, mean matches single-run grid."""
+    scenes = {"wp1": _scene((2.0, 0.0, 0.0), n_particles=3)}
+    ds_single = eu.eulerian_grid(scenes["wp1"], GRID, min_count=1, **BIN_KW)
+    pooled = eu.eulerian_grid_pooled(scenes, GRID, min_count=1, **BIN_KW)
+    assert np.allclose(pooled.dataset["u_ins_mean"].values, ds_single["u_ins_mean"].values, equal_nan=True)
+    assert pooled.counts_per_run.shape[-1] == 1
+    assert pooled.counts_per_run.sel(run="wp1").values[1, 1, 1, 0] == 15
+    assert pooled.samples["run_index"].size == 15
+    assert set(np.unique(pooled.samples["run_index"])) == {0}
+
+
+def test_pooled_collect_samples_false():
+    """collect_samples=False skips the sample table but keeps counts/means."""
+    scenes = {"wp1": _scene((1.0, 0.0, 0.0), n_particles=2),
+              "wp2": _scene((3.0, 0.0, 0.0), n_particles=4)}
+    pooled = eu.eulerian_grid_pooled(scenes, GRID, min_count=1, collect_samples=False, **BIN_KW)
+    assert pooled.samples["run_index"].size == 0
+    assert pooled.dataset["u_ins_mean"].values[1, 1, 1, 0] == pytest.approx(7.0 / 3.0)
+    assert pooled.dataset[eu.COUNT_VAR].values[1, 1, 1, 0] == 30
+    # pooled_bin_statistics returns count 0 for empty samples
+    stats = eu.pooled_bin_statistics(pooled, 1, 1, 1, 0)
+    assert stats == {"count": 0}
+
+
+def test_pooled_empty_scenes_raises():
+    """Empty scenes raises ValueError."""
+    with pytest.raises(ValueError, match="at least one scene"):
+        eu.eulerian_grid_pooled({}, GRID, min_count=1, **BIN_KW)
+
+
+def test_pooled_ceil_voxel_rule():
+    """Pooled with ceil voxel rule: binning matches per-run ceil path."""
+    # Use a scene where particles are at a position that tests ceil vs half-open
+    pos = np.array([[0.5, 0.0, 0.0]])
+    vel = np.array([[1.0, 2.0, 3.0]])
+    scene = FakeScene(pos, vel, frames=range(100001, 100006))
+    scenes = {"wp1": scene}
+    # per-run with ceil
+    ds_ceil = eu.eulerian_grid(scene, GRID, min_count=1, voxel_rule="ceil", **BIN_KW)
+    pooled_ceil = eu.eulerian_grid_pooled(scenes, GRID, min_count=1, voxel_rule="ceil", **BIN_KW)
+    assert np.allclose(pooled_ceil.dataset["u_ins_mean"].values, ds_ceil["u_ins_mean"].values, equal_nan=True)
+    assert np.allclose(pooled_ceil.dataset[eu.COUNT_VAR].values, ds_ceil[eu.COUNT_VAR].values)
+
+
+def test_pooled_bin_statistics_empty_bin():
+    """pooled_bin_statistics returns count 0 for a bin with no samples."""
+    scenes = {"wp1": _scene((1.0, 0.0, 0.0), n_particles=2)}
+    pooled = eu.eulerian_grid_pooled(scenes, GRID, min_count=1, **BIN_KW)
+    # bin (0,0,0) has no samples
+    stats = eu.pooled_bin_statistics(pooled, 0, 0, 0, 0)
+    assert stats == {"count": 0}
+
+
 def test_compare_statistics_per_run_vs_pooled_synthetic():
     """Run both methods on one synthetic case and compare statistics.
 

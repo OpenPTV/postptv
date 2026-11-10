@@ -83,9 +83,20 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
             min_count=min_count,
         )
         final_ds = pooled_result.dataset
-        # pooled mean is already the phase/ensemble mean over all samples;
         # attach per-run counts for bookkeeping/comparison
         final_ds = final_ds.assign(counts_per_run=pooled_result.counts_per_run)
+
+        # pooled turbulent statistics + derived fields (functional parity with
+        # per_run path, computed from collected particle samples)
+        print("[postptv-combine] Computing pooled turbulent statistics from collected samples...")
+        pooled_stats = post_analysis_xr.pooled_turbulent_statistics(pooled_result)
+        print("[postptv-combine] Computing derived fields (MKE, TKE, VEL)...")
+        derived = post_analysis_xr.derived_fields(
+            final_ds, pooled_stats, fields=["MKE", "TKE", "VEL"],
+            counts=final_ds[post_analysis_xr.COUNT_VAR],
+            fluid_min=2,
+        )
+        final_ds = xr.merge([final_ds, pooled_stats, derived])
     else:
         ds_sets = {}
         set_names = []
@@ -137,7 +148,6 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
     post_analysis_xr.save_zarr(final_ds, zarr_out)
 
     if pooled_result is not None:
-        import json
         samples_npz = out_dir / "post_analysis_pooled_samples.npz"
         print(f"[postptv-combine] Saving pooled sample table -> {samples_npz}")
         np.savez_compressed(
@@ -157,7 +167,8 @@ def main():
     parser = argparse.ArgumentParser(description="Combine 3D-PTV realizations (postptv-combine)")
     parser.add_argument("data_dir", nargs="?", default=".", help="Data directory to search")
     parser.add_argument("--method", choices=["per_run", "pooled"], default="per_run",
-                        help="Averaging method: per_run (default, current) or pooled (all runs together)")
+                        help="Averaging method: per_run (default, current: bin per run then "
+                             "combine) or pooled (collect all runs together, pooled min_count)")
     args = parser.parse_args()
     run_combine(args.data_dir, method=args.method)
 
