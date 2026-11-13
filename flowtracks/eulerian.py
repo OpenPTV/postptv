@@ -8,6 +8,7 @@ and per-slice derived turbulence fields, chained after phase_average_xr.
 Run:  uv run python src/post_analysis_xr.py [post_recipe.yaml]
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -103,6 +104,112 @@ def _bin_counts_sums(pos, vel, ti, edges4, shape):
     return counts, sums
 
 
+def _grid_spec(grid_params, cycletime=None, deltat=90, base_time=100000,
+               fin=None, voxel_rule="half-open", n_frames_in_period=None,
+               n_phases=None, phase_zero_frame=None):
+    """Resolve grid/phase parameters shared by per-run and pooled binning."""
+    if n_frames_in_period is not None:
+        cycletime = n_frames_in_period
+    if cycletime is None:
+        raise ValueError(
+            "a period is required: pass cycletime (legacy) or "
+            "n_frames_in_period (shared vocabulary)."
+        )
+    if n_phases is not None:
+        fin = n_phases
+    if phase_zero_frame is not None:
+        base_time = phase_zero_frame
+    zaman = deltat * 2 + 1
+    fin = int(np.ceil(cycletime / zaman)) if fin is None else int(fin)
+    edges = [np.linspace(grid_params[f"min_{d}"], grid_params[f"max_{d}"],
+                         grid_params[f"step{d}"] + 1) for d in "xyz"]
+    mids = [0.5 * (b[:-1] + b[1:]) for b in edges]
+    if voxel_rule not in ("half-open", "ceil"):
+        raise ValueError("voxel_rule must be 'half-open' or 'ceil'")
+    shape4 = (*[grid_params[f"step{d}"] for d in "xyz"], fin)
+    return {
+        "cycletime": cycletime, "deltat": deltat, "base_time": base_time,
+        "zaman": zaman, "fin": fin, "edges": edges, "mids": mids,
+        "shape4": shape4, "voxel_rule": voxel_rule,
+    }
+
+
+def _collect_scene_arrays(scene):
+    """Return (pos, vel, time) arrays for a scene-like or Zarr/legacy source."""
+    if hasattr(scene, "collect"):
+        pos, vel, time = (np.asarray(a) for a in scene.collect(["pos", "velocity", "time"]))
+    else:
+        from flowtracks.io import trajectories
+        trajs = trajectories(str(scene))
+        p_list, v_list, t_list = [], [], []
+        for tr in trajs:
+            p_list.append(tr.pos())
+            v_list.append(tr.velocity())
+            t_list.append(tr.time())
+        pos = np.vstack(p_list) if p_list else np.empty((0, 3))
+        vel = np.vstack(v_list) if v_list else np.empty((0, 3))
+        time = np.concatenate(t_list) if t_list else np.empty((0,))
+    pos = np.asarray(pos, dtype=float).reshape(-1, 3)
+    vel = np.asarray(vel, dtype=float).reshape(-1, 3)
+    time = np.asarray(time).ravel()
+    return pos, vel, time
+
+
+def _prepare_binned_samples(scene, grid_params, first, last, spec, qc=None):
+    """Collect, QC/filter, and phase-bin samples for one scene.
+
+    Returns (pos, vel, time, ti) after domain/time/QC filtering and phase
+    assignment. Uses the same filtering semantics as :func:`eulerian_grid`.
+    """
+    pos, vel, time = _collect_scene_arrays(scene)
+    if qc is not None:
+        q = dict(qc)
+        keep_qc = qc_mask(pos, vel,
+                          min_speed=q.get("min_speed"),
+                          max_speed=q.get("max_speed"),
+                          finite_only=q.get("finite_only", True))
+        pos, vel, time = pos[keep_qc], vel[keep_qc], time[keep_qc]
+
+    mask = (time >= first) & (time <= last)
+    if pos.shape[0]:
+        edges = spec["edges"]
+        use_ceil = spec["voxel_rule"] == "ceil"
+        for d, b in enumerate(edges):
+            if use_ceil:
+                mask &= (pos[:, d] > b[0]) & (pos[:, d] < b[-1])
+            else:
+                mask &= (pos[:, d] >= b[0]) & (pos[:, d] < b[-1])
+    pos, vel, time = pos[mask], vel[mask], time[mask]
+
+    if pos.shape[0]:
+        ti = np.clip(((time.astype(np.int64) - spec["base_time"] - 1)
+                      % int(spec["cycletime"])) // spec["zaman"],
+                     0, spec["fin"] - 1)
+    else:
+        ti = np.empty((0,), dtype=np.int64)
+    return pos, vel, time, ti
+
+
+def _spatial_bin_indices(pos, edges, voxel_rule="half-open"):
+    """Compute (ix, iy, iz) integer bin indices for positions inside edges.
+
+    Assumes samples are already filtered to the grid domain. Uses uniform-grid
+    arithmetic (matching the linspace edges used by grid specs).
+    """
+    idx = []
+    for d, b in enumerate(edges):
+        n = len(b) - 1
+        dx = b[1] - b[0]
+        if voxel_rule == "ceil":
+            # legacy MATLAB rule: idx = ceil((p-min)/d)-1, lower voxel on edge
+            j = np.ceil((pos[:, d] - b[0]) / dx).astype(np.int64) - 1
+        else:
+            # half-open [edge_i, edge_{i+1}): internal-edge points -> upper bin
+            j = np.floor((pos[:, d] - b[0]) / dx).astype(np.int64)
+        idx.append(np.clip(j, 0, n - 1))
+    return idx[0], idx[1], idx[2]
+
+
 def _bin_counts_sums_ceil(pos, vel, ti, mins, deltas, shape):
     """MATLAB-``ceil`` voxel rule: ``idx = ceil((p - min) / d) - 1``.
 
@@ -126,6 +233,25 @@ def _bin_counts_sums_ceil(pos, vel, ti, mins, deltas, shape):
     sums = [np.bincount(rav, weights=np.asarray(vel[ok, d], dtype=float),
                         minlength=n).reshape(shape) for d in range(3)]
     return counts, sums
+
+
+@dataclass
+class PooledEulerianResult:
+    """Result of pooled (all-runs-together) Lagrangian -> Eulerian binning.
+
+    dataset: pooled phase-binned mean/count grid with dims (x,y,z,phase);
+        ``min_count`` is applied on the pooled total count (not per run).
+    samples: flat table of every binned sample from all runs with arrays
+        ``run_index, ix, iy, iz, phase, u, v, w`` (and ``time``), enabling
+        per-(bin,phase) statistics over the full pooled particle collection.
+    counts_per_run: per-run sample counts with dims (x,y,z,phase,run).
+    run_names: realization names in run order.
+    """
+
+    dataset: xr.Dataset
+    samples: dict
+    counts_per_run: xr.DataArray
+    run_names: list
 
 
 def eulerian_grid(scene, grid_params, first, last, cycletime=None,
@@ -403,12 +529,252 @@ def eulerian_windowed(scene, grid_params, first, last, window_frames: int,
     )
 
 
+def eulerian_grid_pooled(scenes, grid_params, first, last, cycletime=None,
+                         deltat=90, base_time=100000, min_count=50,
+                         *, fill_value=float("nan"), qc=None, add_valid=True,
+                         fin=None, voxel_rule="half-open",
+                         n_frames_in_period=None, n_phases=None,
+                         phase_zero_frame=None, collect_samples=True):
+    """Pool Lagrangian samples from ALL runs, then bin to a phase grid.
+
+    Unlike the per-run ``eulerian_grid`` -> stack -> combine path, samples are
+    not reduced per run first: every filtered sample is assigned to
+    (ix,iy,iz,phase) with a ``run_index`` and collected together. The returned
+    mean/count grid applies ``min_count`` to the *pooled* total count, so a bin
+    that is too sparse in one run but sufficient across runs can still be
+    valid (contrast with per-run masking).
+
+    scenes: mapping ``{run_name: scene}`` or a sequence of
+    ``(run_name, scene)`` pairs, in run order.
+
+    Limitations vs :func:`eulerian_grid` (not yet supported here):
+    - ``smoothing_sigma`` (Gaussian smoothing of sums/counts) is not applied.
+    - ``chunk_frames`` (bounded-memory accumulation) is not supported; all
+      samples are binned per run in one vectorized pass.
+    - ``qc`` is supported.
+
+    collect_samples: when True (default), return the flat per-sample table in
+    ``result.samples`` for computing arbitrary per-(bin,phase) statistics.
+
+    Returns :class:`PooledEulerianResult`.
+    """
+    if isinstance(scenes, dict):
+        items = list(scenes.items())
+    else:
+        items = list(scenes)
+    run_names = [str(name) for name, _ in items]
+    if not items:
+        raise ValueError("eulerian_grid_pooled() requires at least one scene.")
+
+    spec = _grid_spec(grid_params, cycletime=cycletime, deltat=deltat,
+                      base_time=base_time, fin=fin, voxel_rule=voxel_rule,
+                      n_frames_in_period=n_frames_in_period, n_phases=n_phases,
+                      phase_zero_frame=phase_zero_frame)
+    edges, mids, shape4, fin_n = spec["edges"], spec["mids"], spec["shape4"], spec["fin"]
+
+    total_counts = np.zeros(shape4, dtype=np.int64)
+    total_sums = [np.zeros(shape4, dtype=np.float64) for _ in range(3)]
+    counts_per_run_list = []
+
+    sample_parts = {k: [] for k in ("run_index", "ix", "iy", "iz", "phase", "u", "v", "w", "time")}
+
+    use_ceil = spec["voxel_rule"] == "ceil"
+    if use_ceil:
+        mins = [grid_params[f"min_{d}"] for d in "xyz"]
+        deltas = [(grid_params[f"max_{d}"] - grid_params[f"min_{d}"])
+                  / grid_params[f"step{d}"] for d in "xyz"]
+
+    for r_idx, (_, scene) in enumerate(items):
+        pos, vel, time, ti = _prepare_binned_samples(
+            scene, grid_params, first, last, spec, qc=qc)
+        if pos.shape[0] == 0:
+            counts_per_run_list.append(np.zeros(shape4, dtype=np.int64))
+            continue
+
+        # vectorized binning per run (counts + sums), same math as eulerian_grid
+        if use_ceil:
+            c, sl = _bin_counts_sums_ceil(pos, vel, ti, mins, deltas, shape4)
+        else:
+            edges4 = [*edges, np.arange(spec["fin"] + 1) - 0.5]
+            c, sl = _bin_counts_sums(pos, vel, ti, edges4, shape4)
+        c = c.astype(np.int64)
+        counts_per_run_list.append(c)
+
+        total_counts = total_counts + c
+        for d in range(3):
+            total_sums[d] = total_sums[d] + sl[d]
+
+        if collect_samples:
+            ix, iy, iz = _spatial_bin_indices(pos, edges, voxel_rule=spec["voxel_rule"])
+            ip = ti.astype(np.int64)
+            sample_parts["run_index"].append(np.full(pos.shape[0], r_idx, dtype=np.int32))
+            sample_parts["ix"].append(ix.astype(np.int32))
+            sample_parts["iy"].append(iy.astype(np.int32))
+            sample_parts["iz"].append(iz.astype(np.int32))
+            sample_parts["phase"].append(ip.astype(np.int32))
+            sample_parts["u"].append(vel[:, 0].astype(np.float64))
+            sample_parts["v"].append(vel[:, 1].astype(np.float64))
+            sample_parts["w"].append(vel[:, 2].astype(np.float64))
+            sample_parts["time"].append(time.astype(np.float64))
+
+    if counts_per_run_list:
+        counts_per_run = np.stack(counts_per_run_list, axis=-1)
+    else:
+        counts_per_run = np.zeros((*shape4, 0), dtype=np.int64)
+
+    if collect_samples and sample_parts["run_index"]:
+        samples = {k: np.concatenate(v) for k, v in sample_parts.items()}
+    else:
+        samples = {k: np.empty((0,), dtype=np.float64 if k in ("u", "v", "w", "time") else np.int32)
+                   for k in sample_parts}
+
+    low = total_counts < min_count
+    counts_out = np.where(low, 0, total_counts)
+    fill = np.full(shape4, float(fill_value), dtype=np.float64)
+    data = {}
+    for d, vname in enumerate(VEL_VARS):
+        s = np.where(low, 0.0, total_sums[d])
+        mean = np.divide(s, counts_out, out=fill.copy(), where=counts_out != 0)
+        data[vname] = (DIMS, mean)
+    data[COUNT_VAR] = (DIMS, counts_out.astype(np.int64))
+    if add_valid:
+        data[VALID_VAR] = (DIMS, total_counts >= min_count)
+
+    ds = xr.Dataset(
+        data,
+        coords={"x": mids[0], "y": mids[1], "z": mids[2], "phase": np.arange(fin_n)},
+        attrs={"first": first, "last": last, "cycletime": spec["cycletime"],
+               "zaman": spec["zaman"], "fin": fin_n, "min_count": min_count,
+               "voxel_rule": spec["voxel_rule"], "fill_value": float(fill_value),
+               "pooling": "all_runs_together"},
+    )
+    cpr = xr.DataArray(
+        counts_per_run,
+        dims=("x", "y", "z", "phase", "run"),
+        coords={"x": mids[0], "y": mids[1], "z": mids[2],
+                "phase": np.arange(fin_n), "run": run_names},
+        name="counts_per_run",
+    )
+    return PooledEulerianResult(dataset=ds, samples=samples,
+                                counts_per_run=cpr, run_names=run_names)
+
+
 def shift_phase(ds: xr.Dataset, shift: int) -> xr.Dataset:
     """Cyclically roll all fields along phase to align with the cycle. Pure."""
     if shift == 0:
         return ds
     out = ds.roll(phase=shift, roll_coords=False)
     out.attrs["shift"] = shift
+    return out
+
+
+def pooled_bin_statistics(result, ix, iy, iz, phase):
+    """Compute basic statistics for one (bin, phase) from pooled samples.
+
+    Returns a dict with count, per-run counts, mean and std velocity
+    components, speed stats, and contributing run indices. Works on the flat
+    sample table stored in :class:`PooledEulerianResult`.
+    """
+    s = result.samples
+    if s["run_index"].size == 0:
+        return {"count": 0}
+    m = ((s["ix"] == ix) & (s["iy"] == iy) & (s["iz"] == iz)
+         & (s["phase"] == phase))
+    if not np.any(m):
+        return {"count": 0}
+    u, v, w = s["u"][m], s["v"][m], s["w"][m]
+    rid = s["run_index"][m]
+    per_run = np.bincount(rid, minlength=len(result.run_names))
+    speed = np.sqrt(u * u + v * v + w * w)
+    return {
+        "count": int(m.sum()),
+        "per_run_counts": {name: int(per_run[i]) for i, name in enumerate(result.run_names)},
+        "mean": np.array([u.mean(), v.mean(), w.mean()]),
+        "std": np.array([u.std(ddof=0), v.std(ddof=0), w.std(ddof=0)]),
+        "speed_mean": float(speed.mean()),
+        "speed_std": float(speed.std(ddof=0)),
+        "runs_present": [result.run_names[i] for i in np.where(per_run > 0)[0]],
+    }
+
+
+def pooled_turbulent_statistics(result, fluid_min=None):
+    """Count-weighted second moments of velocity fluctuations from pooled samples.
+
+    Computes, for each (x,y,z,phase) bin, the second moments of deviations
+    from the pooled mean using all collected particle samples. Returns an
+    xr.Dataset with the same variable names as :func:`turbulent_statistics`
+    (``u_ins_u_ins``, ..., ``u_rms``, ``v_rms``, ``w_rms``) so it can be
+    passed to :func:`derived_fields`.
+    """
+    ds = result.dataset
+    VEL_VARS_LOCAL = ["u_ins_mean", "v_ins_mean", "w_ins_mean"]
+    u_mean = ds["u_ins_mean"].values
+    v_mean = ds["v_ins_mean"].values
+    w_mean = ds["w_ins_mean"].values
+
+    shape = u_mean.shape  # (nx, ny, nz, nphase)
+    n_total = np.zeros(shape, dtype=np.float64)
+    uu = np.zeros(shape, dtype=np.float64)
+    vv = np.zeros(shape, dtype=np.float64)
+    ww = np.zeros(shape, dtype=np.float64)
+    uv = np.zeros(shape, dtype=np.float64)
+    uw = np.zeros(shape, dtype=np.float64)
+    vw = np.zeros(shape, dtype=np.float64)
+
+    s = result.samples
+    if s["run_index"].size > 0:
+        # group samples by (ix, iy, iz, phase)
+        keys = (s["ix"].astype(np.int64) * (shape[1] * shape[2] * shape[3])
+                + s["iy"].astype(np.int64) * (shape[2] * shape[3])
+                + s["iz"].astype(np.int64) * shape[3]
+                + s["phase"].astype(np.int64))
+        # accumulate per-bin sums of velocity and squared deviations
+        # using bincount for each component
+        n_bins = int(np.prod(shape))
+        for var_idx, (mean_arr,) in enumerate([(u_mean,), (v_mean,), (w_mean,)]):
+            pass
+        # velocity arrays
+        u_arr = s["u"]; v_arr = s["v"]; w_arr = s["w"]
+        ix_arr = s["ix"].astype(np.int64)
+        iy_arr = s["iy"].astype(np.int64)
+        iz_arr = s["iz"].astype(np.int64)
+        ip_arr = s["phase"].astype(np.int64)
+
+        # flatten linear index
+        lin = ((ix_arr * shape[1] + iy_arr) * shape[2] + iz_arr) * shape[3] + ip_arr
+
+        # per-sample mean at that bin
+        mu_u = u_mean.ravel()[lin]
+        mu_v = v_mean.ravel()[lin]
+        mu_w = w_mean.ravel()[lin]
+
+        du = u_arr - mu_u
+        dv = v_arr - mu_v
+        dw = w_arr - mu_w
+
+        for arr, acc in [(du*du, uu), (dv*dv, vv), (dw*dw, ww),
+                         (du*dv, uv), (du*dw, uw), (dv*dw, vw)]:
+            acc_flat = acc.ravel()
+            np.add.at(acc_flat, lin, arr)
+            acc[:] = acc_flat.reshape(shape)
+
+        # counts
+        n_flat = n_total.ravel()
+        np.add.at(n_flat, lin, 1.0)
+        n_total[:] = n_flat.reshape(shape)
+
+    # divide by count (NaN where 0)
+    n_safe = np.where(n_total > 0, n_total, np.nan)
+    out = xr.Dataset(attrs=ds.attrs)
+    out["u_ins_u_ins"] = (DIMS, np.where(n_total > 0, uu / n_safe, np.nan))
+    out["v_ins_v_ins"] = (DIMS, np.where(n_total > 0, vv / n_safe, np.nan))
+    out["w_ins_w_ins"] = (DIMS, np.where(n_total > 0, ww / n_safe, np.nan))
+    out["u_ins_v_ins"] = (DIMS, np.where(n_total > 0, uv / n_safe, np.nan))
+    out["u_ins_w_ins"] = (DIMS, np.where(n_total > 0, uw / n_safe, np.nan))
+    out["v_ins_w_ins"] = (DIMS, np.where(n_total > 0, vw / n_safe, np.nan))
+    out["u_rms"] = (DIMS, np.sqrt(np.where(n_total > 0, uu / n_safe, np.nan)))
+    out["v_rms"] = (DIMS, np.sqrt(np.where(n_total > 0, vv / n_safe, np.nan)))
+    out["w_rms"] = (DIMS, np.sqrt(np.where(n_total > 0, ww / n_safe, np.nan)))
     return out
 
 
