@@ -158,19 +158,19 @@ def _is_uniform(coord: np.ndarray, rtol: float = 1e-6) -> bool:
 
 
 def _clean(values: np.ndarray) -> np.ndarray:
-    """Zero out +-Inf (which overflow the float32 VTK cast) but PRESERVE NaN.
+    """Convert +-Inf to NaN (preserving NaN) for VTK export.
 
-    NaN marks voxels with insufficient samples (counts < min_count); exporting
-    0.0 instead would make empty voxels masquerade as zero-velocity regions.
-    The ``valid`` and ``par_ave2`` fields carry the per-voxel validity and
-    sample counts so downstream tools (ParaView thresholding, etc.) can mask
-    accordingly.
+    Inf would overflow the float32 VTK cast and is not a meaningful value;
+    NaN marks both insufficient-sample voxels and any non-finite result so
+    downstream tools (ParaView thresholding, etc.) can mask them. The
+    ``valid`` and ``par_ave2`` fields carry the per-voxel validity and sample
+    counts.
     """
     values = np.asarray(values)
     if np.issubdtype(values.dtype, np.floating):
         out = values.copy()
-        out[np.isposinf(out)] = 0.0
-        out[np.isneginf(out)] = 0.0
+        out[np.isposinf(out)] = np.nan
+        out[np.isneginf(out)] = np.nan
         return out
     return values
 
