@@ -707,7 +707,6 @@ def pooled_turbulent_statistics(result, fluid_min=None):
     passed to :func:`derived_fields`.
     """
     ds = result.dataset
-    VEL_VARS_LOCAL = ["u_ins_mean", "v_ins_mean", "w_ins_mean"]
     u_mean = ds["u_ins_mean"].values
     v_mean = ds["v_ins_mean"].values
     w_mean = ds["w_ins_mean"].values
@@ -723,18 +722,10 @@ def pooled_turbulent_statistics(result, fluid_min=None):
 
     s = result.samples
     if s["run_index"].size > 0:
-        # group samples by (ix, iy, iz, phase)
-        keys = (s["ix"].astype(np.int64) * (shape[1] * shape[2] * shape[3])
-                + s["iy"].astype(np.int64) * (shape[2] * shape[3])
-                + s["iz"].astype(np.int64) * shape[3]
-                + s["phase"].astype(np.int64))
-        # accumulate per-bin sums of velocity and squared deviations
-        # using bincount for each component
-        n_bins = int(np.prod(shape))
-        for var_idx, (mean_arr,) in enumerate([(u_mean,), (v_mean,), (w_mean,)]):
-            pass
         # velocity arrays
-        u_arr = s["u"]; v_arr = s["v"]; w_arr = s["w"]
+        u_arr = s["u"]
+        v_arr = s["v"]
+        w_arr = s["w"]
         ix_arr = s["ix"].astype(np.int64)
         iy_arr = s["iy"].astype(np.int64)
         iz_arr = s["iz"].astype(np.int64)

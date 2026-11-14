@@ -8,7 +8,6 @@ variance (within-run scatter), and weighting/estimand differences.
 import numpy as np
 import pytest
 import xarray as xr
-
 from helpers import FakeScene
 
 from flowtracks import eulerian as eu
