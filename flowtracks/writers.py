@@ -158,7 +158,21 @@ def _is_uniform(coord: np.ndarray, rtol: float = 1e-6) -> bool:
 
 
 def _clean(values: np.ndarray) -> np.ndarray:
-    return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+    """Zero out +-Inf (which overflow the float32 VTK cast) but PRESERVE NaN.
+
+    NaN marks voxels with insufficient samples (counts < min_count); exporting
+    0.0 instead would make empty voxels masquerade as zero-velocity regions.
+    The ``valid`` and ``par_ave2`` fields carry the per-voxel validity and
+    sample counts so downstream tools (ParaView thresholding, etc.) can mask
+    accordingly.
+    """
+    values = np.asarray(values)
+    if np.issubdtype(values.dtype, np.floating):
+        out = values.copy()
+        out[np.isposinf(out)] = 0.0
+        out[np.isneginf(out)] = 0.0
+        return out
+    return values
 
 
 def write_eulerian_series(ds: xr.Dataset, out_dir: Path, prefix: str = "phase",
