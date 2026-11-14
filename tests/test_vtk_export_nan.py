@@ -95,7 +95,7 @@ class TestVtkExportNanPreservation:
 
     def test_nan_preserved_in_velocity(self, tmp_path):
         ds, counts, valid = _make_dataset_with_invalid_voxels()
-        pvd = write_eulerian_series(ds, tmp_path, prefix="test")
+        write_eulerian_series(ds, tmp_path, prefix="test")
         import pyvista as pv
 
         grid = pv.read(str(tmp_path / "test_0000.vti"))
