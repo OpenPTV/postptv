@@ -218,3 +218,261 @@ def test_writer_keep_nan(tmp_path):
     np.testing.assert_array_equal(np.isnan(nan["velocity"][:, 0]), np.isnan(ref))
     assert not np.isnan(zero["velocity"]).any()
     assert np.issubdtype(nan[E.N_VAR].dtype, np.integer)  # counts keep their type
+
+
+@pytest.mark.parametrize("chunk", [None, 5])
+def test_moments_empty_scene(chunk):
+    """Empty scene (0 particles) yields N=0, n_traj=0, m1=NaN, m2=0.0."""
+    empty = FakeScene(np.empty((0, 3)), np.empty((0, 3)),
+                      np.empty((0,), dtype=int), np.empty((0,), dtype=int))
+    ds = E.eulerian_grid(empty, GRID, 1, 200, moments=True, chunk_frames=chunk, **KW)
+    assert (ds[E.N_VAR].values == 0).all()
+    assert (ds[E.NTRAJ_VAR].values == 0).all()
+    for m in E.M1_VARS:
+        assert np.isnan(ds[m].values).all()
+    for m in E.M2_VARS:
+        np.testing.assert_array_equal(ds[m].values, 0.0)
+
+
+def test_combine_moments_with_empty_and_disjoint_sets():
+    """Empty runs and disjoint spatial supports never poison m1/m2 with NaN."""
+    empty = FakeScene(np.empty((0, 3)), np.empty((0, 3)),
+                      np.empty((0,), dtype=int), np.empty((0,), dtype=int))
+    # Run A only populates voxel (0, 0, 0); Run B only populates voxel (3, 2, 1)
+    rng = np.random.default_rng(20)
+    n = 40
+    vel_a = rng.normal((1.0, 2.0, 3.0), 0.2, (n, 3))
+    vel_b = rng.normal((-1.0, 0.5, 4.0), 0.3, (n, 3))
+    sc_a = FakeScene(np.full((n, 3), 0.05), vel_a, np.full(n, 5), np.arange(1, n + 1))
+    sc_b = FakeScene(np.full((n, 3), 0.95), vel_b, np.full(n, 5), np.arange(101, 101 + n))
+
+    per = [E.eulerian_grid(s, GRID, 1, 200, moments=True, **KW)[E.MOMENT_VARS]
+           for s in (empty, sc_a, sc_b)]
+    pooled = E.combine_moments(_stack(per, ["empty", "a", "b"]))
+    together = E.eulerian_grid(concat_scenes(sc_a, sc_b), GRID, 1, 200, moments=True, **KW)
+
+    for v in E.MOMENT_VARS:
+        np.testing.assert_allclose(pooled[v].values, together[v].values,
+                                   rtol=1e-12, atol=1e-12, equal_nan=True, err_msg=v)
+    # Combining two all-empty runs also stays clean
+    ds_empty = per[0]
+    pooled_empty = E.combine_moments(_stack([ds_empty, ds_empty], ["e1", "e2"]))
+    assert (pooled_empty[E.N_VAR].values == 0).all()
+    assert all(np.isnan(pooled_empty[m].values).all() for m in E.M1_VARS)
+    assert all((pooled_empty[m].values == 0.0).all() for m in E.M2_VARS)
+
+
+def test_moment_statistics_single_sample_ddof():
+    """N=1 voxel is masked for ddof=1 (no div-by-zero) and valid with var=0 for ddof=0."""
+    sc = FakeScene(np.array([[0.1, 0.1, 0.1]]), np.array([[2.5, -1.0, 0.5]]),
+                   np.array([5]), np.array([42]))
+    ds = E.eulerian_grid(sc, GRID, 1, 200, moments=True, **KW)
+
+    st1 = E.moment_statistics(ds, min_count=1, ddof=1)
+    assert not bool(st1[E.VALID_VAR].values[0, 0, 0, 0])
+    assert np.isnan(st1["u_ins_mean"].values[0, 0, 0, 0])
+    assert np.isnan(st1["u_ins_u_ins"].values[0, 0, 0, 0])
+
+    st0 = E.moment_statistics(ds, min_count=1, ddof=0)
+    assert bool(st0[E.VALID_VAR].values[0, 0, 0, 0])
+    assert st0["u_ins_mean"].values[0, 0, 0, 0] == pytest.approx(2.5)
+    assert st0["u_ins_u_ins"].values[0, 0, 0, 0] == pytest.approx(0.0)
+    assert st0["u_rms"].values[0, 0, 0, 0] == pytest.approx(0.0)
+
+
+def test_chunk_frames_deduplicates_trajectory_and_handles_empty_chunks():
+    """One trajectory crossing chunk boundaries in one voxel counts once in n_traj,
+    and empty intermediate chunks merge cleanly."""
+    # Frames 1, 2 (chunk 1), frames 3, 4 in another voxel (voxel 0 empty in chunk 2),
+    # frames 5, 6 back in voxel 0 (chunk 3) with the SAME trajid=7
+    pos = np.array([
+        [0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1],
+        [0.9, 0.9, 0.9],
+        [0.9, 0.9, 0.9],
+        [0.1, 0.1, 0.1],
+        [0.1, 0.1, 0.1],
+    ])
+    vel = np.array([
+        [1.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [5.0, 0.0, 0.0],
+        [7.0, 0.0, 0.0],
+        [3.0, 0.0, 0.0],
+        [4.0, 0.0, 0.0],
+    ])
+    time = np.array([1, 2, 3, 4, 5, 6])
+    tid = np.array([7, 7, 99, 99, 7, 7])
+    sc = FakeScene(pos, vel, time, tid)
+
+    unchunked = E.eulerian_grid(sc, GRID, 1, 200, moments=True, **KW)
+    chunked = E.eulerian_grid(sc, GRID, 1, 200, moments=True, chunk_frames=2, **KW)
+
+    assert int(chunked[E.N_VAR].values[0, 0, 0, 0]) == 4
+    assert int(chunked[E.NTRAJ_VAR].values[0, 0, 0, 0]) == 1
+    for v in E.MOMENT_VARS:
+        np.testing.assert_allclose(chunked[v].values, unchunked[v].values,
+                                   rtol=1e-12, atol=1e-12, equal_nan=True, err_msg=v)
+
+
+def test_moments_with_qc_filters_trajid_in_lockstep():
+    """QC filtering drops bad samples from pos/vel/time AND trajid together."""
+    pos = np.full((6, 3), 0.1)
+    vel = np.array([
+        [1.0, 0.0, 0.0],       # keep (tid 1)
+        [2.0, 0.0, 0.0],       # keep (tid 2)
+        [100.0, 0.0, 0.0],     # drop: > max_speed (tid 3)
+        [0.01, 0.0, 0.0],      # drop: < min_speed (tid 4)
+        [np.nan, 0.0, 0.0],    # drop: non-finite (tid 5)
+        [3.0, 0.0, 0.0],       # keep (tid 1)
+    ])
+    time = np.array([1, 2, 3, 4, 5, 6])
+    tid = np.array([1, 2, 3, 4, 5, 1])
+    sc = FakeScene(pos, vel, time, tid)
+
+    ds = E.eulerian_grid(
+        sc, GRID, 1, 200, moments=True,
+        qc={"min_speed": 0.5, "max_speed": 10.0, "finite_only": True},
+        **KW,
+    )
+    assert int(ds[E.N_VAR].values[0, 0, 0, 0]) == 3
+    assert int(ds[E.NTRAJ_VAR].values[0, 0, 0, 0]) == 2  # only tids 1 and 2 survived
+    assert ds["u_m1"].values[0, 0, 0, 0] == pytest.approx(2.0)
+    assert ds["uu_m2"].values[0, 0, 0, 0] == pytest.approx(2.0)  # (-1)^2 + 0^2 + 1^2
+
+
+def test_combine_moments_permutation_and_hierarchical_invariance():
+    """combine_moments is invariant to set order and associative across stages."""
+    a = make_scene(21, n=800)
+    b = make_scene(22, n=500, tid_offset=1000, mean=(0.5, -0.3, 0.4))
+    c = make_scene(23, n=1200, tid_offset=2000, mean=(-0.2, 0.7, -0.5))
+    da, db, dc = [E.eulerian_grid(s, GRID, 1, 200, moments=True, **KW)[E.MOMENT_VARS]
+                  for s in (a, b, c)]
+
+    abc = E.combine_moments(_stack([da, db, dc], ["a", "b", "c"]))
+    cba = E.combine_moments(_stack([dc, db, da], ["c", "b", "a"]))
+    ab_then_c = E.combine_moments(
+        _stack([E.combine_moments(_stack([da, db], ["a", "b"])), dc], ["ab", "c"])
+    )
+    for other in (cba, ab_then_c):
+        for v in E.MOMENT_VARS:
+            np.testing.assert_allclose(other[v].values, abc[v].values,
+                                       rtol=1e-12, atol=1e-12, equal_nan=True, err_msg=v)
+
+
+def test_reynolds_stress_tensor_psd_and_cauchy_schwarz():
+    """Pooled Reynolds stress tensor is positive semi-definite everywhere valid."""
+    a, b = make_scene(24, n=4000), make_scene(25, n=4000, tid_offset=1000)
+    per = [E.eulerian_grid(s, GRID, 1, 200, moments=True, **KW)[E.MOMENT_VARS] for s in (a, b)]
+    st = E.moment_statistics(E.combine_moments(_stack(per, ["a", "b"])), min_count=5)
+
+    ok = st[E.VALID_VAR].values
+    assert ok.any()
+    uu, vv, ww = st["u_ins_u_ins"].values[ok], st["v_ins_v_ins"].values[ok], st["w_ins_w_ins"].values[ok]
+    uv, uw, vw = st["u_ins_v_ins"].values[ok], st["u_ins_w_ins"].values[ok], st["v_ins_w_ins"].values[ok]
+
+    assert (uu >= 0).all() and (vv >= 0).all() and (ww >= 0).all()
+    assert (uv**2 <= uu * vv + 1e-12).all()
+    assert (uw**2 <= uu * ww + 1e-12).all()
+    assert (vw**2 <= vv * ww + 1e-12).all()
+
+    tensors = np.stack([
+        np.stack([uu, uv, uw], axis=-1),
+        np.stack([uv, vv, vw], axis=-1),
+        np.stack([uw, vw, ww], axis=-1),
+    ], axis=-2)
+    evals = np.linalg.eigvalsh(tensors)
+    assert (evals >= -1e-12).all()
+
+
+def test_pooled_analysis_non_count_roi_mask_propagates():
+    """Non-count masks (e.g. ROI array mask) mask means, stresses, rms and valid,
+    while keeping raw n_samples/n_traj intact."""
+    ds = {"wp1": E.eulerian_grid(make_scene(26), GRID, 1, 200, moments=True, **KW)}
+    roi = np.ones((4, 3, 2), dtype=bool)
+    roi[0, :, :] = False
+    rec = _recipe(["wp1"], mask=[{"method": "count", "min_count": 2},
+                                 {"method": "array", "mask": roi}])
+    out = E.run_pooled_analysis_ds(ds, rec)
+
+    assert not out[E.VALID_VAR].values[0, :, :, :].any()
+    for v in ["u_ins_mean", "v_ins_mean", "w_ins_mean", "u_ins_u_ins", "u_rms"]:
+        assert np.isnan(out[v].values[0, :, :, :]).all(), v
+    assert (out[E.N_VAR].values[0, :, :, :] > 0).any()
+    assert (out[E.NTRAJ_VAR].values[0, :, :, :] > 0).any()
+
+
+def test_moments_file_path_branch_zarr(tmp_path):
+    """Passing a Zarr path string (no .collect) exercises trajectories() with moments=True."""
+    from flowtracks.io import save_zarr_trajectories
+    from flowtracks.trajectory import Trajectory
+
+    t1 = Trajectory(
+        np.array([[0.1, 0.1, 0.1], [0.12, 0.12, 0.12], [0.15, 0.15, 0.15]]),
+        np.array([[1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0]]),
+        np.array([1, 2, 3]),
+        trajid=10,
+    )
+    t2 = Trajectory(
+        np.array([[0.1, 0.1, 0.1], [0.11, 0.11, 0.11]]),
+        np.array([[4.0, 1.0, 0.0], [5.0, 1.0, 0.0]]),
+        np.array([1, 2]),
+        trajid=20,
+    )
+    zpath = tmp_path / "run.zarr"
+    save_zarr_trajectories([t1, t2], zpath, group="trajectories")
+
+    ds = E.eulerian_grid(str(zpath), GRID, 1, 200, moments=True, **KW)
+    assert int(ds[E.N_VAR].values[0, 0, 0, 0]) == 5
+    assert int(ds[E.NTRAJ_VAR].values[0, 0, 0, 0]) == 2
+    assert ds["u_m1"].values[0, 0, 0, 0] == pytest.approx(3.0)
+    assert ds["uu_m2"].values[0, 0, 0, 0] == pytest.approx(10.0)
+
+
+def test_moments_zarr_roundtrip_before_pooling(tmp_path):
+    """Per-WP moment datasets saved to Zarr and reloaded pool identically to in-memory."""
+    a, b = make_scene(27), make_scene(28, tid_offset=1000)
+    mem = {s: E.eulerian_grid(sc, GRID, 1, 200, moments=True, **KW)
+           for s, sc in (("wp1", a), ("wp2", b))}
+    reloaded = {}
+    for s, ds in mem.items():
+        p = tmp_path / f"{s}.zarr"
+        E.save_zarr(ds, p)
+        reloaded[s] = xr.open_zarr(p).load()
+
+    rec = _recipe(["wp1", "wp2"], mask=[{"method": "count", "min_count": 10}])
+    out_mem = E.run_pooled_analysis_ds(mem, rec)
+    out_disk = E.run_pooled_analysis_ds(reloaded, rec)
+    for v in out_mem.data_vars:
+        np.testing.assert_allclose(out_disk[v].values, out_mem[v].values,
+                                   rtol=1e-12, atol=1e-12, equal_nan=True, err_msg=v)
+
+
+def test_writer_tensor_keep_nan_and_missing_group_skipped(tmp_path):
+    """Default keep_nan=True preserves NaNs in grouped tensors; missing group members are skipped."""
+    pv = pytest.importorskip("pyvista")
+
+    ds = {"wp1": E.eulerian_grid(make_scene(29, n=200), GRID, 1, 200, moments=True, **KW)}
+    out = E.run_pooled_analysis_ds(ds, _recipe(["wp1"]), min_count=10)
+    assert out["u_ins_u_ins"].isnull().any()
+
+    tensor = ["u_ins_u_ins", "v_ins_v_ins", "w_ins_w_ins",
+              "u_ins_v_ins", "v_ins_w_ins", "u_ins_w_ins"]
+    write_eulerian_series(
+        out, tmp_path / "nan",
+        tensors={"reynolds_stress": tensor, "missing_tensor": ["u_ins_u_ins", "does_not_exist"]},
+        vectors={"missing_vec": ["u_m1", "v_m1", "nope"]},
+    )
+    g_nan = pv.read(sorted((tmp_path / "nan").glob("*.vti"))[0])
+    assert "reynolds_stress" in g_nan.point_data
+    assert "missing_tensor" not in g_nan.point_data
+    assert "missing_vec" not in g_nan.point_data
+    assert "u_m1" in g_nan.point_data  # ungrouped because missing_vec was skipped
+    ref_uu = out["u_ins_u_ins"].isel(phase=0).values.ravel(order="F")
+    np.testing.assert_array_equal(np.isnan(g_nan.point_data["reynolds_stress"][:, 0]),
+                                  np.isnan(ref_uu))
+
+    write_eulerian_series(out, tmp_path / "zero", tensors={"reynolds_stress": tensor},
+                          keep_nan=False)
+    g_zero = pv.read(sorted((tmp_path / "zero").glob("*.vti"))[0])
+    assert not np.isnan(g_zero.point_data["reynolds_stress"]).any()
