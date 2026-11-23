@@ -10,8 +10,10 @@
 | **Phase** | Position in a periodic cycle (0..N-1), assigned by `ti = ((time - base) % cycletime) // zaman` |
 | **Cycle** | One complete period of a periodic flow (e.g., one heartbeat) |
 | **Bin** | A single voxel in the Eulerian grid (x, y, z, phase) |
-| **Ensemble** | Multiple runs stacked on a `set` dimension, averaged with count weighting |
-| **Pooled** | All samples from all runs collected together before binning |
+| **Ensemble (per-run)** | Multiple runs binned individually and stacked on a `set` dimension, averaged with count weighting; second moments reflect run-to-run spread of means |
+| **Pooled (moments)** | Each run records unmasked per-voxel `n_samples`, `n_traj`, means (`*_m1`), and centred second moments (`*_m2`), combined via Chan et al.'s parallel-variance update (`combine_moments`) to match binning all samples together |
+| **n_samples** | Unmasked raw sample count per voxel per phase recorded when `eulerian_grid(..., moments=True)` |
+| **n_traj** | Number of distinct trajectories (`trajid`) contributing to a voxel per phase (`moments=True`) |
 | **Chunk** | A temporal window of frames tracked independently (parallel tracking) |
 | **Shard** | A distributed chunk (one Cloud Run task) |
 | **Seam** | Boundary between two chunks where trajectories are stitched |

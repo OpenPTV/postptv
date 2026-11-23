@@ -94,5 +94,6 @@ class FakeScene:
             'pos': np.tile(self._pos, (n, 1)),
             'velocity': np.tile(self._vel, (n, 1)),
             'time': np.repeat(np.asarray(self._frames), m),
+            'trajid': np.tile(np.arange(m, dtype=np.int64), n),
         }
         return [cols[k] for k in keys]

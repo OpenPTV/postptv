@@ -157,16 +157,16 @@ def _is_uniform(coord: np.ndarray, rtol: float = 1e-6) -> bool:
     return bool(np.allclose(diffs, diffs[0], rtol=rtol, atol=1e-12))
 
 
-def _clean(values: np.ndarray) -> np.ndarray:
-    """Convert +-Inf to NaN (preserving NaN) for VTK export.
+def _clean(values: np.ndarray, keep_nan: bool = True) -> np.ndarray:
+    """Clean non-finite values for VTK export.
 
-    Inf would overflow the float32 VTK cast and is not a meaningful value;
-    NaN marks both insufficient-sample voxels and any non-finite result so
-    downstream tools (ParaView thresholding, etc.) can mask them. The
-    ``valid`` and ``par_ave2`` fields carry the per-voxel validity and sample
-    counts.
+    When ``keep_nan=True`` (default), converts +-Inf to NaN while preserving
+    NaN (and leaving integer/bool arrays untouched). When ``keep_nan=False``,
+    replaces NaN and +-Inf with 0.0 (legacy zero-fill).
     """
     values = np.asarray(values)
+    if not keep_nan:
+        return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
     if np.issubdtype(values.dtype, np.floating):
         out = values.copy()
         out[np.isposinf(out)] = np.nan
@@ -177,13 +177,27 @@ def _clean(values: np.ndarray) -> np.ndarray:
 
 def write_eulerian_series(ds: xr.Dataset, out_dir: Path, prefix: str = "phase",
                            time_dim: str = "phase", dt: float = 1.0,
-                           units: dict | None = None) -> Path:
+                           units: dict | None = None,
+                           vectors: dict | None = None,
+                           tensors: dict | None = None,
+                           keep_nan: bool = True) -> Path:
     """Write one Eulerian grid file per ``time_dim`` step plus a ``.pvd`` series.
 
     Grid type is chosen from axis spacing: ``vtkImageData`` (``.vti``) when x,
     y and z are each uniformly spaced, ``vtkRectilinearGrid`` (``.vtr``)
     otherwise. Vector fields named by ``VEL_VARS`` are combined into a single
     "velocity" array; every other data variable is written as a scalar.
+
+    ``vectors`` maps extra output names to three component variables
+    (``{"velocity_pooled": [u, v, w]}``); ``tensors`` maps output names to
+    six variables of a symmetric tensor in VTK's order ``xx, yy, zz, xy, yz,
+    xz`` (``{"reynolds_stress": [uu, vv, ww, uv, vw, uw]}``), written as one
+    6-component array ParaView recognises. Grouped variables are not also
+    written as scalars; a group with a missing variable is skipped.
+
+    ``keep_nan`` (default True): write NaN (no data) as NaN — ParaView shows
+    it in the NaN colour and Threshold/Contour skip it — and map +-Inf to NaN.
+    Pass ``keep_nan=False`` to zero-fill NaN/+-Inf instead.
 
     ``units`` maps array name to unit string (e.g. ``{"velocity": "m s-1"}``)
     and is stored as grid field data (``units:<name>``); when omitted, the
@@ -211,23 +225,27 @@ def write_eulerian_series(ds: xr.Dataset, out_dir: Path, prefix: str = "phase",
         return pv.RectilinearGrid(x, y, z)
 
     grid_dims = {"x", "y", "z"}
+    groups = {"velocity": VEL_VARS, **(vectors or {}), **(tensors or {})}
 
     entries = []
     for i, t in enumerate(ds[time_dim].values):
         snap = ds.sel(**{time_dim: t})
         grid = build_grid()
-        if all(v in snap and set(snap[v].dims) == grid_dims for v in VEL_VARS):
-            vec = np.stack(
-                [_clean(snap[v].values).ravel(order="F") for v in VEL_VARS], axis=-1
-            )
-            grid.point_data["velocity"] = vec
+        grouped = set(VEL_VARS)  # never scalars, grouped or not (as before)
+        for gname, members in groups.items():
+            if all(v in snap and set(snap[v].dims) == grid_dims for v in members):
+                grid.point_data[gname] = np.stack(
+                    [_clean(snap[v].values, keep_nan).ravel(order="F") for v in members],
+                    axis=-1,
+                )
+                grouped.update(members)
         for name, da in snap.data_vars.items():
-            if name in VEL_VARS or set(da.dims) != grid_dims:
+            if name in grouped or set(da.dims) != grid_dims:
                 # Fields carrying an extra dim (e.g. per-set fluctuations that
                 # weren't reduced yet) don't fit one grid point value each --
                 # skip rather than silently reshape/truncate them.
                 continue
-            grid.point_data[name] = _clean(da.values).ravel(order="F")
+            grid.point_data[name] = _clean(da.values, keep_nan).ravel(order="F")
         fields = dict(units) if units else {}
         for name, da in snap.data_vars.items():
             if name not in fields and da.attrs.get("units"):

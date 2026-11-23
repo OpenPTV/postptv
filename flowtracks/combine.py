@@ -29,10 +29,12 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
       - "per_run" (default, current): bin each realization to a per-run
         phase grid, then count-weighted ensemble/phase averaging across runs.
         Per-run ``min_count`` masking is applied before combining.
-      - "pooled": collect all filtered samples from all runs together (keeping
-        run index and per-run counts per bin/phase), then bin/average on the
-        pooled total. ``min_count`` applies to pooled counts, so a bin sparse
-        in one run but sufficient across runs can remain valid.
+      - "pooled": bin each realization into unmasked per-voxel moments
+        (counts, distinct trajectories, means, centred second moments) and
+        combine them exactly via :func:`flowtracks.eulerian.combine_moments`
+        and :func:`flowtracks.eulerian.moment_statistics`. ``min_count``
+        applies to pooled counts, so a bin sparse in one run but sufficient
+        across runs remains valid.
     """
     data_path = Path(data_dir)
     res_dir = data_path / "res"
@@ -73,29 +75,45 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
         scene = Scene(str(traj_file)) if str(traj_file).endswith(".h5") else str(traj_file)
         run_scenes.append((set_name, scene))
 
-    pooled_result = None
     if method == "pooled":
-        print("[postptv-combine] Pooling ALL runs together (keeping run index/counts per bin/phase)...")
-        pooled_result = post_analysis_xr.eulerian_grid_pooled(
-            run_scenes, grid_params, first=first, last=last,
-            cycletime=cycletime, deltat=deltat, base_time=base_time,
-            min_count=min_count,
-        )
-        final_ds = pooled_result.dataset
-        # attach per-run counts for bookkeeping/comparison
-        final_ds = final_ds.assign(counts_per_run=pooled_result.counts_per_run)
+        print("[postptv-combine] Pooling realizations via per-voxel centred moments...")
+        ds_sets = {}
+        set_names = []
+        for set_name, scene in run_scenes:
+            print(f"[postptv-combine] Binning moments for realization '{set_name}'...")
+            ds_sets[set_name] = post_analysis_xr.eulerian_grid(
+                scene, grid_params, first=first, last=last,
+                cycletime=cycletime, deltat=deltat, base_time=base_time,
+                min_count=0, moments=True,
+            )
+            set_names.append(set_name)
 
-        # pooled turbulent statistics + derived fields (functional parity with
-        # per_run path, computed from collected particle samples)
-        print("[postptv-combine] Computing pooled turbulent statistics from collected samples...")
-        pooled_stats = post_analysis_xr.pooled_turbulent_statistics(pooled_result)
+        stacked = xr.concat(
+            [ds_sets[s][post_analysis_xr.MOMENT_VARS] for s in set_names],
+            dim=xr.DataArray(set_names, dims="set", name="set"),
+            join="exact",
+        )
+        pooled_mom = post_analysis_xr.combine_moments(stacked, "set")
+        pooled_stats = post_analysis_xr.moment_statistics(pooled_mom, min_count=min_count)
         print("[postptv-combine] Computing derived fields (MKE, TKE, VEL)...")
         derived = post_analysis_xr.derived_fields(
-            final_ds, pooled_stats, fields=["MKE", "TKE", "VEL"],
-            counts=final_ds[post_analysis_xr.COUNT_VAR],
+            pooled_stats[post_analysis_xr.VEL_VARS],
+            pooled_stats,
+            fields=["MKE", "TKE", "VEL"],
+            counts=pooled_stats[post_analysis_xr.N_VAR],
             fluid_min=2,
         )
-        final_ds = xr.merge([final_ds, pooled_stats, derived])
+        final_ds = xr.merge(
+            [
+                pooled_stats,
+                derived,
+                pooled_mom[post_analysis_xr.M1_VARS + post_analysis_xr.M2_VARS],
+            ],
+            combine_attrs="override",
+        )
+        final_ds = final_ds.assign(
+            counts_per_run=stacked[post_analysis_xr.N_VAR].rename({"set": "run"})
+        )
     else:
         ds_sets = {}
         set_names = []
@@ -146,19 +164,10 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
     print(f"[postptv-combine] Saving Zarr output -> {zarr_out}")
     post_analysis_xr.save_zarr(final_ds, zarr_out)
 
-    if pooled_result is not None:
-        samples_npz = out_dir / "post_analysis_pooled_samples.npz"
-        print(f"[postptv-combine] Saving pooled sample table -> {samples_npz}")
-        np.savez_compressed(
-            samples_npz,
-            run_names=np.array(pooled_result.run_names, dtype=object),
-            **pooled_result.samples,
-        )
-
     print(f"[postptv-combine] Exporting ParaView series -> {vtk_dir}")
     write_eulerian_series(final_ds, vtk_dir)
     print(f"[postptv-combine] Complete! Saved {zarr_out.name}")
-    return {"dataset": final_ds, "pooled_result": pooled_result, "output": zarr_out}
+    return {"dataset": final_ds, "output": zarr_out}
 
 
 def main():

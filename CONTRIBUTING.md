@@ -46,8 +46,8 @@ uv run pytest
 - **Scene**: A reader backend (HDF5 or Zarr) providing `collect(["pos", "velocity", "time"])`
 - **Eulerian grid**: Regular (x,y,z,phase) grid of mean velocities from binning particles
 - **Phase**: Position in a periodic cycle (0..N-1), assigned by `ti = ((time - base) % cycletime) // zaman`
-- **Ensemble**: Multiple runs stacked on a `set` dimension, averaged with count weighting
-- **Pooled**: All samples from all runs collected together before binning
+- **Ensemble (per-run)**: Multiple runs binned individually and stacked on a `set` dimension, averaged with count weighting; second moments reflect run-to-run mean spread
+- **Pooled (per-voxel moments)**: Each run records unmasked counts, distinct trajectories (`n_traj`), means (`*_m1`), and centred second moments (`*_m2`) via `eulerian_grid(..., moments=True)`, combined exactly across runs with `combine_moments()` / `moment_statistics()` (see [docs/eulerian_statistics.md](docs/eulerian_statistics.md))
 
 ## Architecture
 
