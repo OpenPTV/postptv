@@ -110,11 +110,14 @@ marimo is the thin shell (launcher example: `examples/marimo_trame_viz.py`);
 the browser tab owns the scene. Installed via the `viz` extra
 (`uv sync --extra viz`); **requires pyvista + `trame-pyvista`**.
 `scene.py` is pure numpy/pyvista (no trame imports) so tests and notebooks can
-use it directly; `app.py` is the trame TrameApp (wasm client-side rendering when
-vtk >= 9.7, server-side fallback); `cli.py` is the entry point, including a
-`--screenshot` off-screen CI/validation path (`examples/marimo_trame_viz.py` shows
-the thin launcher; `launch()` from `flowtracks.visualization` spawns the app
-detached). Keep the viewer's data contract in sync with `writers.py` —
+use it directly; `app.py` is the trame TrameApp (server-side rendering by default,
+client-side VTK.wasm toggle on vtk >= 9.7); `cli.py` is the entry point, including a
+`--screenshot` off-screen CI/validation path. `examples/marimo_trame_viz.py` shows
+the thin launcher — **the viewer is a long-running blocking foreground process**
+(run it in your own terminal; `Ctrl-C` stops it). Do not rely on detached/`nohup`
+launches to survive a session — they die with the parent shell. `launch()` from
+`flowtracks.visualization` spawns the app detached for marimo usage, with the
+caveat above. Keep the viewer's data contract in sync with `writers.py` —
 `build_polydata` mirrors `trajectory_polydata` and `writers.write_trajectories_vtp`.
 Tests: `uv run pytest tests/test_visualization.py` (scene building, CLI, app,
 real subprocess browser probe — the last of which is the world's slowest test).

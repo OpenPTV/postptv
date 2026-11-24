@@ -12,8 +12,23 @@ uv sync --extra viz
 uv run flowtracks-viz data/tracers.zarr
 ```
 
-The viewer opens a local browser tab and serves the scene from a background
-process. `python -m flowtracks.visualization` is equivalent.
+The viewer is a **long-running, blocking foreground process**: it serves the
+scene over localhost and keeps the browser tab alive. The recommended way to
+run it is from your own terminal, where it blocks until you press `Ctrl-C`:
+
+```bash
+uv run flowtracks-viz data/tracers.zarr --volume data/tracers_mean_speed.vti
+```
+
+The server opens a browser tab automatically (the trame `open_browser`
+default); `--no-browser` suppresses that. Because the process holds the
+terminal, it is the simplest way to run, and `Ctrl-C` is the stop mechanism —
+a background-detached process (`launch()`, `nohup &`) will work for a moment
+but will die when its parent shell exits (for example when this session
+ends). If the tab shows a blank/`ERR_CONNECTION_REFUSED` page, the server
+is gone — close the tab and start it again; the tab will reload.
+
+`python -m flowtracks.visualization` is equivalent.
 
 ---
 
@@ -70,7 +85,7 @@ Interaction:
 
 * Orbit / pan / zoom inside the browser view (right-drag orbit, wheel zoom).
 * **Layer switches** — show/hide any of the three layers.
-* **Frame slider** — shows history up to the chosen frame (`time <= frame`);
+* **Layer switches** (see above) and the **Frame slider** — shows history up to the chosen frame (`time <= frame`);
   the polyline actor is rebuilt in place.
 * Screenshot button — captures the current frame as PNG.
 
@@ -93,9 +108,10 @@ voxels left as NaN) — **not** the repo's phase-averaged Eulerian pipeline.
 * The default 2,000-trajectory decimation keeps the browser scene at a
   comfortable size. For a very dense dataset, lower the number or pass an
   explicit `--time-range`.
-* Client-side VTK.wasm rendering requires **vtk >= 9.7** (auto-detected).
-  Older vtk falls back to server-side rendering automatically — which works
-  but streams frames over the websocket and is slower on big scenes.
+* Rendering uses server-side VTK by default (trame `'trame'` mode, via
+  trame-pyvista); browser tabs also get a local **VTK.wasm** client-side toggle
+  when **vtk >= 9.7** is available — server mode streams frames and can be
+  slower on big scenes.
 * `--screenshot` skips the websocket entirely and renders off-screen — this
   is the CI/validation path (`tests/test_visualization.py`).
 
