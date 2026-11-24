@@ -95,7 +95,7 @@ a screenshot button). It renders the same native formats ParaView uses
 (.vtp / .vti / .vtr).
 
     uv sync --extra viz
-    uv run flowtracks-viz data/tracers.zarr
+    uv run flowtracks-viz data/tracers.zarr --volume data/tracers_mean_speed.vti
 
 * Opened automatically in a local browser tab; the viewer needs the `viz`
   extra (`vtk`, `pyvista`, `trame-pyvista`). With vtk ≥ 9.7 the scene

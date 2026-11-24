@@ -54,18 +54,39 @@ interchangeable by construction.
 
 ## What renders
 
-The **trajectories** actor is one `PolyData` with points + one polyline per
-`trajid`, colored by `speed`/`time`. A **vessel mesh** (`--mesh`) is added as
-a translucent `PolyData` with edges; an **Eulerian volume** (`--volume`) as an
-opacy-mapped voxel actor. Labels: everything is named in `actor_by_name`
-(`trajectories`, `vessel`, `eulerian`).
+Three toggleable layers, always in the same scene:
+
+* **Lagrangian trajectories** (always available) — one `PolyData` with
+  points + one polyline per `trajid`, colored by `speed`/`time`.
+* **Eulerian volume** (`--volume`) — an opacity-mapped voxel actor; the
+  scalar is picked from `speed` → `u,v,w,intensity` → first available.
+* **Vessel geometry** (`--mesh`) — a translucent `PolyData` with edges.
+
+Every actor has an on/off switch in the top-right control bar (trajectories
+and vessel are always available; Eulerian is disabled when no `--volume` was
+passed). Actors are named (`trajectories`, `eulerian`, `vessel`).
 
 Interaction:
 
 * Orbit / pan / zoom inside the browser view (right-drag orbit, wheel zoom).
+* **Layer switches** — show/hide any of the three layers.
 * **Frame slider** — shows history up to the chosen frame (`time <= frame`);
   the polyline actor is rebuilt in place.
 * Screenshot button — captures the current frame as PNG.
+
+## A real Eulerian demo
+
+`data/tracers_mean_speed.vti` is a small mean-speed volume (24-point grid,
+mean per-point speed per voxel) built from the same `data/tracers.zarr` demo
+store by `scripts/make_demo_volume.py`:
+
+```bash
+uv run python scripts/make_demo_volume.py
+uv run flowtracks-viz data/tracers.zarr --volume data/tracers_mean_speed.vti
+```
+
+This is a quick, honest demo overlay (mean speed per voxel, with empty
+voxels left as NaN) — **not** the repo's phase-averaged Eulerian pipeline.
 
 ## Performance notes
 
@@ -88,7 +109,7 @@ Interaction:
 
 ## Tests
 
-`tests/test_visualization.py` (15 tests) covers: scene building and
+`tests/test_visualization.py` (18 tests) covers: scene building and
 subsampling, time-range filtering, empty-scene safety, CLI parsing, the
 off-screen screenshot path (including mesh and volume overlays), trame app
 construction and the frame-slider rebuild path, and the real subprocess browser

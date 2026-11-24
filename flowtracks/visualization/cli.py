@@ -91,7 +91,7 @@ def render_screenshot(data, *, mesh_path=None, volume_path=None,
         point_size=4,
     )
     if volume_path is not None:
-        plotter.add_volume(load_volume(volume_path), opacity=0.3, cmap="viridis")
+        plotter.add_volume(load_volume(volume_path), opacity=0.18, cmap="viridis")
     if mesh_path is not None:
         plotter.add_mesh(
             load_mesh(mesh_path),
