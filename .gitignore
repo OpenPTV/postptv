@@ -8,7 +8,12 @@ dist/*
 flowtracks.egg-info/*
 examples/.ipynb_checkpoints/*
 doc/build/*
-*.json
+# marimo session/artifact scratch — local only
+__marimo__/
+
+# Root-level scratch JSONs stay local. Data files (data/*.zarr/**)
+# carry zarr metadata (_meta.json) and must NOT be ignored.
+/*.json
 .pypi_token
 uv.lock
 flowtracks/_version.py
