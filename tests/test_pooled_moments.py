@@ -175,19 +175,19 @@ def test_pooled_analysis_needs_moments():
 
 
 def test_writer_groups_vectors_tensors_and_writes_bools(tmp_path):
-    pv = pytest.importorskip("pyvista")
+    import pyvista as pv
 
     ds = {"wp1": E.eulerian_grid(make_scene(14), GRID, 1, 200, moments=True, **KW)}
     out = E.run_pooled_analysis_ds(ds, _recipe(["wp1"]), min_count=2)
     tensor = ["u_ins_u_ins", "v_ins_v_ins", "w_ins_w_ins",
               "u_ins_v_ins", "v_ins_w_ins", "u_ins_w_ins"]  # VTK xx yy zz xy yz xz
     write_eulerian_series(out, tmp_path, tensors={"reynolds_stress": tensor},
-                          vectors={"velocity_m1": E.M1_VARS}, keep_nan=False)
+                          vectors={"velocity_m1": E.M1_VARS})
     g = pv.read(sorted(tmp_path.glob("*.vti"))[0])
     assert g.point_data["reynolds_stress"].shape == (g.n_points, 6)
     assert g.point_data["velocity_m1"].shape == (g.n_points, 3)
     assert "u_ins_u_ins" not in g.point_data and "u_m1" not in g.point_data
-    assert g.point_data[E.VALID_VAR].dtype in (np.bool_, bool, np.uint8)
+    assert g.point_data[E.VALID_VAR].dtype == np.uint8
     snap = out.isel(phase=0)
     np.testing.assert_allclose(g.point_data["reynolds_stress"][:, 3],
                                np.nan_to_num(snap["u_ins_v_ins"].values).ravel(order="F"))
@@ -205,12 +205,12 @@ def test_cf_metadata_fills_in_but_never_overwrites(tmp_path):
 
 
 def test_writer_keep_nan(tmp_path):
-    pv = pytest.importorskip("pyvista")
+    import pyvista as pv
 
     ds = E.eulerian_grid(make_scene(16, n=200), GRID, 1, 200, moments=True,
                          **{**KW, "min_count": 5})
     assert ds["u_ins_mean"].isnull().any()  # some voxels have no valid data
-    write_eulerian_series(ds, tmp_path / "zero", keep_nan=False)
+    write_eulerian_series(ds, tmp_path / "zero")
     write_eulerian_series(ds, tmp_path / "nan", keep_nan=True)
     zero = pv.read(sorted((tmp_path / "zero").glob("*.vti"))[0]).point_data
     nan = pv.read(sorted((tmp_path / "nan").glob("*.vti"))[0]).point_data
@@ -462,6 +462,7 @@ def test_writer_tensor_keep_nan_and_missing_group_skipped(tmp_path):
         out, tmp_path / "nan",
         tensors={"reynolds_stress": tensor, "missing_tensor": ["u_ins_u_ins", "does_not_exist"]},
         vectors={"missing_vec": ["u_m1", "v_m1", "nope"]},
+        keep_nan=True,
     )
     g_nan = pv.read(sorted((tmp_path / "nan").glob("*.vti"))[0])
     assert "reynolds_stress" in g_nan.point_data

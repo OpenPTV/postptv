@@ -22,19 +22,19 @@ class TestCleanFunction:
 
     def test_nan_preserved(self):
         arr = np.array([1.0, np.nan, 3.0])
-        out = _clean(arr)
+        out = _clean(arr, keep_nan=True)
         assert np.isnan(out[1])
         assert out[0] == 1.0 and out[2] == 3.0
 
     def test_posinf_to_nan(self):
         arr = np.array([1.0, np.inf, 3.0])
-        out = _clean(arr)
+        out = _clean(arr, keep_nan=True)
         assert np.isnan(out[1])
         assert out[0] == 1.0 and out[2] == 3.0
 
     def test_neginf_to_nan(self):
         arr = np.array([1.0, -np.inf, 3.0])
-        out = _clean(arr)
+        out = _clean(arr, keep_nan=True)
         assert np.isnan(out[1])
         assert out[0] == 1.0 and out[2] == 3.0
 
@@ -57,7 +57,7 @@ class TestCleanFunction:
 
     def test_mixed_nonfinite(self):
         arr = np.array([1.0, np.nan, np.inf, -np.inf, 5.0])
-        out = _clean(arr)
+        out = _clean(arr, keep_nan=True)
         assert out[0] == 1.0
         assert np.isnan(out[1]) and np.isnan(out[2]) and np.isnan(out[3])
         assert out[4] == 5.0
@@ -95,7 +95,7 @@ class TestVtkExportNanPreservation:
 
     def test_nan_preserved_in_velocity(self, tmp_path):
         ds, counts, valid = _make_dataset_with_invalid_voxels()
-        write_eulerian_series(ds, tmp_path, prefix="test")
+        write_eulerian_series(ds, tmp_path, prefix="test", keep_nan=True)
         import pyvista as pv
 
         grid = pv.read(str(tmp_path / "test_0000.vti"))
@@ -110,7 +110,7 @@ class TestVtkExportNanPreservation:
 
         grid = pv.read(str(tmp_path / "test_0000.vti"))
         exported_valid = grid.point_data["valid"]
-        assert exported_valid.dtype == bool or exported_valid.dtype == np.bool_
+        assert exported_valid.dtype == np.uint8
         assert not exported_valid[0], "Invalid voxel should be False"
         assert exported_valid[1:].all(), "Valid voxels should be True"
 
@@ -141,7 +141,7 @@ class TestVtkExportNanPreservation:
              "w_ins_mean": (("x", "y", "z", "phase"), w)},
             coords={"x": x, "y": y, "z": z, "phase": phase},
         )
-        write_eulerian_series(ds, tmp_path, prefix="test")
+        write_eulerian_series(ds, tmp_path, prefix="test", keep_nan=True)
         import pyvista as pv
 
         grid = pv.read(str(tmp_path / "test_0000.vti"))
