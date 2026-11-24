@@ -32,6 +32,7 @@ classifiers = [
 
 [project.scripts]
 postptv-combine = "flowtracks.combine:main"
+flowtracks-viz = "flowtracks.visualization.cli:main"
 
 [tool.setuptools_scm]
 # vX.Y.Z tag -> X.Y.Z; N commits after it -> X.Y.(Z+1).devN. No local
@@ -60,6 +61,13 @@ notebooks = [
     "marimo>=0.24.2",
     "plotly>=7.0.0",
     "tables",
+]
+
+# Browser 3D viewer (pyvista scene + trame WebSocket view).
+viz = [
+    "vtk",
+    "pyvista",
+    "trame-pyvista>=0.3.6",
 ]
 
 [dependency-groups]

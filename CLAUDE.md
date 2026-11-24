@@ -102,6 +102,19 @@ the xr modules or `examples/` scripts; nothing is implemented twice here.
 - `an_scene.py` — an alternate/legacy scene analysis path; check before
   extending whether logic belongs there or in `scene.py`/`zarr_scene.py`.
 
+### Browser 3D viewer (`visualization/`)
+
+`flowtracks/visualization/` — a pyvista scene + trame WebSocket view that runs
+as a standalone browser app (`flowtracks-viz` / `python -m flowtracks.visualization`).
+marimo is the thin shell (launcher example: `examples/marimo_trame_viz.py`);
+the browser tab owns the scene. Installed via the `viz` extra
+(`uv sync --extra viz`); **requires pyvista + `trame-pyvista`**.
+`scene.py` is pure numpy/pyvista (no trame imports) so tests and notebooks can
+use it directly; `app.py` is the trame TrameApp; `cli.py` is the entry point
+(including a `--screenshot` off-screen CI/validation path). Keep the viewer's
+data contract in sync with `writers.py` — `build_polydata` mirrors
+`trajectory_polydata` and `writers.write_trajectories_vtp`.
+
 ### Performance work in flight
 
 Several modules carry "vectorize X, verify equivalence" pairs: a vectorized
