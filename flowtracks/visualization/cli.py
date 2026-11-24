@@ -85,8 +85,8 @@ def render_screenshot(data, *, mesh_path=None, volume_path=None,
     plotter.add_mesh(
         build_polydata(data),
         scalars=color_by,
-        cmap="cool",
-        line_width=1.2,
+        cmap="viridis",
+        line_width=1.5,
         show_scalar_bar=True,
         point_size=4,
     )

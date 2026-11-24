@@ -57,8 +57,8 @@ class TrajectoryViewer(TrameApp):
         self._lines_actor = self.plotter.add_mesh(
             build_polydata(data),
             scalars=color_by,
-            cmap="cool",
-            line_width=1.5,
+            cmap="viridis",
+            line_width=2.0,
             opacity=1.0,
             name="trajectories",
         )
@@ -115,8 +115,8 @@ class TrajectoryViewer(TrameApp):
         self._lines_actor = self.plotter.add_mesh(
             new_poly,
             scalars=self._color_by,
-            cmap="cool",
-            line_width=1.5,
+            cmap="viridis",
+            line_width=2.0,
             opacity=1.0,
             name="trajectories",
         )

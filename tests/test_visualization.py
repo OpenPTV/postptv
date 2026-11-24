@@ -199,3 +199,67 @@ def test_browser_app_spawns_and_serves():
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=10)
+
+
+# -- overlays and frame slider ----------------------------------------------
+
+def test_screenshot_with_mesh_and_volume_overlays(tmp_path):
+    import numpy as np
+    import pyvista as pv
+
+    mesh_path = tmp_path / "vessel.vtp"
+    pv.Sphere().save(str(mesh_path))
+
+    volume_path = tmp_path / "eulerian.vti"
+    vol = pv.ImageData(dimensions=(3, 4, 5))
+    vol.cell_data["speed"] = np.random.rand(vol.n_cells)
+    vol.save(str(volume_path))
+
+    out = tmp_path / "shot.png"
+    rc = vis_cli.main(
+        [
+            str(DEMO_ZARR),
+            "--screenshot", str(out),
+            "--max-trajectories", "100",
+            "--mesh", str(mesh_path),
+            "--volume", str(volume_path),
+        ]
+    )
+    assert rc == 0
+    assert out.exists() and out.stat().st_size > 5_000
+
+
+@pytest.mark.skipif(not trame_importable, reason="trame-pyvista not installed")
+def test_frame_slider_rebuilds_lines_actor():
+    from flowtracks.visualization.app import TrajectoryViewer
+
+    data = load_scene(DEMO_ZARR, max_trajectories=50)
+    app = TrajectoryViewer(data)
+    original_actor = app._lines_actor
+    assert "trajectories" in app.plotter.actors
+
+    frame = float(np.median(data.time))
+    app._on_frame(frame)
+
+    # handler replaced the lines actor (same name, new identity)
+    assert app._lines_actor is not original_actor
+    assert "trajectories" in app.plotter.actors
+    # rebuilt data: history up to the frame — same filter path as scene tests
+    sub = filter_through_frame(data, frame)
+    assert sub.n_points < data.n_points
+
+
+@pytest.mark.skipif(not trame_importable, reason="trame-pyvista not installed")
+def test_app_with_vessel_mesh_overlay():
+    import pyvista as pv
+
+    mesh_path = Path("/tmp/vessel_test.vtp")
+    pv.Sphere(radius=0.05).save(str(mesh_path))
+    try:
+        from flowtracks.visualization.app import TrajectoryViewer
+
+        data = load_scene(DEMO_ZARR, max_trajectories=25)
+        app = TrajectoryViewer(data, mesh_path=mesh_path)
+        assert "vessel" in app.plotter.actors
+    finally:
+        mesh_path.unlink(missing_ok=True)
