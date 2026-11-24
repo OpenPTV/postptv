@@ -65,3 +65,59 @@ def test_run_combine_pooled_end_to_end(tmp_path):
     for field in ("MKE", "TKE", "VEL"):
         assert field in ds
         assert np.isfinite(ds[field].values[0, 0, 0, 0])
+
+
+def test_run_combine_per_run_multi_and_single(tmp_path):
+    pytest.importorskip("pyvista")
+
+    frames = [1, 2, 3, 4, 5]
+    # Multi-run per_run
+    multi = tmp_path / "multi"
+    _write_run(multi / "run1" / "run.zarr", [(1.0, 0.0, 0.0)], [1], frames)
+    _write_run(multi / "run2" / "run.zarr", [(3.0, 0.0, 0.0)], [1], frames)
+
+    res = run_combine(
+        multi,
+        method="per_run",
+        grid_params=GRID,
+        first=1, last=5, cycletime=100, deltat=50, base_time=0, min_count=1,
+    )
+    assert res["output"] == multi / "post_analysis.zarr"
+    ds = xr.open_zarr(res["output"]).load()
+    assert ds["u_ins_mean"].values[0, 0, 0, 0] == pytest.approx(2.0)
+    assert ds["u_ins_u_ins"].values[0, 0, 0, 0] == pytest.approx(1.0)
+    assert ds["u_rms"].values[0, 0, 0, 0] == pytest.approx(1.0)
+    assert "TKE" in ds and "MKE" in ds and "VEL" in ds
+
+    # Single-run per_run (returns single grid directly without stacking)
+    single = tmp_path / "single"
+    _write_run(single / "run.zarr", [(4.0, 0.0, 0.0)], [1], frames)
+    res1 = run_combine(
+        single,
+        method="per_run",
+        grid_params=GRID,
+        first=1, last=5, cycletime=100, deltat=50, base_time=0, min_count=1,
+    )
+    ds1 = xr.open_zarr(res1["output"]).load()
+    assert ds1["u_ins_mean"].values[0, 0, 0, 0] == pytest.approx(4.0)
+
+
+def test_run_combine_empty_dir_returns_none(tmp_path):
+    assert run_combine(tmp_path, method="pooled") is None
+
+
+def test_combine_main_cli_dispatches(tmp_path, monkeypatch):
+    import sys
+
+    from flowtracks import combine
+
+    called = {}
+
+    def fake_run_combine(data_dir, method="per_run"):
+        called["data_dir"] = data_dir
+        called["method"] = method
+
+    monkeypatch.setattr(combine, "run_combine", fake_run_combine)
+    monkeypatch.setattr(sys, "argv", ["postptv-combine", str(tmp_path), "--method", "pooled"])
+    combine.main()
+    assert called == {"data_dir": str(tmp_path), "method": "pooled"}
