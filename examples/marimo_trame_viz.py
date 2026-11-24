@@ -3,8 +3,7 @@
 The 3D scene does not render inside this notebook. Clicking
 "Open 3D viewer" starts ``flowtracks.visualization`` as a background
 process and opens a local browser tab -- the full pyvista + trame view
-(orbit/pan/zoom, frame slider, Lagrangian/Eulerian/vessel switches,
-screenshot button). This is the intended shape of the integration:
+(orbit/pan/zoom, frame slider, screenshot button). This is the intended shape of the integration:
 marimo is the shell, the browser app is the tool.
 
 Run from the repo root — first time:
@@ -65,8 +64,7 @@ def _(button, launch, mo, volume_input, zarr_input):
         )
         mo.md(
             f"**Viewer started** (pid `{proc.pid}`) — the 3D scene opens in a new "
-            f"browser tab. Use the side switches to toggle Lagrangian / Eulerian / "
-            f"vessel layers; the frame slider shows history up to a frame. Close "
+            f"browser tab. The frame slider shows history up to a frame. Close "
             f"the tab or terminate the process to stop it."
         )
     return

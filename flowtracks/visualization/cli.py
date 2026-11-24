@@ -33,6 +33,9 @@ def build_parser():
     p.add_argument("--volume", metavar="VTI", default=None,
                    help="Optional Eulerian voxel volume to overlay "
                    "(.vti/.vtr).")
+    p.add_argument("--volume-only", action="store_true",
+                   help="Render only the volume (no trajectories) -- a "
+                   "dedicated Eulerian view.")
     p.add_argument("--time-range", metavar="T0,T1", default=None,
                    help="Optional time window to keep (either bound may be "
                    "open, e.g. '10001,' or ',10150').")
@@ -74,7 +77,7 @@ def parse_time_range(text):
 
 
 def render_screenshot(data, *, mesh_path=None, volume_path=None,
-                      color_by="speed", out_path, size=(1280, 900)):
+                      color_by="speed", volume_only=False, out_path, size=(1280, 900)):
     """Render the scene off-screen and save a PNG. Returns the path."""
     import pyvista as pv
 
@@ -82,16 +85,18 @@ def render_screenshot(data, *, mesh_path=None, volume_path=None,
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plotter = pv.Plotter(off_screen=True, window_size=size)
-    plotter.add_mesh(
-        build_polydata(data),
-        scalars=color_by,
-        cmap="viridis",
-        line_width=1.5,
-        show_scalar_bar=True,
-        point_size=4,
-    )
+    if not volume_only:
+        plotter.add_mesh(
+            build_polydata(data),
+            scalars=color_by,
+            cmap="viridis",
+            line_width=1.5,
+            show_scalar_bar=True,
+            point_size=4,
+        )
     if volume_path is not None:
-        plotter.add_volume(load_volume(volume_path), opacity=0.18, cmap="viridis")
+        plotter.add_volume(load_volume(volume_path), opacity=0.4, cmap="viridis",
+                           show_scalar_bar=True)
     if mesh_path is not None:
         plotter.add_mesh(
             load_mesh(mesh_path),
@@ -130,6 +135,7 @@ def main(argv=None):
             mesh_path=args.mesh,
             volume_path=args.volume,
             color_by=args.color_by,
+            volume_only=args.volume_only,
             out_path=args.screenshot,
         )
         print(f"wrote {out_path} ({data.n_points:,} points, "
@@ -143,6 +149,7 @@ def main(argv=None):
         mesh_path=args.mesh,
         volume_path=args.volume,
         color_by=args.color_by,
+        volume_only=args.volume_only,
     )
     app.server.start(port=args.port, open_browser=not args.no_browser)
     return 0

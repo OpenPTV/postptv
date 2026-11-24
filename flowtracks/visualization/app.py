@@ -1,20 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # SPDX-FileCopyrightText: Alex Liberzon
-"""Browser-based 3D viewer for flowtracks datasets (pyvista + trame).
-
-A trame app is a plain Python script: it builds a pyvista scene, binds it
-to a browser view, and starts a local server. ``app.server.start()`` opens
-the browser tab for you. The view renders client-side with VTK.wasm when
-available (no browser plugins, no GPU drivers, no ParaView), falling back
-to server-side rendering otherwise.
-"""
+"""Browser-based 3D viewer for flowtracks datasets (pyvista + trame)."""
 from __future__ import annotations
 
 import pyvista as pv
 from trame.app import TrameApp
 from trame.decorators import change
 from trame.ui.vuetify3 import VAppLayout
-from trame.widgets import html
 from trame.widgets import vuetify3 as v3
 from trame_pyvista.ui import plotter_ui
 
@@ -25,24 +17,11 @@ try:
     from trame_pyvista.widgets import IS_WASM_SUPPORTED
 
     _IS_WASM = IS_WASM_SUPPORTED
-except ImportError:  # pragma: no cover - trame_pyvista always provides this
+except ImportError:
     pass
 
 
 class TrajectoryViewer(TrameApp):
-    """Interactive 3D viewer for a trajectory scene.
-
-    Layers (all toggleable from the browser UI):
-
-    - ``trajectories`` — one :class:`pyvista.PolyData` of points + one
-      polyline per ``trajid``, colored by ``color_by``;
-    - ``eulerian`` — optional translucent voxel volume (``--volume``);
-    - ``vessel`` — optional translucent vessel-geometry mesh (``--mesh``).
-
-    A frame slider shows history up to the chosen frame. Orbit/pan/zoom
-    happens inside the browser view itself.
-    """
-
     def __init__(
         self,
         data,
@@ -50,74 +29,78 @@ class TrajectoryViewer(TrameApp):
         mesh_path=None,
         volume_path=None,
         color_by="speed",
+        volume_only=False,
         server=None,
     ):
         super().__init__(server)
         self._data = data
         self._color_by = color_by
-        self._vol = load_volume(volume_path) if volume_path is not None else None
-        self._mesh = load_mesh(mesh_path) if mesh_path is not None else None
+        self._volume_only = volume_only
         self.state.trame__title = "Flowtracks viewer"
 
-        # On/off + frame state (drives rebuilds below).
-        self._frame = float(data.frame_max)
-        self._lines_visible = True
-        self._volume_visible = self._vol is not None
-        self._vessel_visible = self._mesh is not None
-
-        # Off-screen plotter -- the browser view owns the pixels.
         self.plotter = pv.Plotter(off_screen=True, window_size=(1200, 900))
-        self._lines_actor = None
-        self._volume_actor = None
-        self._mesh_actor = None
-        self._rebuild_volume()
-        self._rebuild_vessel()
-        self._rebuild_lines()
+
+        if not volume_only:
+            self._lines_actor = self.plotter.add_mesh(
+                build_polydata(data),
+                scalars=color_by,
+                cmap="viridis",
+                line_width=2.0,
+                opacity=1.0,
+                show_scalar_bar=True,
+                name="trajectories",
+            )
+            self._frame = float(data.frame_max)
+        else:
+            self._lines_actor = None
+
+        if volume_path is not None:
+            self._volume = load_volume(volume_path)
+            self.plotter.add_volume(
+                self._volume,
+                scalars="speed",
+                opacity=0.4,
+                cmap="viridis",
+                show_scalar_bar=True,
+                name="eulerian",
+            )
+        if mesh_path is not None:
+            self._mesh = load_mesh(mesh_path)
+            self.plotter.add_mesh(
+                self._mesh,
+                opacity=0.32,
+                color="#ded2c0",
+                edge_color="#a5907b",
+                show_edges=True,
+                name="vessel",
+            )
         self.plotter.reset_camera()
 
         with VAppLayout(self.server, full_height=True) as self.ui:
-            # Full-featured scene view (camera reset, screenshots, WASM/RCA
-            # rendering toggle) from the package, plus our switches and slider.
             self.ctrl.view_update = plotter_ui(
                 self.plotter,
                 mode="client" if _IS_WASM else "server",
             ).update
-            with html.Div(
-                style="position:absolute;top:1rem;right:1rem;z-index:10;display:flex;flex-direction:column;gap:0.4rem;padding:0.6rem;background:rgba(15,23,42,0.72);border-radius:0.5rem;"
-            ):
-                v3.VSwitch(
-                    v_model=("show_lines", self._lines_visible),
-                    label="Lagrangian trajectories",
-                    density="compact",
+            if not volume_only:
+                v3.VSlider(
+                    v_model=("frame", float(data.frame_max)),
+                    min=float(data.frame_min),
+                    max=float(data.frame_max),
+                    step=1,
+                    label="Frame",
+                    show_value=True,
+                    style="position:absolute;bottom:1rem;left:2rem;right:2rem;z-index:10;",
                 )
-                v3.VSwitch(
-                    v_model=("show_volume", self._volume_visible),
-                    label="Eulerian volume",
-                    density="compact",
-                    disabled=self._vol is None,
-                )
-                v3.VSwitch(
-                    v_model=("show_vessel", self._vessel_visible),
-                    label="Vessel geometry",
-                    density="compact",
-                    disabled=self._mesh is None,
-                )
-            v3.VSlider(
-                v_model=("frame", float(data.frame_max)),
-                min=float(data.frame_min),
-                max=float(data.frame_max),
-                step=1,
-                label="Frame",
-                show_value=True,
-                style="position:absolute;bottom:1rem;left:2rem;right:2rem;z-index:10;",
-            )
 
-    # ------------------------------------------------------------------ actors
-
-    def _add_lines_actor(self):
-        sub = filter_through_frame(self._data, self._frame)
+    @change("frame")
+    def _on_frame(self, frame=None, **kwargs):
+        frame = float(frame) if frame is not None else float(self._data.frame_max)
+        sub = filter_through_frame(self._data, frame)
+        new_poly = build_polydata(sub)
+        if self._lines_actor is not None:
+            self.plotter.remove_actor(self._lines_actor)
         self._lines_actor = self.plotter.add_mesh(
-            build_polydata(sub),
+            new_poly,
             scalars=self._color_by,
             cmap="viridis",
             line_width=2.0,
@@ -125,77 +108,10 @@ class TrajectoryViewer(TrameApp):
             show_scalar_bar=True,
             name="trajectories",
         )
-
-    def _rebuild_lines(self):
-        """(Re)build the lines actor from visibility + frame state."""
-        if not self._lines_visible:
-            if self._lines_actor is not None:
-                self.plotter.remove_actor(self._lines_actor)
-                self._lines_actor = None
-            self.plotter.render()
-            return
-        self._add_lines_actor()
         self.plotter.render()
-
-    def _rebuild_volume(self):
-        """(Re)build the voxel-volume actor from visibility state."""
-        if not self._volume_visible or self._vol is None:
-            if self._volume_actor is not None:
-                self.plotter.remove_actor(self._volume_actor)
-                self._volume_actor = None
-            return
-        self._volume_actor = self.plotter.add_volume(
-            self._vol,
-            scalars=_preferred_volume_scalar(self._vol),
-            opacity=0.18,
-            cmap="viridis",
-            show_scalar_bar=False,
-            name="eulerian",
-        )
-
-    def _rebuild_vessel(self):
-        """(Re)build the vessel-mesh actor from visibility state."""
-        if not self._vessel_visible or self._mesh is None:
-            if self._mesh_actor is not None:
-                self.plotter.remove_actor(self._mesh_actor)
-                self._mesh_actor = None
-            return
-        self._mesh_actor = self.plotter.add_mesh(
-            self._mesh,
-            opacity=0.32,
-            color="#ded2c0",
-            edge_color="#a5907b",
-            show_edges=True,
-            name="vessel",
-        )
-
-    # ---------------------------------------------------------------- slots
-
-    @change("frame")
-    def _on_frame(self, frame=None, **kwargs):
-        self._frame = float(frame) if frame is not None else float(self._data.frame_max)
-        self._rebuild_lines()
-
-    @change("show_lines")
-    def _toggle_lines(self, value=None, **kwargs):
-        self._lines_visible = bool(value)
-        self._rebuild_lines()
-
-    @change("show_volume")
-    def _toggle_volume(self, value=None, **kwargs):
-        self._volume_visible = bool(value)
-        self._rebuild_volume()
-        self._rebuild_lines()  # keep trajectories on top
-
-    @change("show_vessel")
-    def _toggle_vessel(self, value=None, **kwargs):
-        self._vessel_visible = bool(value)
-        self._rebuild_vessel()
-        self._rebuild_lines()  # keep trajectories on top
 
 
 def _preferred_volume_scalar(volume):
-    """Pick the first scalar field suitable for a volume colormap."""
     try:
         for name in ("speed", "u", "v", "w", "intensity"):
             if name in volume.point_data or name in volume.cell_data:
@@ -209,12 +125,12 @@ def _preferred_volume_scalar(volume):
     return None
 
 
-def create_app(data, *, mesh_path=None, volume_path=None, color_by="speed", server=None):
-    """Build the viewer app for a :class:`TrajectoryScene`."""
+def create_app(data, *, mesh_path=None, volume_path=None, color_by="speed", volume_only=False, server=None):
     return TrajectoryViewer(
         data,
         mesh_path=mesh_path,
         volume_path=volume_path,
         color_by=color_by,
+        volume_only=volume_only,
         server=server,
     )

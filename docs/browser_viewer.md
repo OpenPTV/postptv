@@ -69,7 +69,7 @@ interchangeable by construction.
 
 ## What renders
 
-Three toggleable layers, always in the same scene:
+Three layers, always in the same scene:
 
 * **Lagrangian trajectories** (always available) — one `PolyData` with
   points + one polyline per `trajid`, colored by `speed`/`time`.
@@ -77,9 +77,7 @@ Three toggleable layers, always in the same scene:
   scalar is picked from `speed` → `u,v,w,intensity` → first available.
 * **Vessel geometry** (`--mesh`) — a translucent `PolyData` with edges.
 
-Every actor has an on/off switch in the top-right control bar (trajectories
-and vessel are always available; Eulerian is disabled when no `--volume` was
-passed). Actors are named (`trajectories`, `eulerian`, `vessel`).
+Actors are named (`trajectories`, `eulerian`, `vessel`).
 
 Interaction:
 
