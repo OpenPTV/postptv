@@ -122,6 +122,7 @@ class TrajectoryViewer(TrameApp):
             cmap="viridis",
             line_width=2.0,
             opacity=1.0,
+            show_scalar_bar=True,
             name="trajectories",
         )
 

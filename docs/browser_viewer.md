@@ -85,7 +85,7 @@ Interaction:
 
 * Orbit / pan / zoom inside the browser view (right-drag orbit, wheel zoom).
 * **Layer switches** — show/hide any of the three layers.
-* **Layer switches** (see above) and the **Frame slider** — shows history up to the chosen frame (`time <= frame`);
+* **Frame slider** — shows history up to the chosen frame (`time <= frame`);
   the polyline actor is rebuilt in place.
 * Screenshot button — captures the current frame as PNG.
 

@@ -71,6 +71,12 @@ def load_scene(
     time = np.asarray(time, dtype=np.float64)
     trajid = np.asarray(trajid)
 
+    # Drop any rows carrying non-finite values so a stray NaN can never blank
+    # the scene or poison the speed colormap.
+    finite = np.isfinite(pos).all(axis=1) & np.isfinite(vel).all(axis=1) & np.isfinite(time)
+    if not finite.all():
+        pos, vel, time, trajid = pos[finite], vel[finite], time[finite], trajid[finite]
+
     if time_range is not None:
         t0, t1 = time_range
         mask = np.ones(len(time), dtype=bool)
@@ -156,10 +162,27 @@ def load_mesh(path):
 
 
 def load_volume(path):
-    """Load an optional Eulerian volume file (.vti/.vtr)."""
+    """Load an optional Eulerian volume file (.vti/.vtr).
+
+    Empty voxels are commonly stored as NaN; these are replaced with 0.0 so
+    the volume renderer never receives NaNs (which would blank the scene).
+    The original scalar range is preserved for the colormap where possible.
+    """
+    import numpy as np
     import pyvista as pv
 
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"volume file not found: {path}")
-    return pv.read(str(path))
+    volume = pv.read(str(path))
+    for name in list(volume.point_data.keys()) + list(volume.cell_data.keys()):
+        arr = volume.point_data[name] if name in volume.point_data else volume.cell_data[name]
+        if np.issubdtype(arr.dtype, np.floating):
+            bad = ~np.isfinite(arr)
+            if bad.any():
+                arr = np.where(bad, 0.0, arr)
+                if name in volume.point_data:
+                    volume.point_data[name] = arr
+                else:
+                    volume.cell_data[name] = arr
+    return volume
