@@ -26,7 +26,7 @@ version 3.0 (see `LICENSE.txt`): `trajectory`, `particle`, `sequence`,
 Newer modules — the Zarr backend and the xarray post-processing track
 (`zarr_scene`, `eulerian`, `phase_average`, `pipeline`, `combine`,
 `stitching`, `repair`, `writers`, `provenance`, `vortex`, `wall_shear`,
-`flux`, `nhist`, `future_idea_xarray_dask_zarr`) — are BSD-3-Clause
+`flux`, `nhist`, `visualization`, `future_idea_xarray_dask_zarr`) — are BSD-3-Clause
 (see `LICENSES/BSD-3-Clause.txt`).
 
 Every module states its license in an SPDX header at the top of the file.
@@ -81,10 +81,34 @@ For developers — clone the repository and install it editable:
     pip install -e ".[vtk]"   # or: uv sync --group dev (installs pytest)
 
 See pyproject.toml for the full dependency list and the optional
-extras (vtk, legacy-io, notebooks). The legacy HDF5/pytables reader
-needs the legacy-io extra; the .vti/.vtr ParaView writers need vtk.
+extras (vtk, viz, legacy-io, notebooks). The legacy HDF5/pytables reader
+needs the legacy-io extra; the .vti/.vtr ParaView writers need vtk;
+the browser 3D viewer needs viz.
 
-The examples are Jupyter notebooks [2], and can be previewed without any 
+Browser 3D viewer (`flowtracks[viz]`)
+=====================================
+
+A standalone browser app — pyvista scene + trame WebSocket view — opens an
+interactive 3D scene of a Zarr trajectory store (orbit / zoom / pan, a frame
+slider for history, optional vessel-mesh and Eulerian-volume overlays, and
+a screenshot button). It renders the same native formats ParaView uses
+(.vtp / .vti / .vtr).
+
+    uv sync --extra viz
+    uv run flowtracks-viz data/tracers.zarr
+
+* Opened automatically in a local browser tab; the viewer needs the `viz`
+  extra (`vtk`, `pyvista`, `trame-pyvista`). With vtk ≥ 9.7 the scene
+  renders client-side with VTK.wasm (no browser plugins, no GPU drivers);
+  otherwise it falls back to server-side rendering.
+* `--screenshot shot.png` renders off-screen and exits (CI / validation).
+* `--mesh vessel.vtp` overlays vessel geometry, `--volume eulerian.vti`
+  overlays an Eulerian scalar field — same .vtp/.vti formats ParaView reads.
+* `examples/marimo_trame_viz.py` shows the thin marimo launcher; `launch()`
+  from the package spawns the viewer as a detached subprocess.
+* See `docs/browser_viewer.md` for the full reference.
+
+The examples are Jupyter notebooks [2], and can be previewed without any
 special setup under the examples section of
 
     http://flowtracks.readthedocs.org

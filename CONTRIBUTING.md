@@ -33,6 +33,7 @@ uv run pytest
 | `flowtracks/analysis.py` | Trajectory-level statistics |
 | `flowtracks/flux.py` | Flux calculations |
 | `flowtracks/graphics.py` | Visualization helpers |
+| `flowtracks/visualization/` | Browser 3D viewer (pyvista + trame) |
 | `flowtracks/nhist.py` | Normalized histograms |
 | `flowtracks/pairs.py` | Trajectory pairing |
 | `flowtracks/merge.py` | Merge trajectories |
@@ -71,4 +72,5 @@ writers.py  →  VTK/ParaView export
 uv run pytest                          # all tests
 uv run pytest tests/test_eulerian_grid.py  # specific
 uv run pytest --benchmark-only         # benchmarks
+uv run pytest tests/test_visualization.py  # browser-viewer tests (scene, CLI, app)
 ```
