@@ -527,7 +527,7 @@ class GeneralInterpolant(object):
 
         Arguments:
         subset - a neighbours selection array, such as returned from
-            :meth:`which_neighbours`, to replace the recorded selection.
+            :meth:`current_active_neighbs`, to replace the recorded selection.
             Default value (None) uses the recorded selection. The recorded
             selection is not changed, so ``subset`` is forgotten after the
             call.
@@ -560,7 +560,7 @@ class GeneralInterpolant(object):
 
         Arguments:
         act_neighbs - a neighbours selection array, such as returned from
-            :meth:`which_neighbours`, to replace the recorded selection.
+            :meth:`current_active_neighbs`, to replace the recorded selection.
             Default value (None) uses the recorded selection. The recorded
             selection is not changed, so ``subset`` is forgotten after the
             call.
