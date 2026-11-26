@@ -110,3 +110,118 @@ class TestFiniteSize(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def _flowmap_trajs(x0, x1, t_start=0, t_end=5):
+    """One two-point trajectory per row: x0 at t_start, x1 at t_end."""
+    return [_traj([a, b], [t_start, t_end], i)
+            for i, (a, b) in enumerate(zip(x0, x1))]
+
+
+class TestEulerianFTLE(unittest.TestCase):
+    def setUp(self):
+        self.rng = np.random.default_rng(3)
+        self.x0 = self.rng.uniform(-0.02, 0.02, size=(4000, 3))
+        self.grid = (np.linspace(-0.01, 0.01, 4),) * 3
+        self.dt, self.n = 0.01, 5   # T = 0.05 s
+
+    def _check_linear(self, fmat, noise=0.0, **kwds):
+        x1 = self.x0 @ fmat.T + self.rng.normal(scale=noise,
+                                                size=self.x0.shape)
+        trajs = _flowmap_trajs(x1=x1, x0=self.x0, t_end=self.n)
+        res = lyapunov.eulerian_ftle(trajs, self.grid, 0, self.n,
+                                     radius=0.01, dt=self.dt, **kwds)
+        T = self.n * self.dt
+        exact = 0.5 * np.log(np.linalg.eigvalsh(fmat.T @ fmat)[-1]) / T
+        return res, exact
+
+    def test_pure_strain(self):
+        a, T = 8.0, 0.05
+        fmat = np.diag([np.exp(a * T), np.exp(-a * T), 1.0])
+        res, exact = self._check_linear(fmat)
+        self.assertAlmostEqual(exact, a, places=9)
+        self.assertTrue(res.valid.all())
+        np.testing.assert_allclose(res.ftle.values, a, rtol=1e-8)
+        np.testing.assert_allclose(res.det_F.values, 1.0, rtol=1e-8)
+
+    def test_shear(self):
+        gamma_t = 0.4
+        fmat = np.array([[1, gamma_t, 0], [0, 1, 0], [0, 0, 1.]])
+        res, exact = self._check_linear(fmat)
+        np.testing.assert_allclose(res.ftle.values, exact, rtol=1e-8)
+        np.testing.assert_allclose(res.det_F.values, 1.0, rtol=1e-8)
+
+    def test_noise_floor_and_accuracy(self):
+        a, T = 8.0, 0.05
+        fmat = np.diag([np.exp(a * T), np.exp(-a * T), 1.0])
+        sigma = 2e-5
+        res, _ = self._check_linear(fmat, noise=sigma, position_error=sigma)
+        err = (res.ftle - a).values[res.valid.values]
+        # Estimated noise floor is the right order of magnitude of the
+        # actual scatter, and well below the signal.
+        floor = float(res.ftle_noise_floor.where(res.valid).mean())
+        self.assertLess(floor, 0.1 * a)
+        self.assertLess(np.abs(err).max(), 5 * floor)
+        self.assertAlmostEqual(float(np.std(err)) / floor, 1.0, delta=0.8)
+
+    def test_backward_window(self):
+        a, T = 8.0, 0.05
+        fmat = np.diag([np.exp(a * T), np.exp(-a * T), 1.0])
+        # Backward map: positions at frame 5 -> frame 0, i.e. inverse of F.
+        x_end = self.x0 @ fmat.T
+        trajs = _flowmap_trajs(self.x0, x_end, t_end=5)
+        res = lyapunov.eulerian_ftle(
+            trajs, self.grid, 5, 0, radius=0.01, dt=self.dt)
+        # Inverse map has the same singular values magnitude on the
+        # contracting axis -> backward FTLE = a for this symmetric strain.
+        self.assertTrue(res.valid.all())
+        np.testing.assert_allclose(res.ftle.values, a, rtol=1e-6)
+
+    def test_only_spanning_trajectories_used(self):
+        x1 = self.x0 * 1.0
+        trajs = _flowmap_trajs(self.x0, x1, t_end=5)
+        # Add trajectories that do not reach t_end.
+        trajs += [_traj([[0, 0, 0], [0, 0, 0]], [0, 3], 10_000 + i)
+                  for i in range(50)]
+        x0, _, ids = lyapunov.flow_map(trajs, 0, 5)
+        self.assertEqual(len(x0), 4000)
+        self.assertTrue((ids < 4000).all())
+
+    def test_sparse_and_edge_nodes_masked(self):
+        fmat = np.eye(3)
+        x0 = self.x0[self.x0[:, 0] < 0.0]            # data only for x < 0
+        trajs = _flowmap_trajs(x0, x0 @ fmat.T)
+        grid = (np.array([-0.01, 0.0, 0.015]), np.array([0.0]),
+                np.array([0.0]))
+        res = lyapunov.eulerian_ftle(trajs, grid, 0, 5, radius=0.01, dt=0.01)
+        valid = res.valid.values[:, 0, 0]
+        self.assertTrue(valid[0])          # inside the data
+        self.assertFalse(valid[1])         # at the edge: one-sided neighbours
+        self.assertFalse(valid[2])         # no data at all
+        self.assertTrue(np.isnan(res.ftle.values[2, 0, 0]))
+
+    def test_degenerate_planar_cloud_masked(self):
+        x0 = self.x0.copy()
+        x0[:, 2] = 0.0                      # all in a plane: F not defined
+        trajs = _flowmap_trajs(x0, x0)
+        res = lyapunov.eulerian_ftle(
+            trajs, self.grid, 0, 5, radius=0.01, dt=0.01)
+        self.assertFalse(res.valid.any())
+
+    def test_warns_when_no_trajectory_spans_window(self):
+        trajs = _flowmap_trajs(self.x0[:20], self.x0[:20], t_end=5)
+        with self.assertWarns(UserWarning):
+            res = lyapunov.eulerian_ftle(
+                trajs, self.grid, 0, 9, radius=0.01, dt=0.01)
+        self.assertFalse(res.valid.any())
+
+    def test_argument_validation(self):
+        with self.assertRaises(ValueError):
+            lyapunov.eulerian_ftle([], self.grid, 3, 3, radius=0.01)
+        with self.assertRaises(ValueError):
+            lyapunov.eulerian_ftle([], self.grid, 0, 3, radius=-1)
+        with self.assertRaises(ValueError):
+            lyapunov.eulerian_ftle([], self.grid, 0, 3, radius=0.01,
+                                   min_neighbors=3)
+        with self.assertRaises(ValueError):
+            lyapunov.eulerian_ftle([], self.grid[:2], 0, 3, radius=0.01)
