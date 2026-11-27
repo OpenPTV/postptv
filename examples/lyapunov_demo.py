@@ -9,6 +9,8 @@ Lyapunov-exponent demo (issue #65): generates the figures used in
   flow, scattered noisy particles vs. the exact reference, for 3 radii.
 * ``eulerian_ftle_real.png`` - Eulerian FTLE of the real tracers, with its
   quality diagnostics.
+* ``eulerian_ftle_ridges.png`` - ridges extracted from the synthetic
+  Taylor-Green FTLE, against the known separatrices.
 
 Run from the repository root::
 
@@ -229,6 +231,62 @@ def figure_eulerian_synthetic(outdir):
     return path
 
 
+def figure_ridges_synthetic(outdir):
+    """Ridges of the Taylor-Green FTLE, against the known separatrices."""
+    rng = np.random.default_rng(2)
+    L, amp, T, sigma = 0.04, 0.05, 0.4, 20e-6
+    k = 2 * np.pi / L
+    n_frames = 10
+    dt = T / n_frames
+    npart = 40000
+    x0 = np.column_stack([rng.uniform(-0.01, L + 0.01, npart),
+                          rng.uniform(-0.01, L + 0.01, npart),
+                          rng.uniform(-0.005, 0.005, npart)])
+    x1 = _taylor_green_map(x0, k, amp, T) + rng.normal(scale=sigma,
+                                                      size=x0.shape)
+    x0 = x0 + rng.normal(scale=sigma, size=x0.shape)
+    trajs = [Trajectory(np.array([a, b]), np.zeros((2, 3)),
+                        np.array([0., n_frames]), i)
+             for i, (a, b) in enumerate(zip(x0, x1))]
+    g = np.linspace(0.002, L - 0.002, 60)
+    grid = (g, g, np.array([0.0]))
+    X, Y = np.meshgrid(g, g, indexing="ij")
+    lines = np.array([0.0, L / 2, L])
+    dist = np.minimum(np.abs(X[..., None] - lines).min(-1),
+                      np.abs(Y[..., None] - lines).min(-1))
+    ext = [g[0] * 1e3, g[-1] * 1e3] * 2
+
+    radii = (1.5e-3, 3e-3, 6e-3)
+    fig, ax = plt.subplots(1, 3, figsize=(14, 4.8), constrained_layout=True)
+    for a, R in zip(ax, radii):
+        res = lyapunov.eulerian_ftle(trajs, grid, 0, n_frames, radius=R,
+                                     dt=dt, position_error=sigma)
+        rid = lyapunov.ftle_ridges(res, smooth=1.0, min_percentile=80)
+        f = res.ftle.values[:, :, 0]
+        r = rid.ridge.values[:, :, 0]
+        a.imshow(f.T, origin="lower", extent=ext, vmin=0, vmax=7.5)
+        for c in (L / 2 * 1e3,):
+            a.axvline(c, color="w", ls="--", lw=0.8)
+            a.axhline(c, color="w", ls="--", lw=0.8)
+        a.plot(X[r] * 1e3, Y[r] * 1e3, "r.", ms=4)
+        if r.any():
+            stats = (f"{r.sum()} ridge nodes, median error "
+                     f"{np.median(dist[r]) * 1e3:.1f} mm")
+        else:
+            stats = "no ridges found"
+        a.set_title(f"R={R * 1e3:g} mm, valid "
+                    f"{res.valid.values.mean():.0%}\n{stats}", fontsize=10)
+        a.set(xlabel="x [mm]")
+    ax[0].set_ylabel("y [mm]")
+    fig.suptitle("Ridges (red) of the estimated FTLE; dashed: exact "
+                 "separatrices x = L/2 and y = L/2", fontsize=10)
+    path = outdir / "eulerian_ftle_ridges.png"
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+    print("wrote", path)
+    return path
+
+
 def figure_eulerian_real(outdir):
     """Eulerian FTLE of the real tracers, with quality diagnostics."""
     dt = 1 / 500
@@ -304,3 +362,4 @@ if __name__ == "__main__":
     figure_real(out)
     figure_eulerian_synthetic(out)
     figure_eulerian_real(out)
+    figure_ridges_synthetic(out)

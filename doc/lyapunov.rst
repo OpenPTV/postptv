@@ -22,6 +22,8 @@ Function                    Quantity                        Output
                             function of separation scale
 ``eulerian_ftle``           FTLE *field* on a grid, from    3D field, with per-node diagnostics
                             the flow-map gradient
+``ftle_ridges``             ridges (candidate LCS) of an    boolean mask on the same grid
+                            FTLE field
 ==========================  ==============================  ==========================================
 
 All three take a list of :class:`~flowtracks.trajectory.Trajectory` objects
@@ -386,6 +388,106 @@ What this shows, and what it does not:
   needed (or stitching, see :mod:`flowtracks.stitching`; stitching adds its
   own uncertainty, which is not propagated here).
 
+Ridge extraction
+----------------
+
+Ridges of the forward (backward) FTLE field are the usual candidates for
+repelling (attracting) Lagrangian coherent structures (LCS): the barriers that
+organise transport. :func:`ftle_ridges` extracts them from the output of
+:func:`eulerian_ftle`.
+
+.. warning::
+
+   An FTLE ridge is **not** the same thing as an LCS. It is neither necessary
+   nor sufficient (a ridge can sit on a region of strong shear that no fluid
+   crosses transversally, and a genuine LCS can be missed by a ridge
+   criterion). It is a *candidate*. What is found also depends on the window,
+   the radius, the smoothing and the thresholds. And the field underneath
+   inherits every caution of the Eulerian FTLE above.
+
+Definition
+~~~~~~~~~~
+
+The *second-derivative* ridge definition is used. Let :math:`f` be the (smoothed)
+FTLE field, :math:`H = \nabla\nabla f` its Hessian and :math:`\mathbf{n}` the
+eigenvector of :math:`H` with the most negative eigenvalue :math:`\ell_{\min}`.
+A point is on a ridge if
+
+.. math::
+
+    \nabla f \cdot \mathbf{n} = 0
+    \qquad\text{and}\qquad \ell_{\min} < 0,
+
+that is, :math:`f` is stationary and concave across the ridge. In 2D the
+ridges are curves, in 3D surfaces. They are found on the grid as follows:
+
+1. **Smoothing.** The field is smoothed with a Gaussian (``smooth``, in grid
+   nodes), using only valid nodes (a normalised convolution, so holes do not
+   pull the field toward zero). Differentiating twice amplifies noise, so some
+   smoothing is required; it also widens ridges and can move them.
+2. **Hessian.** By finite differences on the grid (so the grid must be regular),
+   giving :math:`\mathbf{n}` and :math:`\ell_{\min}` at every node.
+3. **Non-maximum suppression.** The discrete form of :math:`\nabla f\cdot
+   \mathbf{n}=0`: a node is kept if :math:`f` there is not smaller than
+   :math:`f` one grid step away on either side along :math:`\mathbf{n}`
+   (linearly interpolated). This yields ridges one node thick.
+4. **Thresholds.** Only nodes with :math:`\ell_{\min} < -` ``min_curvature`` and
+   :math:`f \ge` ``min_ftle`` are kept. Without a threshold on :math:`f`, every
+   weak maximum in the noise is a "ridge". By default ``min_ftle`` is a
+   percentile (``min_percentile``) of the valid values: this is a choice about
+   how much of the field you call a ridge, not a statement about the physics.
+   Prefer to give an absolute ``min_ftle`` that you can justify (for instance
+   from the ``ftle_noise_floor``).
+5. **Border.** The outermost layer of nodes never carries a ridge, because a
+   maximum cannot be verified without neighbours on both sides. Before this was
+   added, the test below produced false ridges along the grid edge.
+
+Singleton dimensions are ignored, so a single plane of a 3D grid gives ridge
+lines, and a volume gives ridge surfaces.
+
+Validation on a known flow
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The same Taylor-Green setup as above: its separatrices (the lines where the
+FTLE ridges must be) are known exactly, :math:`x, y \in \{0, L/2, L\}` with
+:math:`L` = 40 mm. The full chain is exercised: noisy scattered particles, then
+:func:`eulerian_ftle`, then :func:`ftle_ridges`.
+
+.. image:: _static/eulerian_ftle_ridges.png
+   :width: 100%
+   :alt: Ridges of the estimated FTLE against the exact separatrices
+
+* **R = 3 mm and 6 mm:** the ridge nodes (127 and 95) lie on the separatrices
+  with a median error of 0.3 mm, a small fraction of the radius, and the cross
+  is recovered.
+* **R = 1.5 mm:** only 25 scattered nodes, because 31% of the field is invalid
+  (white): the neighbourhoods are too sparse. Few and fragmentary ridges are the
+  result, not a poor extractor.
+* **What is missed.** The ridges stop short of the ends of the lines, where the
+  FTLE falls below the threshold, and there is a gap at the crossing. At a
+  crossing the Hessian has two equally negative eigenvalues, so the normal
+  direction is not defined, and the criterion fails there. Ridge junctions are
+  not captured by this method.
+
+The automated tests (``tests/test_lyapunov.py``) check the extractor on
+analytic fields (a line, a tilted line with noise, a cross, a plane in 3D, a
+valley that must not be reported, fields with holes, flat and monotonic fields
+that must give nothing), and the whole chain on the Taylor-Green flow: at least
+95% of the ridge nodes within one radius of a separatrix, median error under
+half a radius, and most of the interior separatrix nodes with a ridge nearby.
+
+The real tracers give no ridges
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On the real tracers (the 12 ms window and R = 6 mm of the Eulerian section) the
+extractor finds **1 ridge node**. As a control, shuffling the FTLE values
+randomly over the same valid nodes, 50 times, gives on average 1.9 (range 0-6).
+So the result is indistinguishable from chance. This is the expected outcome:
+at that window the FTLE is essentially a strain rate (see above), and there is
+no coherent structure for the ridge to find. Ridges from such a field should not
+be reported. Control experiments of this kind (a shuffled or noise-only field
+through the same pipeline) are a good habit for any ridge claim.
+
 .. _lyapunov-cautions:
 
 Cautions (please read)
@@ -439,6 +541,11 @@ These apply to all three estimators unless stated.
     tracking, thresholds on :math:`\nabla\mathrm{FTLE}`) is not done here and
     requires its own care.
 
+**Ridges are candidates, and depend on the thresholds.**
+    See the ridge section. Report ``smooth``, ``min_ftle`` (or the percentile)
+    and the window. Run a control (shuffled or noise-only field) before
+    interpreting a ridge, as done there for the real tracers.
+
 **No built-in notion of truth.**
     ``det_F``, ``fit_residual_rms`` and the noise floor catch several failure
     modes but not all. In particular, a smooth but wrong field (too large
@@ -460,6 +567,7 @@ Recommended workflow for the Eulerian FTLE
 4. Compare with ``ftle_noise_floor``.
 5. Repeat for several windows and several start frames.
 6. Validate on synthetic data built to mimic your experiment.
+7. Only then extract ridges, with an absolute threshold, and run a control.
 
 
 Reference
