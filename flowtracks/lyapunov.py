@@ -19,6 +19,10 @@ fit window or on one initial separation.
 the flow map. This one needs much more care than the pair-based estimators;
 read its docstring and ``doc/lyapunov.rst`` before using it.
 
+``ftle_ridges`` - extracts the ridges (lines in 2D, surfaces in 3D) of an FTLE
+field, the usual candidates for Lagrangian coherent structures. Ridges of a
+noisy, threshold-dependent field are candidates only; see the documentation.
+
 All take a list of :class:`~flowtracks.trajectory.Trajectory` objects and
 return an :class:`xarray.Dataset`.
 
@@ -30,6 +34,7 @@ import warnings
 
 import numpy as np
 import xarray as xr
+from scipy import ndimage
 from scipy.spatial import cKDTree
 
 
@@ -451,3 +456,161 @@ def eulerian_ftle(trajects, grid, t_start, t_end, radius, dt=1.0,
                'radius': radius, 'min_neighbors': min_neighbors,
                'max_condition': max_condition, 'max_offset': max_offset,
                'n_trajectories_used': len(x0)})
+
+
+def _smooth_masked(field, mask, sigma):
+    """Gaussian smoothing of ``field`` that ignores nodes where mask is False."""
+    if sigma <= 0:
+        return np.where(mask, field, np.nan)
+    num = ndimage.gaussian_filter(np.where(mask, field, 0.0), sigma,
+                                  mode='constant')
+    den = ndimage.gaussian_filter(mask.astype(float), sigma, mode='constant')
+    with np.errstate(invalid='ignore', divide='ignore'):
+        out = num / den
+    # Do not invent values where almost no valid data contributed.
+    return np.where(mask & (den > 0.5), out, np.nan)
+
+
+def ftle_ridges(field, smooth=1.0, min_ftle=None, min_percentile=75.0,
+                min_curvature=0.0):
+    """
+    Extract the ridges of an FTLE field (second-derivative ridge definition).
+
+    **Ridges are candidates, not proof.** An FTLE ridge is neither necessary
+    nor sufficient for a Lagrangian coherent structure (LCS), and what is
+    found depends on the window, on the smoothing and on the thresholds. See
+    ``doc/lyapunov.rst``.
+
+    A node is on a ridge if the field has a local maximum across the ridge
+    direction, in the following sense. Let ``f`` be the (smoothed) field, ``H``
+    its Hessian and ``n`` the eigenvector of ``H`` with the most negative
+    eigenvalue ``l_min``. A node is a ridge node when three conditions hold.
+
+    First, ``l_min < -min_curvature``: the field is concave across the ridge.
+
+    Second, ``f`` at the node is not smaller than ``f`` one grid step away on
+    both sides along ``n``. This non-maximum suppression gives ridges one node
+    thick, and is the discrete form of the condition ``grad(f).n = 0``.
+
+    Third, ``f >= min_ftle``: weak ridges in the low-FTLE background are noise.
+
+    The outermost layer of grid nodes never carries a ridge, because the
+    maximum across it cannot be verified there.
+
+    Arguments:
+    field - the Dataset returned by :func:`eulerian_ftle`, or any Dataset with
+        a variable ``ftle`` and (optionally) a boolean ``valid``, on a regular
+        grid. Dimensions of size smaller than 3 (such as a single plane in a
+        3D grid) are ignored, so a plane gives ridge lines and a volume gives
+        ridge surfaces. At least two dimensions need 3 or more nodes.
+    smooth - standard deviation of the Gaussian smoothing applied before
+        differentiating, in grid nodes. Invalid nodes do not contribute.
+        Differentiating twice amplifies noise, so some smoothing is normally
+        necessary; it also moves and widens ridges. 0 disables it.
+    min_ftle - the lowest FTLE at which to accept a ridge, [1/s]. If None, the
+        ``min_percentile`` percentile of the valid smoothed values is used.
+    min_percentile - see above, in [0, 100].
+    min_curvature - the minimal concavity ``-l_min`` accepted, [1/s per m^2].
+        The default, 0, accepts any concave node.
+
+    Returns:
+    An xarray Dataset on the same grid, with ``ridge`` (boolean mask),
+    ``ridge_strength`` (``-l_min``, [1/s per m^2], NaN where it could not be
+    computed) and ``ftle_smooth`` (the smoothed field that was used). ``attrs``
+    record the parameters and the threshold actually used.
+    """
+    if 'ftle' not in field:
+        raise ValueError("field must have an 'ftle' variable")
+    if not 0 <= min_percentile <= 100:
+        raise ValueError("min_percentile must be in [0, 100]")
+    if smooth < 0:
+        raise ValueError("smooth must be >= 0")
+
+    ftle = field['ftle']
+    dims = ftle.dims
+    if 'valid' in field:
+        valid = field['valid'].values.astype(bool)
+    else:
+        valid = np.isfinite(ftle.values)
+    valid &= np.isfinite(ftle.values)
+
+    if any(n == 2 for n in ftle.shape):
+        raise ValueError("a dimension with 2 nodes cannot be differentiated; "
+                         "use 1 node (a plane) or at least 3")
+    active = [i for i, n in enumerate(ftle.shape) if n >= 3]
+    if len(active) < 2:
+        raise ValueError("Need at least two dimensions with 3 or more nodes")
+    coords = []
+    for i in active:
+        c = np.asarray(field[dims[i]].values, dtype=float)
+        step = np.diff(c)
+        if np.any(step <= 0) or not np.allclose(step, step[0], rtol=1e-6):
+            raise ValueError("grid along '%s' must be regular and increasing"
+                             % dims[i])
+        coords.append(c)
+    spacing = np.array([c[1] - c[0] for c in coords])
+
+    # Work on the active dimensions only (drop singleton ones).
+    shape_full = ftle.shape
+    squeeze = tuple(slice(None) if i in active else 0
+                    for i in range(ftle.ndim))
+    f = _smooth_masked(ftle.values[squeeze], valid[squeeze], smooth)
+    nd = len(active)
+
+    thr = min_ftle
+    if thr is None:
+        finite = f[np.isfinite(f)]
+        thr = np.percentile(finite, min_percentile) if finite.size else np.inf
+
+    grads = np.gradient(f, *spacing)
+    hess = np.empty(f.shape + (nd, nd))
+    for j in range(nd):
+        gj = np.gradient(grads[j], *spacing)
+        for i in range(nd):
+            hess[..., j, i] = gj[i]
+    hess = 0.5 * (hess + np.swapaxes(hess, -1, -2))
+
+    ok = np.isfinite(f) & np.all(np.isfinite(hess), axis=(-1, -2))
+    ridge = np.zeros(f.shape, dtype=bool)
+    strength = np.full(f.shape, np.nan)
+    if ok.any():
+        evals, evecs = np.linalg.eigh(hess[ok])
+        lmin = evals[:, 0]
+        normal = evecs[:, :, 0]                       # (n, nd), unit vectors
+        strength[ok] = -lmin
+
+        idx = np.argwhere(ok).astype(float)           # node index coordinates
+        # One physical step of the smallest spacing along the normal, in
+        # index units of each axis.
+        step = normal * (spacing.min() / spacing)
+        f_plus = ndimage.map_coordinates(
+            f, (idx + step).T, order=1, mode='nearest', cval=np.nan)
+        f_minus = ndimage.map_coordinates(
+            f, (idx - step).T, order=1, mode='nearest', cval=np.nan)
+        f_here = f[ok]
+        is_ridge = ((lmin < -min_curvature) & (f_here >= thr)
+                    & (f_here > f_minus) & (f_here >= f_plus))
+        ridge[ok] = is_ridge
+
+        # A maximum across the ridge cannot be verified without neighbours on
+        # both sides, so the outermost layer of nodes never carries a ridge.
+        edge = np.zeros(f.shape, dtype=bool)
+        for ax in range(nd):
+            edge[(slice(None),) * ax + (0,)] = True
+            edge[(slice(None),) * ax + (-1,)] = True
+        ridge &= ~edge
+
+    def restore(a, fill):
+        out = np.full(shape_full, fill, dtype=a.dtype)
+        out[squeeze] = a
+        return out
+
+    return xr.Dataset(
+        {'ridge': (dims, restore(ridge, False)),
+         'ridge_strength': (dims, restore(strength, np.nan)),
+         'ftle_smooth': (dims, restore(f, np.nan))},
+        coords={d: field[d] for d in dims if d in field.coords},
+        attrs={'method': 'FTLE ridges: concave (Hessian) + non-maximum '
+                         'suppression along the normal',
+               'smooth': smooth, 'min_ftle_used': float(thr),
+               'min_curvature': min_curvature})
