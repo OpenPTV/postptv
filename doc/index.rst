@@ -31,6 +31,7 @@ Contents:
    clean
    merge
    pairs
+   lyapunov
    scene
    analysis
    an_scene
