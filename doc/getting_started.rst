@@ -132,3 +132,26 @@ Read a run, pick the longest trajectories and draw them in 3D:
    plot_trajectories_3d("run.zarr", trajids=sel, context=1000,
                         plotter=plotter, show=False)
    plotter.show()
+
+
+Animation
+---------
+
+Animate the same run frame by frame (writes PNG frames, optionally an MP4
+with ffmpeg):
+
+.. figure:: _static/getting_started_demo.png
+   :alt: First frame of an animated trajectory view
+   :width: 100%
+
+.. code:: python
+
+   from flowtracks.graphics import animate_trajectories_3d
+
+   animate_trajectories_3d(
+       "run.zarr",
+       out_dir="frames/",
+       movie="trajectories.mp4",   # requires ffmpeg on PATH
+       frames=None,                # animate every frame of the source
+       label="frame {frame}",
+   )
