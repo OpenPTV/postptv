@@ -13,7 +13,7 @@ ParaView/VTK export. It is one stage of the OpenPTV multi-repo pipeline
 The full documentation is maintained in the
 [`doc/`](doc/index.rst) Sphinx sources (build with
 `python -m sphinx -b html doc _build/html`), and is also hosted on
-[Read the Docs](https://flowtracks.readthedocs.io).
+[GitHub Pages](https://openptv.github.io/postptv/).
 
 ## Installation
 
