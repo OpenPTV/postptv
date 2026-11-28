@@ -69,3 +69,41 @@ Running the test suite
 .. code:: bash
 
    uv run pytest
+
+
+Examples
+--------
+
+The ``examples/`` directory ships runnable notebooks:
+
+* ``examples/hdf5_scene_analysis.ipynb`` — a tutorial to the basic HDF5
+  analysis workflow.
+* ``examples/repeated_interpolation.ipynb`` — a demonstration of the
+  ``flowtracks.interpolation`` module.
+
+Additional examples live in the
+`flowtracks_examples <https://github.com/alexlib/flowtracks_examples>`_
+repository.
+
+Analysis script
+---------------
+
+The script ``scripts/analyse_fhdf.py`` runs a full analysis from a config
+file. Usage::
+
+  python scripts/analyse_fhdf.py --help
+
+A config file looks like::
+
+   [Particle]
+   density = 1450
+   diameter = 500e-6
+
+   [Scene]
+   particles file = particles.h5
+   tracers file = tracers.h5
+   first frame = 10001
+   last frame = 10200
+   frame rate = 500
+
+See the ``data/`` directory for matching sample data.
