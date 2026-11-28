@@ -107,3 +107,28 @@ A config file looks like::
    frame rate = 500
 
 See the ``data/`` directory for matching sample data.
+
+
+A first plot
+------------
+
+Read a run, pick the longest trajectories and draw them in 3D:
+
+.. figure:: _static/getting_started_demo.png
+   :alt: 3D view of the longest trajectories
+   :width: 100%
+
+.. code:: python
+
+   from flowtracks.io import trajectories, save_zarr_trajectories
+   from flowtracks.graphics import plot_trajectories_3d, select_trajectories
+   import pyvista as pv
+
+   trajs = trajectories("data/tracers/ptv_is.%d", first=10001, last=10020,
+                        frate=500.0, traj_min_len=20)
+   save_zarr_trajectories(trajs, "run.zarr", overwrite=True)
+   sel = select_trajectories("run.zarr", by="length", n=6)
+   plotter = pv.Plotter(off_screen=True)
+   plot_trajectories_3d("run.zarr", trajids=sel, context=1000,
+                        plotter=plotter, show=False)
+   plotter.show()
