@@ -47,6 +47,22 @@ attribute pair is recorded on the group for provenance.
 against the same unit system the source file was produced with, and scale
 the input (or pass ``units=`` explicitly) if you need SI units.
 
+From file to picture
+=====================
+
+The figure below shows the example stitched file from the MyPTV repository
+(``example/trajecotries_stitched``, 325 samples, 43 linked trajectories)
+converted to a Zarr store by :func:`convert_myptv_to_zarr` and rendered
+with :func:`flowtracks.graphics.plot_trajectories_3d` — a 3D view of the
+8 longest linked trajectories, coloured by speed (stored per-frame velocity).
+Faint grey points show the rest of the cloud for context.
+
+.. figure:: _static/myptv_trajectories.png
+   :alt: 3D view of MyPTV stitched trajectories, coloured by speed
+   :width: 100%
+
+   Trajectories from MyPTV's stitched file, recovered through postptv.
+
 .. automodule:: flowtracks.myptv
    :members:
    :private-members:
