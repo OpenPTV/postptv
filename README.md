@@ -92,7 +92,6 @@ plotter.screenshot("openptv_tracks.png", window_size=(900, 600))
 ```
 
 ## Quick start
-## Quick start
 
 ```python
 from flowtracks.io import trajectories
