@@ -19,6 +19,7 @@ exports results as Zarr and ParaView (VTK) files.
 
    getting_started
    myptv
+   proptv
    datastruct
    particle
    io

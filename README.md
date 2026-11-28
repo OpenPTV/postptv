@@ -42,21 +42,27 @@ cd postptv
 uv sync --group dev      # or: pip install -e ".[vtk]"
 ```
 
-## Interoperability with MyPTV
+## Interoperability with MyPTV and proPTV
 
-`flowtracks.myptv` reads a MyPTV trajectory file (tracked, smoothed or stitched)
-and converts it to flowtracks trajectories — or directly to a Zarr store that
-`ZarrScene` reads natively, so MyPTV and openptv/openptv-cloud can be used
-interchangeably and their results combined in postptv:
+`flowtracks.myptv` reads a MyPTV trajectory file (tracked, smoothed or
+stitched) and converts it to flowtracks trajectories — or directly to a Zarr
+store that `ZarrScene` reads natively. `flowtracks.proptv` does the same
+job for proPTV's `tracks*.hdf5` output:
 
 ```python
 from flowtracks.myptv import convert_myptv_to_zarr
+from flowtracks.proptv import convert_proptv_to_zarr
 
-convert_myptv_to_zarr("smoothed_trajectories", "run.zarr")
+convert_myptv_to_zarr("smoothed_trajectories", "myptv_run.zarr")
+convert_proptv_to_zarr("tracks.hdf5", "proptv_run.zarr")
 ```
 
-See [`doc/myptv.rst`](doc/myptv.rst) for the file formats and semantics.
+Either form feeds flowtracks' Eulerian/phase-averaging pipeline directly, so
+MyPTV and proPTV (or openptv/openptv-cloud) can be used interchangeably and
+their results combined in postptv. See [`doc/myptv.rst`](doc/myptv.rst) and
+[`doc/proptv.rst`](doc/proptv.rst) for the file formats and semantics.
 
+## Quick start
 ## Quick start
 
 ```python

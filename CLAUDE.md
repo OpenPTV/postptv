@@ -61,6 +61,15 @@ a getter/setter pair via `create_property`), and `Trajectory` /
 `ParticleSnapshot` on top of it. `Frame` is a plain data-holder with
 `.particles` / `.tracers` attributes.
 
+### proPTV import (`proptv.py`)
+
+`proptv.py` reads a proPTV `tracks*.hdf5` file into flowtracks Trajectories
+and converts it to a Zarr store readable by `ZarrScene` natively — the same
+interop role `myptv.py` plays for MyPTV, letting proPTV and flowtracks
+outputs be exchanged. Each track dataset `track_{t}_{key}` holds
+`[frame, x, y, z, vx, vy, vz, ax, ay, az, <cx,cy>*n_cameras]` (mm, integers
+in floats); camera columns are ignored.
+
 ### MyPTV import (`myptv.py`)
 
 `myptv.py` reads MyPTV TSV trajectory files (tracked / smoothed / stitched)
