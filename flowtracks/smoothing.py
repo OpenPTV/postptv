@@ -15,48 +15,28 @@ from flowtracks.trajectory import Trajectory
 
 def savitzky_golay(trajs, fps, window_size, order, min_window=None):
     r"""Smooth (and optionally differentiate) data with a Savitzky-Golay filter.
-    The Savitzky-Golay filter removes high frequency noise from data.
-    It has the advantage of preserving the original shape and
-    features of the signal better than other types of filtering
-    approaches, such as moving averages techniques.
+
+    The Savitzky-Golay filter removes high frequency noise from data. It has the advantage of preserving the original shape and features of the signal better than other types of filtering approaches, such as moving averages techniques.
 
     Parameters:
-    trajs - a list of Trajectory objects
-    window_size - int,
-        the length of the window. Must be an odd integer number.
+    trajs - a list of Trajectory objects.
+    window_size - int, the length of the window. Must be an odd integer number.
     fps - frames per second, used for calculating velocity and acceleration.
-    order - int,
-        the order of the polynomial used in the filtering.
-        Must be less then `window_size` - 1.
-    min_window - int or None. None (default): trajectories shorter than
-        `window_size` are discarded. Otherwise a shorter trajectory is
-        smoothed with the largest odd window it fills (down to
-        `min_window`) instead of being dropped -- dropping them removes the
-        short, often fast, tracks and biases flow statistics.
+    order - int, the order of the polynomial used in the filtering. Must be less than ``window_size`` - 1.
+    min_window - int or None. None (default): trajectories shorter than ``window_size`` are discarded. Otherwise a shorter trajectory is smoothed with the largest odd window it fills (down to ``min_window``) instead of being dropped -- dropping them removes the short, often fast, tracks and biases flow statistics.
 
     Returns:
-    new_trajs - a list of Trajectory objects representing the smoothed
-        trajectories. Trajectories shorter than the window size (or than
-        `min_window` when given) are discarded.
+    new_trajs - a list of Trajectory objects representing the smoothed trajectories. Trajectories shorter than the window size (or than ``min_window`` when given) are discarded.
 
     Notes:
-    The Savitzky-Golay [1][3] is a type of low-pass filter, particularly
-    suited for smoothing noisy data. The main idea behind this
-    approach is to make for each point a least-square fit with a
-    polynomial of high order over a odd-sized window centered at
-    the point [2].
+    The Savitzky-Golay filter is a type of low-pass filter, particularly suited for smoothing noisy data. The main idea is to make, for each point, a least-square fit with a polynomial of high order over an odd-sized window centered at the point.
 
     References:
 
-    .. [1] A. Savitzky, M. J. E. Golay, Smoothing and Differentiation of \
-       Data by Simplified Least Squares Procedures. Analytical \
-       Chemistry, 1964, 36 (8), pp 1627-1639.
+    - A. Savitzky and M. J. E. Golay, Smoothing and Differentiation of Data by Simplified Least Squares Procedures, Analytical Chemistry, 1964, 36 (8), pp 1627-1639.
+    - Numerical Recipes 3rd Edition: The Art of Scientific Computing, W. H. Press, S. A. Teukolsky, W. T. Vetterling, B. P. Flannery, Cambridge University Press, ISBN-13: 9780521880688.
+    - scipy cookbook: http://wiki.scipy.org/Cookbook/SavitzkyGolay
 
-    .. [2] Numerical Recipes 3rd Edition: The Art of Scientific Computing \
-       W.H. Press, S.A. Teukolsky, W.T. Vetterling, B.P. Flannery \
-       Cambridge University Press ISBN-13: 9780521880688
-
-    .. [3] http://wiki.scipy.org/Cookbook/SavitzkyGolay
     """
     try:
         window_size = np.abs(np.int_(window_size))

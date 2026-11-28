@@ -75,10 +75,9 @@ def streamlined_pipeline(config_path="config.yaml", grid_path="grid.yaml", recip
 
     1. Step 1: ptv_is -> Lagrangian HDF5 (via flowtracks).
     2. Step 2: Bin Lagrangian scenes directly into in-memory xarray Datasets.
-    3. Steps 3-5: Run phase-averaging, fluctuations, turbulent statistics and derived
-       fields directly on xarray Datasets in memory.
-    4. Save final output as NetCDF or Zarr with rich CF metadata for ParaView, and
-       optionally export binary VTK files.
+    3. Steps 3-5: Run phase-averaging, fluctuations, turbulent statistics and derived fields directly on xarray Datasets in memory.
+    4. Save final output as NetCDF or Zarr with rich CF metadata for ParaView, and optionally export binary VTK files.
+
     """
     from flowtracks.eulerian import eulerian_grid, run_post_analysis_ds, save_dataset
     from flowtracks.io import Scene

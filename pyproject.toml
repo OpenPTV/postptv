@@ -62,10 +62,15 @@ notebooks = [
     "tables",
 ]
 
+docs = [
+    "sphinx>=7.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-benchmark",
+    "sphinx>=7.0",
 ]
 
 [tool.pytest.ini_options]

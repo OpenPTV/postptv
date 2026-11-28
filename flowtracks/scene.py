@@ -80,10 +80,7 @@ class Scene(object):
     particle trajectory data. It manages access by frames or trajectories,
     as well as by segments.
 
-    .. deprecated::
-        Legacy PyTables/HDF5 backend. Prefer
-        :class:`flowtracks.zarr_scene.ZarrScene` (duck-typed compatible)
-        and open stores via :func:`open_scene`.
+    Note (deprecated): Legacy PyTables/HDF5 backend. Prefer :class:`flowtracks.zarr_scene.ZarrScene` (duck-typed compatible) and open stores via :func:`open_scene`.
     """
     def __init__(self, file_name, frame_range=None):
         """

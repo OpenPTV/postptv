@@ -6,17 +6,11 @@
 """
 Interpolation routines.
 
-.. rubric:: References
+References:
 
-.. [#IDW] http://en.wikipedia.org/wiki/Inverse_distance_weighting
-
-.. [#BL] Lüthi, Beat. Some Aspects of Strain, Vorticity and Material Element \
-   Dynamics as Measured with 3D Particle Tracking Velocimetry in a \
-   Turbulent Flow. PhD Thesis, ETH-Zürich (2002).
-
-.. [#RBF] http://en.wikipedia.org/wiki/Radial_basis_function
-
-.. rubric:: Documentation
+- Inverse distance weighting -- http://en.wikipedia.org/wiki/Inverse_distance_weighting
+- Lüthi, Beat. Some Aspects of Strain, Vorticity and Material Element Dynamics as Measured with 3D Particle Tracking Velocimetry in a Turbulent Flow. PhD Thesis, ETH-Zürich (2002).
+- Radial basis function -- http://en.wikipedia.org/wiki/Radial_basis_function
 """
 
 import warnings
@@ -723,7 +717,7 @@ class GeneralInterpolant(object):
 class InverseDistanceWeighter(GeneralInterpolant):
     """
     Holds all parameters necessary for performing an inverse-distance
-    interpolation [#IDW]_. Use is either as a callable object after
+    interpolation (see http://en.wikipedia.org/wiki/Inverse_distance_weighting). Use is either as a callable object after
     initialization, see :meth:`__call__`, or by setting a scene for repeated
     interpolation, see :meth:`set_scene` and :meth:`interpolate`
     """

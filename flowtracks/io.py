@@ -747,16 +747,12 @@ def save_particles_table(filename, trajects, trim=None):
     (frame number) and trajid - the last one may be indexed. Note that no extra
     (per-trajectory or meta) data is allowed here, unlike the npz save format.
 
-    .. deprecated::
-        Legacy PyTables/HDF5 format. Prefer
-        :func:`save_zarr_trajectories` + :class:`ZarrScene`.
+    Note (deprecated): Legacy PyTables/HDF5 format. Prefer :func:`save_zarr_trajectories` + :class:`ZarrScene`.
 
     Arguments:
-    filename - name of output PyTables HDF5 file to create. The 'h5' extension
-        is recommended so that infer_format() knows what to do with it.
+    filename - name of output PyTables HDF5 file to create ('h5' extension recommended, so that infer_format() knows what to do with it).
     trajects - a list of Trajectory objects to save.
-    trim - if None, remove this many time points from each end of each
-        trajectory before saving.
+    trim - if None, remove this many time points from each end of each trajectory before saving.
     """
     _require_tables()
     table = None
@@ -887,9 +883,7 @@ def trajectories_table(fname, first=None, last=None):
     Reads trajectories from a PyTables HDF5 file, as saved by
     save_particles_table().
 
-    .. deprecated::
-        Legacy PyTables/HDF5 format. Prefer
-        :func:`read_zarr_trajectories` + :class:`ZarrScene`.
+    Note (deprecated): Legacy PyTables/HDF5 format. Prefer :func:`read_zarr_trajectories` + :class:`ZarrScene`.
 
     Arguments:
     fname - path to file to read.

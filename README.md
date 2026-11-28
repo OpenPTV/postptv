@@ -1,94 +1,123 @@
+# Flowtracks — post-processing of 3D-PTV data
 
-Flowtracks - postprocessing of 3D-PTV data
-==========================================
+Flowtracks is a Python package for post-processing 3D Particle Tracking
+Velocimetry (3D-PTV) trajectory databases: reading per-frame particle data,
+building trajectories, interpolating Lagrangian data onto Eulerian grids,
+phase and ensemble averaging for periodic flows, smoothing, stitching, and
+ParaView/VTK export. It is one stage of the OpenPTV multi-repo pipeline
+(see below).
 
-This package contains Flowtracks, a Python-package for post-processing
-of 3D Particle Tracking Velocimetry particle/trajectory databases.
+**Latest release:** <https://pypi.org/project/flowtracks/>
+**Tests:** `uv run pytest`
 
-Latest release: https://pypi.org/project/flowtracks/ (flowtracks 1.2.2)
+The full documentation is maintained in the
+[`doc/`](doc/index.rst) Sphinx sources (build with
+`python -m sphinx -b html doc _build/html`).
 
-The full documentation for this package may be built from the Sphinx 
-sources in the doc/ directory. It is also available online:
+## Installation
 
-  http://flowtracks.readthedocs.org
+```bash
+pip install flowtracks
+```
 
-Please refer to that documentation for the full information on installing,
-reference documentation and usage examples contained in the package.
+Optional extras:
 
-License
-=======
+```bash
+pip install "flowtracks[vtk]"       # ParaView export (pyvista + vtk)
+pip install "flowtracks[legacy-io]" # legacy PyTables HDF5 reader
+pip install "flowtracks[flux]"      # centerline flux (scikit-image)
+pip install "flowtracks[netcdf]"    # NetCDF export (netcdf4)
+pip install "flowtracks[notebooks]" # marimo/Jupyter notebooks environment
+```
 
-The original `flowtracks` core stays under the GNU General Public License,
-version 3.0 (see `LICENSE.txt`): `trajectory`, `particle`, `sequence`,
-`scene`, `an_scene`, `analysis`, `io`, `smoothing`, `interpolation`,
-`pairs`, `graphics`, `format_docstrings`, and `__init__`.
-
-Newer modules — the Zarr backend and the xarray post-processing track
-(`zarr_scene`, `eulerian`, `phase_average`, `pipeline`, `combine`,
-`stitching`, `repair`, `writers`, `provenance`, `vortex`, `wall_shear`,
-`flux`, `nhist`, `future_idea_xarray_dask_zarr`) — are BSD-3-Clause
-(see `LICENSES/BSD-3-Clause.txt`).
-
-Every module states its license in an SPDX header at the top of the file.
-Note that the package as a whole combines both, so a distributed
-`flowtracks` follows GPL-3.0 terms; the BSD modules are reusable under BSD
-only when used standalone, without the GPL core.
-
-How to cite this work
-=====================
-
-Meller, Y and Liberzon, A 2016 Particle Data Management Software for 3DParticle Tracking Velocimetry and Related Applications – The Flowtracks Package. Journal of Open Research Software, 4: e23, DOI: <http://dx.doi.org/10.5334/jors.101> 
-
-
-Getting Started
-===============
-
-Obtaining the package and its dependencies
-------------------------------------------
-
-The most recent version of this package may be found under the auspices of
-the OpenPTV project, in its Github repository,
-
-  https://github.com/OpenPTV/postptv
-
-Dependencies:
-
-* The software depends on the SciPy package, obtainable from 
-  http://www.scipy.org/
-
-* Some features depend on the Matplotlib package. Users which need those 
-  features may get Matplotlib at http://matplotlib.org/
-
-Installation
------------
-
-For users (no source checkout needed) — install the latest release
-from PyPI (https://pypi.org/project/flowtracks/):
-
-    pip install flowtracks
-
-With ParaView export support (writes .vti/.vtr/.pvd via pyvista/vtk):
-
-    pip install "flowtracks[vtk]"
-
-Requires Python ≥ 3.11; numpy/scipy and the other core dependencies
-are installed automatically.
+Requires Python ≥ 3.11. Core dependencies: numpy, scipy, h5py, pyyaml,
+zarr ≥ 3.0.0, xarray ≥ 2024.1.0 and matplotlib. See `pyproject.toml` for the
+full list.
 
 For developers — clone the repository and install it editable:
 
-    git clone https://github.com/OpenPTV/postptv
-    cd postptv
-    pip install -e ".[vtk]"   # or: uv sync --group dev (installs pytest)
+```bash
+git clone https://github.com/OpenPTV/postptv
+cd postptv
+uv sync --group dev      # or: pip install -e ".[vtk]"
+```
 
-See pyproject.toml for the full dependency list and the optional
-extras (vtk, legacy-io, notebooks). The legacy HDF5/pytables reader
-needs the legacy-io extra; the .vti/.vtr ParaView writers need vtk.
+## Interoperability with MyPTV, proPTV and OpenLPT
 
-The examples are Jupyter notebooks [2], and can be previewed without any 
-special setup under the examples section of
+The `flowtracks.myptv`, `flowtracks.proptv` and `flowtracks.openlpt`
+readers convert the three 3D-PTV tracking pipelines into flowtracks
+:class:`~flowtracks.trajectory.Trajectory` objects — or directly into a Zarr
+store that `ZarrScene` reads natively, so their results are combined and
+post-processed in postptv:
 
-    http://flowtracks.readthedocs.org
+```python
+from flowtracks.myptv import convert_myptv_to_zarr
+from flowtracks.proptv import convert_proptv_to_zarr
+from flowtracks.openlpt import convert_openlpt_to_zarr
 
+convert_myptv_to_zarr("smoothed_trajectories", "myptv_run.zarr")
+convert_proptv_to_zarr("tracks.hdf5", "proptv_run.zarr")
+convert_openlpt_to_zarr("ConvergeTrack", "openlpt_run.zarr")
+```
 
-[1] Python documentation: https://docs.python.org/3/install/index.html
-[2] http://jupyter.org/
+For pyOpenLPT (the `openlpt` package), the `convert_pyopenlpt_to_zarr`
+alias records `source_format="pyopenlpt"` on the same store. See
+[`doc/myptv.rst`](doc/myptv.rst),
+[`doc/proptv.rst`](doc/proptv.rst) and
+[`doc/openlpt.rst`](doc/openlpt.rst) for the file formats and semantics,
+and [`examples/openlpt_tracks_example.py`](examples/openlpt_tracks_example.py)
+for a runnable tour.
+
+## Quick start
+## Quick start
+
+```python
+from flowtracks.io import trajectories
+from flowtracks.zarr_scene import ZarrScene
+from flowtracks.eulerian import eulerian_grid
+
+trajs = trajectories("my_run.zarr")        # format inferred from the filename
+scene = ZarrScene("my_run.zarr")           # a Zarr-backed Scene
+ds = eulerian_grid(scene, grid_params, 0, 2)  # bin into an Eulerian grid
+```
+
+Further narrative material (recipes, the math, the marimo story) lives in
+`docs/`:
+
+- [`docs/eulerian_statistics.md`](docs/eulerian_statistics.md) — per-run vs pooled statistics
+- [`docs/story/`](docs/story/index.html) — marimo-studio story of the pipeline
+
+Examples, notebooks and the marimo demo live in [`examples/`](examples/).
+
+## Repository layout
+
+| Path | What it is |
+|------|-----------|
+| `flowtracks/` | the package (see `CONTRIBUTING.md` for the module map) |
+| `doc/` | Sphinx documentation (API reference + guides) |
+| `docs/` | narrative docs: Eulerian statistics guide + marimo story |
+| `examples/` | runnable scripts and marimo/Jupyter notebooks |
+| `tests/` | the test suite (`uv run pytest`) |
+| `scripts/` | analysis scripts and helpers |
+
+## License
+
+`flowtracks` combines two licenses. The original core — `trajectory`, `particle`,
+`sequence`, `scene`, `analysis`, `io`, `smoothing`, `interpolation`, `pairs`,
+`graphics`, `format_docstrings`, `phasing`, `lyapunov` and `__init__` — is
+under the **GNU GPL v3.0** (see `LICENSE.txt`). Newer modules — the Zarr
+backend and the xarray post-processing track and the related BSD-3-Clause
+modules (`zarr_scene`, `eulerian`, `phase_average`, `pipeline`, `combine`,
+`stitching`, `repair`, `writers`, `provenance`, `vortex`, `wall_shear`,
+`flux`, `nhist`, `clean`, `merge`) — are **BSD-3-Clause**
+(see `LICENSES/BSD-3-Clause.txt`). Every module states its license in an
+SPDX header at the top of the file. The package as a whole combines both, so
+a distributed `flowtracks` follows GPL-3.0 terms; the BSD modules are
+reusable under BSD only when used standalone, without the GPL core.
+
+## How to cite this work
+
+Meller, Y and Liberzon, A 2016. "Particle Data Management Software for 3D
+Particle Tracking Velocimetry and Related Applications – The Flowtracks
+Package." *Journal of Open Research Software*, 4: e23.
+DOI: <https://doi.org/10.5334/jors.101>

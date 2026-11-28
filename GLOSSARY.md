@@ -1,5 +1,14 @@
 # Glossary
 
+> **Note on naming:** this file is a dictionary of terms used across the
+> OpenPTV family and in legacy scripts. Several names — `zaman`, `fin`,
+> `cycletime`, `deltat`, `base_time`, `par_ave2`, and the legacy `phase_average`
+> vs `phase_average_fluctuations` script — are the MATLAB-style legacy
+> spellings. The canonical names in the current code are `phase_width`,
+> `n_phases`, `n_frames_in_period`, `phase_of_frame`/`bin_of_frame`/`assign_bins`,
+> `n_samples`/`n_traj` (see `flowtracks/phasing.py` and
+> `docs/eulerian_statistics.md`).
+
 | Term | Definition |
 |------|-----------|
 | **Trajectory** | A sequence of particle positions/velocities over time, identified by `trajid` |

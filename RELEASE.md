@@ -7,14 +7,14 @@ nothing in the source tree holds a version number.
 
 Every push to `master` that passes the tests is published to PyPI as a
 development release: `X.Y.(Z+1).devN`, where `vX.Y.Z` is the last tag and `N`
-the number of commits since it (e.g. `1.5.2.dev3`).
+the number of commits since it (e.g. `1.8.1.dev15`).
 
 `pip install flowtracks` and `uv add flowtracks` ignore development releases,
 so users of the stable version never get them by accident. To use one:
 
 ```bash
 pip install --pre flowtracks                  # newest, including dev releases
-pip install "flowtracks>=1.5.2.dev3"          # at least this commit
+pip install "flowtracks>=1.8.1.dev15"          # at least this commit
 ```
 
 (uv accepts a dev release whenever the requirement itself names one, as in

@@ -19,3 +19,4 @@ media/
 # Local diagnostic visualization artifacts
 lv_multi_interactive_3d.html
 vfc_trajectory_ghost_elimination.png
+_build/

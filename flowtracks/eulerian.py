@@ -2,10 +2,8 @@
 # SPDX-FileCopyrightText: Alex Liberzon
 """Post-analysis pipeline as pure Dataset -> Dataset stages, driven by one YAML recipe.
 
-xarray re-expression of batch_Lagrangian_to_Eulerian.py, turbulent_statistics.py
-and per-slice derived turbulence fields, chained after phase_average_xr.
-
-Run:  uv run python src/post_analysis_xr.py [post_recipe.yaml]
+xarray re-expression of examples/batch_Lagrangian_to_Eulerian.py and the
+per-slice derived turbulence fields, chained after flowtracks.phase_average.
 """
 
 from pathlib import Path
