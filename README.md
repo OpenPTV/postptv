@@ -68,6 +68,29 @@ alias records `source_format="pyopenlpt"` on the same store. See
 and [`examples/openlpt_tracks_example.py`](examples/openlpt_tracks_example.py)
 for a runnable tour.
 
+## From OpenPTV data to a picture
+
+The first 20 frames of the OpenPTV tracer data shipped with flowtracks
+(`data/tracers`, ptv_is format, 500 fps) converted to a Zarr store and
+rendered with `flowtracks.graphics.plot_trajectories_3d`:
+
+![OpenPTV tracer trajectories coloured by speed](doc/_static/openptv_tracks.png)
+
+```python
+from flowtracks.io import trajectories, save_zarr_trajectories
+from flowtracks.graphics import plot_trajectories_3d, select_trajectories
+import pyvista as pv
+
+trajs = trajectories("data/tracers/ptv_is.%d", first=10001, last=10020,
+                     frate=500.0, traj_min_len=20)
+save_zarr_trajectories(trajs, "openptv_run.zarr", overwrite=True)
+sel = select_trajectories("openptv_run.zarr", by="length", n=8)
+plotter = pv.Plotter(off_screen=True)
+plot_trajectories_3d("openptv_run.zarr", trajids=sel, context=2000,
+                     plotter=plotter, show=False)
+plotter.screenshot("openptv_tracks.png", window_size=(900, 600))
+```
+
 ## Quick start
 ## Quick start
 
