@@ -18,6 +18,7 @@ uv run pytest
 | `flowtracks/zarr_scene.py` | Zarr-backed scene backend (recommended) |
 | `flowtracks/myptv.py` | MyPTV TSV import (read / convert to Zarr) |
 | `flowtracks/proptv.py` | proPTV tracks import (read / convert to Zarr) |
+| `flowtracks/openlpt.py` | OpenLPT / pyOpenLPT track import (read / convert to Zarr) |
 | `flowtracks/trajectory.py` | Trajectory data model (ParticleSet, Trajectory, ParticleSnapshot) |
 | `flowtracks/particle.py` | `Particle` |
 | `flowtracks/sequence.py` | Text-format sequence iteration (non-HDF formats) |

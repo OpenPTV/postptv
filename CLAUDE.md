@@ -61,6 +61,16 @@ a getter/setter pair via `create_property`), and `Trajectory` /
 `ParticleSnapshot` on top of it. `Frame` is a plain data-holder with
 `.particles` / `.tracers` attributes.
 
+### OpenLPT import (`openlpt.py`)
+
+`openlpt.py` reads OpenLPT_GUI / pyOpenLPT `ConvergeTrack/*.csv` files into
+flowtracks Trajectories and converts them to a Zarr store readable by
+`ZarrScene` natively (the pyOpenLPT aliases record `source_format="pyopenlpt"`).
+Tracer: `[id, frame, x, y, z, camX, camY, ...]`; Bubble adds `R3D` before the
+2D columns. Velocity is re-derived by finite difference (the files store
+positions only); no acceleration is guessed. Bubble files keep a `radius`
+property; no such property is projected to the Zarr store.
+
 ### proPTV import (`proptv.py`)
 
 `proptv.py` reads a proPTV `tracks*.hdf5` file into flowtracks Trajectories
