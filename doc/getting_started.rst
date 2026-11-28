@@ -140,8 +140,8 @@ Animation
 Animate the same run frame by frame (writes PNG frames, optionally an MP4
 with ffmpeg):
 
-.. figure:: _static/rotation_demo.gif
-   :alt: Rotating 3D view of the longest trajectories
+.. figure:: _static/flow_demo.gif
+   :alt: Trajectories flowing over time
    :width: 100%
 
 .. code:: python
