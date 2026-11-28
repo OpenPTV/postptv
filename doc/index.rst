@@ -18,6 +18,7 @@ exports results as Zarr and ParaView (VTK) files.
    :maxdepth: 2
 
    getting_started
+   openptv
    myptv
    proptv
    openlpt

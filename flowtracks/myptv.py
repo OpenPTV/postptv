@@ -175,7 +175,10 @@ def convert_myptv_to_zarr(path, zarr_path, group="trajectories", overwrite=True,
     path = Path(path)
     trajects = read_myptv_trajectories(path, sort=sort)
 
-    has_accel = any(hasattr(t, "accel") for t in trajects)
+    # Align with save_zarr_trajectories, which writes the accel array only
+    # when the first trajectory carries it (the shared schema assumption).
+    has_accel = (len(trajects) > 0 and hasattr(trajects[0], "accel")
+                 and trajects[0].accel() is not None)
 
     if units is None:
         units = {"pos": "m", "vel": "m frame-1", "time": "frame"}

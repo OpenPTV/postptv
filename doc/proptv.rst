@@ -44,6 +44,19 @@ units and no frame rate, so ``units=`` is passed to state absolute units
 explicitly. A ``source_format``/``source_file``/``source_path`` attribute
 pair is recorded on the group for provenance.
 
+.. code:: python
+
+   from flowtracks.proptv import convert_proptv_to_zarr
+   from flowtracks.graphics import plot_trajectories_3d, select_trajectories
+   import pyvista as pv
+
+   convert_proptv_to_zarr("tracksinitial.hdf5", "proptv_run.zarr")
+   sel = select_trajectories("proptv_run.zarr", by="length", n=22)
+   plotter = pv.Plotter(off_screen=True)
+   plot_trajectories_3d("proptv_run.zarr", trajids=sel, context=1000,
+                        plotter=plotter, show=False)
+   plotter.screenshot("proptv_tracks.png", window_size=(900, 600))
+
 .. figure:: _static/proptv_tracks.png
    :alt: 3D view of proPTV example tracks, coloured by speed
    :width: 100%

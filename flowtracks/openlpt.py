@@ -23,7 +23,7 @@ sample:
 error tolerance and volume scale are in mm). Frame IDs are integer frame
 numbers. Velocity and acceleration are NOT stored in these files; the
 translator re-derives velocity as finite differences over the frame column
-(metres... mm per frame) — the same convention used by MyPTV's smoothing and
+(mm per frame) — the same convention used by MyPTV's smoothing and
 stitching stages. Acceleration is not guessed.
 
 ``read_openlpt_tracks`` parses the directory into flowtracks Trajectory
@@ -162,7 +162,7 @@ def read_openlpt_tracks(path, outcomes=None, sort=True):
         pos = np.asarray(data["pos"], dtype=np.float64)
         time = np.asarray(data["time"], dtype=np.int64)
         radius = np.asanyarray(data["radius"], dtype=np.float64)
-        order = np.lexsort((time, time))  # stable sort by time
+        order = np.argsort(time, kind="stable")
         pos, time, radius = pos[order], time[order], radius[order]
 
         vel = _finite_difference_velocity(pos, time)

@@ -57,6 +57,19 @@ with :func:`flowtracks.graphics.plot_trajectories_3d` — a 3D view of the
 8 longest linked trajectories, coloured by speed (stored per-frame velocity).
 Faint grey points show the rest of the cloud for context.
 
+.. code:: python
+
+   from flowtracks.myptv import convert_myptv_to_zarr
+   from flowtracks.graphics import plot_trajectories_3d, select_trajectories
+   import pyvista as pv
+
+   convert_myptv_to_zarr("example/trajecotries_stitched", "myptv_run.zarr")
+   sel = select_trajectories("myptv_run.zarr", by="length", n=8)
+   plotter = pv.Plotter(off_screen=True)
+   plot_trajectories_3d("myptv_run.zarr", trajids=sel, context=1000,
+                        plotter=plotter, show=False)
+   plotter.screenshot("myptv_trajectories.png", window_size=(900, 600))
+
 .. figure:: _static/myptv_trajectories.png
    :alt: 3D view of MyPTV stitched trajectories, coloured by speed
    :width: 100%

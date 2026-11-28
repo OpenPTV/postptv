@@ -111,13 +111,12 @@ def convert_proptv_to_zarr(path, zarr_path, group="trajectories", overwrite=True
     path = Path(path)
     trajects = read_proptv_hdf5(path, sort=sort)
 
+    has_accel = (len(trajects) > 0 and hasattr(trajects[0], "accel")
+                 and trajects[0].accel() is not None)
     if units is None:
-        units = {
-            "pos": "mm",
-            "vel": "mm frame-1",
-            "time": "frame",
-            "accel": "mm frame-2",
-        }
+        units = {"pos": "mm", "vel": "mm frame-1", "time": "frame"}
+        if has_accel:
+            units["accel"] = "mm frame-2"
 
     save_zarr_trajectories(
         trajects, zarr_path, group=group, overwrite=overwrite, units=units
