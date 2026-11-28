@@ -91,7 +91,7 @@ Analysis script
 The script ``scripts/analyse_fhdf.py`` runs a full analysis from a config
 file. Usage::
 
-  python scripts/analyse_fhdf.py --help
+  uv run python scripts/analyse_fhdf.py --help
 
 A config file looks like::
 
