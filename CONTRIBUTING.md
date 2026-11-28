@@ -13,48 +13,52 @@ uv run pytest
 
 | Module | What it does |
 |--------|-------------|
-| `flowtracks/io.py` | Read/write trajectories (HDF5, Zarr, NPZ) |
-| `flowtracks/scene.py` | HDF5 scene backend (PyTables) |
-| `flowtracks/zarr_scene.py` | Zarr scene backend (duck-typed) |
-| `flowtracks/trajectory.py` | Trajectory data model (ParticleSet, Trajectory) |
-| `flowtracks/eulerian.py` | Lagrangian→Eulerian binning, phase/ensemble averaging, derived fields |
-| `flowtracks/phase_average.py` | Phase averaging as pure Dataset→Dataset functions |
-| `flowtracks/phase_average_xr.py` | YAML-recipe phase averaging |
-| `flowtracks/post_analysis_xr.py` | YAML-recipe post-analysis (binning + averaging + derived) |
+| `flowtracks/io.py` | Read/write trajectories (HDF5, Zarr, NPZ, PTVIS, …) |
+| `flowtracks/scene.py` | HDF5 scene backend (PyTables, optional `legacy-io`) |
+| `flowtracks/zarr_scene.py` | Zarr-backed scene backend (recommended) |
+| `flowtracks/myptv.py` | MyPTV TSV import (read / convert to Zarr) |
+| `flowtracks/trajectory.py` | Trajectory data model (ParticleSet, Trajectory, ParticleSnapshot) |
+| `flowtracks/particle.py` | `Particle` |
+| `flowtracks/sequence.py` | Text-format sequence iteration (non-HDF formats) |
+| `flowtracks/eulerian.py` | Lagrangian→Eulerian binning, derived fields, Zarr/NetCDF save |
+| `flowtracks/phase_average.py` | Phase averaging and fluctuation analysis (pure Dataset→Dataset) |
+| `flowtracks/phasing.py` | Canonical phase-bin assignment (shared with OpenPTV family) |
 | `flowtracks/pipeline.py` | Thin per-stage wrappers (ptv_is→Lagrangian→Eulerian) |
-| `flowtracks/combine.py` | Multi-run combination (per-run or pooled) |
+| `flowtracks/combine.py` | Multi-run combination (per-run or pooled moments) + `postptv-combine` CLI |
 | `flowtracks/stitching.py` | Reconnect broken trajectory segments |
-| `flowtracks/smoothing.py` | Trajectory smoothing (Savitzky-Golay) |
+| `flowtracks/smoothing.py` | Savitzky-Golay / smoothing-spline filtering |
 | `flowtracks/repair.py` | Trajectory repair (cut, attach, join) |
-| `flowtracks/writers.py` | ParaView export (VTK, VTI, VTR, VTP, PVD) |
-| `flowtracks/vortex.py` | Vortex identification (Q-criterion, lambda2) |
+| `flowtracks/clean.py` | Data cleaning chain (repair + smooth + stitch) |
 | `flowtracks/interpolation.py` | RBF/IDW interpolation onto grids |
-| `flowtracks/phasing.py` | Phase bin assignment (shared with openptv-cloud) |
-| `flowtracks/analysis.py` | Trajectory-level statistics |
-| `flowtracks/flux.py` | Flux calculations |
-| `flowtracks/graphics.py` | Visualization helpers |
+| `flowtracks/graphics.py` | Plotting helpers (distributions, vectors, 3D trajectories) |
+| `flowtracks/pairs.py` | Nearest-neighbour trajectory pairing |
+| `flowtracks/merge.py` | Merge two camera systems (rigid map, overlap, duplicates) |
+| `flowtracks/lyapunov.py` | FTLE / FSLE / Eulerian FTLE / ridge extraction |
+| `flowtracks/vortex.py` | Vortex identification (Q-criterion, lambda2, enstrophy) |
+| `flowtracks/wall_shear.py` | Near-wall shear stress (TAWSS/OSI/RRT) |
+| `flowtracks/flux.py` | Vessel cross-section flow rate |
 | `flowtracks/nhist.py` | Normalized histograms |
-| `flowtracks/pairs.py` | Trajectory pairing |
-| `flowtracks/merge.py` | Merge trajectories |
-| `flowtracks/clean.py` | Data cleaning |
-| `flowtracks/provenance.py` | Run provenance tracking |
-| `flowtracks/format_docstrings.py` | Docstring formatting |
+| `flowtracks/provenance.py` | Run provenance recording (runs in `run.zarr`) |
+| `flowtracks/writers.py` | ParaView export (PVD, VTP, VTI, VTR) |
+| `flowtracks/analysis.py` | Trajectory-level analysis helpers |
+| `flowtracks/format_docstrings.py` | Sphinx docstring formatting extension |
 
 ## Key concepts
 
-- **Trajectory**: A sequence of particle positions/velocities over time, identified by `trajid`
-- **Scene**: A reader backend (HDF5 or Zarr) providing `collect(["pos", "velocity", "time"])`
-- **Eulerian grid**: Regular (x,y,z,phase) grid of mean velocities from binning particles
-- **Phase**: Position in a periodic cycle (0..N-1), assigned by `ti = ((time - base) % cycletime) // zaman`
-- **Ensemble (per-run)**: Multiple runs binned individually and stacked on a `set` dimension, averaged with count weighting; second moments reflect run-to-run mean spread
-- **Pooled (per-voxel moments)**: Each run records unmasked counts, distinct trajectories (`n_traj`), means (`*_m1`), and centred second moments (`*_m2`) via `eulerian_grid(..., moments=True)`, combined exactly across runs with `combine_moments()` / `moment_statistics()` (see [docs/eulerian_statistics.md](docs/eulerian_statistics.md))
+- **Trajectory**: a sequence of particle positions/velocities over time, identified by `trajid`
+- **Scene**: a reader backend (HDF5 `Scene` or Zarr `ZarrScene`) providing `collect()`
+- **Eulerian grid**: regular (x, y, z, phase) grid of mean velocities from binning particles
+- **Phase**: position in a periodic cycle (0..N-1), assigned by `ti = ((time - base) % cycletime) // zaman`
+- **Ensemble (per-run)**: multiple runs binned individually and stacked on a `set` dimension, averaged with count weighting; second moments reflect run-to-run spread
+- **Pooled (per-voxel moments)**: each run records unmasked counts, distinct trajectories (`n_traj`), means (`*_m1`), and centred second moments (`*_m2`), combined exactly across runs with `combine_moments()` / `moment_statistics()` (see [docs/eulerian_statistics.md](docs/eulerian_statistics.md))
+- **Pipeline stage**: one independently runnable step (see `flowtracks/pipeline.py`) — the unit the cloud orchestrator distributes
 
 ## Architecture
 
 ```
 io.py / scene.py / zarr_scene.py  →  read trajectories
          ↓
-stitching.py / repair.py / smoothing.py  →  clean trajectories
+stitching.py / repair.py / smoothing.py / clean.py  →  clean trajectories
          ↓
 eulerian.py  →  bin to Eulerian grid (per run or pooled)
          ↓
@@ -69,6 +73,11 @@ writers.py  →  VTK/ParaView export
 
 ```bash
 uv run pytest                          # all tests
-uv run pytest tests/test_eulerian_grid.py  # specific
+uv run pytest tests/test_eulerian_grid.py  # specific file
 uv run pytest --benchmark-only         # benchmarks
 ```
+
+## Lint
+
+Ruff is configured in `pyproject.toml` (`E`/`W`/`F`/`I`; `E501`/`E701`/`E741`
+ignored) and runs in CI — `ruff check .` must pass before merge.

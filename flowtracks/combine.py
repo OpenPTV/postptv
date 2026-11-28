@@ -26,15 +26,10 @@ def run_combine(data_dir: str | Path = ".", method: str = "per_run",
     """Combine realizations into Eulerian/phase-averaged outputs.
 
     method:
-      - "per_run" (default, current): bin each realization to a per-run
-        phase grid, then count-weighted ensemble/phase averaging across runs.
-        Per-run ``min_count`` masking is applied before combining.
-      - "pooled": bin each realization into unmasked per-voxel moments
-        (counts, distinct trajectories, means, centred second moments) and
-        combine them exactly via :func:`flowtracks.eulerian.combine_moments`
-        and :func:`flowtracks.eulerian.moment_statistics`. ``min_count``
-        applies to pooled counts, so a bin sparse in one run but sufficient
-        across runs remains valid.
+
+    - "per_run" (default, current): bin each realization to a per-run phase grid, then count-weighted ensemble/phase averaging across runs. Per-run ``min_count`` masking is applied before combining.
+    - "pooled": bin each realization into unmasked per-voxel moments (counts, distinct trajectories, means, centred second moments) and combine them exactly via :func:`flowtracks.eulerian.combine_moments` and :func:`flowtracks.eulerian.moment_statistics`. ``min_count`` applies to pooled counts, so a bin sparse in one run but sufficient across runs remains valid.
+
     """
     data_path = Path(data_dir)
     res_dir = data_path / "res"

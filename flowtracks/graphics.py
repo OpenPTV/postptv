@@ -158,7 +158,7 @@ def trajectory_summary(source):
     spatial extent (bounding-box diagonal), path length (sum of step lengths:
     distance actually travelled, back-and-forth motion included) and largest
     jump -- the largest
-    one-frame spike: |step_k - (step_(k-1) + step_(k+1)) / 2|, a step that
+    one-frame spike: ``|step_k - (step_(k-1) + step_(k+1)) / 2|``, a step that
     disagrees with its two neighbours (a smooth speed-up is not a jump), in
     position units per time unit of ``time`` (frames), so a step across a
     bridged gap is not mistaken for one. Rows sorted by trajid."""

@@ -2,10 +2,8 @@
 # SPDX-FileCopyrightText: Alex Liberzon
 """Phase averaging as pure Dataset -> Dataset functions, driven by a YAML recipe.
 
-xarray re-expression of phase_average_fluctuations.py (pyorc-style):
+xarray re-expression of the legacy imperative phase-averaging scripts:
 the domain math is two one-liners; everything else is the data contract.
-
-Run:  uv run python src/phase_average_xr.py [recipe.yaml]
 """
 
 from pathlib import Path

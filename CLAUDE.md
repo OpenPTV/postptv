@@ -24,8 +24,9 @@ uv run pytest tests/test_speedup_equivalence.py -v  # perf-vectorization equival
 uv run pytest --benchmark-only    # pytest-benchmark suite (see .benchmarks/)
 ```
 
-No linter is configured in `pyproject.toml`; there is no build step (pure
-Python, no Cython here — unlike `openptv2`).
+Ruff is configured in `pyproject.toml` (`E`/`W`/`F`/`I`; `E501`/`E701`/`E741`
+ignored) and runs in CI — `ruff check .` must pass before merge. There is no
+build step (pure Python, no Cython here — unlike `openptv2`).
 
 ## Architecture
 
@@ -59,6 +60,17 @@ are written to accept both.
 a getter/setter pair via `create_property`), and `Trajectory` /
 `ParticleSnapshot` on top of it. `Frame` is a plain data-holder with
 `.particles` / `.tracers` attributes.
+
+### MyPTV import (`myptv.py`)
+
+`myptv.py` reads MyPTV TSV trajectory files (tracked / smoothed / stitched)
+into flowtracks Trajectories and converts them to a Zarr store readable by
+`ZarrScene` natively — the bridge that lets MyPTV and openptv/openptv-cloud
+outputs be combined in postptv. Smoothed/stitched files (11 cols:
+`id,x,y,z,vx,vy,vz,ax,ay,az,frame`) are used as stored; raw tracked files
+(5 or 9 cols) get forward-difference velocity over the frame column
+(metres per frame; no accel is guessed). Unlinked samples (trajid == -1) are
+kept as one-sample trajectories.
 
 ### I/O module (`io.py`)
 
@@ -99,8 +111,6 @@ the xr modules or `examples/` scripts; nothing is implemented twice here.
 - `writers.py`, `graphics.py`, `nhist.py` — visualization/export helpers
   (ParaView export goes through `writers.write_eulerian_series` /
   `write_trajectories_vtp`; the legacy `vtk_export.py` module is removed).
-- `an_scene.py` — an alternate/legacy scene analysis path; check before
-  extending whether logic belongs there or in `scene.py`/`zarr_scene.py`.
 
 ### Performance work in flight
 

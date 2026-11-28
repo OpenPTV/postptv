@@ -26,13 +26,9 @@ class Sequence(object):
         frate - the frame rate at which the scene was shot.
         particle - a Particle object representing the suspended particles'
             properties.
-        part_tmpl, tracer_tmpl - the filenames for particle- and tracer-
-            databases respectively. Names must be as understood by
-            :func:`flowtracks.io.trajectories'.
-        smooth_tracers - if True, uses trajectory smoothing on the tracer
-            trajectories when iterating over frames. Possibly out of date.
-        traj_min_len - when reading trajectories (tracers and particles)
-            discard trajectories shorter than this many frames.
+        part_tmpl, tracer_tmpl - the filenames for particle- and tracer- databases respectively. Names must be as understood by :func:`flowtracks.io.trajectories`.
+        smooth_tracers - if True, uses trajectory smoothing on the tracer trajectories when iterating over frames. Possibly out of date.
+        traj_min_len - when reading trajectories (tracers and particles) discard trajectories shorter than this many frames.
         """
         self.part = particle
         self.frate = frate

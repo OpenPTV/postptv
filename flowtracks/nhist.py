@@ -29,7 +29,7 @@ def nhist_scipy(
         If True, overlay a Gaussian KDE.
     ax : matplotlib Axes, optional
         Axis to plot on.
-    **plot_kwargs : dict
+    ``**plot_kwargs`` : dict
         Additional plot arguments.
 
     Returns
@@ -59,7 +59,7 @@ def nhist(y, x=None, *args, plot=True):
         Input data (vector or matrix).
     x : int or array-like, optional
         If int, number of bins. If array, bin centers.
-    *args :
+    ``*args`` :
         Additional arguments for matplotlib plot.
     plot : bool, default True
         If True, plot the histogram. If False, return data.

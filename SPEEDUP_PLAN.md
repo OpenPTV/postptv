@@ -2,7 +2,7 @@
 
 ## Context
 
-flowtracks (this repo, package dir `flowtracks/`, version 1.1.1) is a pure-Python post-processing library for 3D PTV trajectory data, depending only on numpy, scipy, and pytables. A code audit shows the slowness is **algorithmic, not language-level**:
+flowtracks (this repo, package dir `flowtracks/`, version 1.8.x) is a pure-Python post-processing library for 3D PTV trajectory data, depending on numpy, scipy, h5py, pyyaml, zarr, xarray and matplotlib (PyTables is optional — the `legacy-io` extra). A code audit shows the slowness is **algorithmic, not language-level**:
 
 - dense O(m·n) pairwise-distance matrices where `scipy.spatial.cKDTree` is already used elsewhere in the same file;
 - per-point Python loops in the recently-added `InverseDistanceWeighter.__call__` (commit 70dbb0e), including a redundant full copy of the data array for *every* interpolation point;
@@ -28,8 +28,8 @@ Expected outcome: 10–100× on interpolation and HDF5 iteration, order-of-magni
 | 2.2 | `Scene.iter_trajectories` batch | done | `55ab4da` |
 | 2.3 | `Scene.trajectory_by_id` | left as-is (plan rule) | – |
 | 2.4 | `Scene._iter_frame_arrays` batch + bug fix | done | `55ab4da` |
-| 2.5 | `AnalysedScene._iter_frame_arrays` batch | done | `55ab4da` |
-| 2.6 | `AnalysedScene.collect` membership | done | `55ab4da` |
+| 2.5 | `AnalysedScene._iter_frame_arrays` batch | done (`55ab4da`) — `AnalysedScene` later removed; the Zarr-backed `ZarrScene` replaced its role | – |
+| 2.6 | `AnalysedScene.collect` membership | done (`55ab4da`) — see 2.5 | – |
 | 2.m | Memory guard (chunking) | not started (simple read) | – |
 | 3.1 | `pairs.particle_pairs` KD-tree + dicts | done | `f0f6c0c` |
 | 3.2 | `take_snapshot` inner loop | done (WIP) | `8661635` |
@@ -37,7 +37,7 @@ Expected outcome: 10–100× on interpolation and HDF5 iteration, order-of-magni
 | 3.4 | `smoothing.savitzky_golay` vectorized + test | done | `f0f6c0c` |
 | 4 | Text-ingest vectorization + optional numba | not started (I/O-bound) | – |
 | V | Old-vs-new `git worktree` equivalence check | not started | – |
-| B | `requriments.txt` → `requirements.txt` rename | not started (low) | – |
+| B | `requriments.txt` → `requirements.txt` rename | done — `requriments.txt` was deleted instead (stale orphan; never wired in) | – |
 
 **Every item that was specifically actionable has been done.** The items below
 are the only remaining entries. They were all marked optional / low priority /
@@ -52,7 +52,7 @@ the measured benchmarks. A next agent can pick them in priority order.
 | P2 | V | Old-vs-new `git worktree` check | The 36-test suite already guards equivalence. The worktree check adds defense-in-depth against numpy-version-sensitive tie-breaking. |
 | P3 | 1.5 | `eulerian_jacobian` fast path | Called rarely. After 1.3 the generic version is already faster (the three `self(…)` calls each use the KD-tree path now). |
 | P4 | 4 | Text-ingest linking loops | `bench_io` shows this is I/O-bound (~1 s for 115 files). The Python linking loops are not the bottleneck. Numba optional dep adds build complexity with no measured gain. |
-| P5 | B | `requriments.txt` rename | Cosmetic. Rename + update any references (likely none). Separate commit. |
+| P5 | B | `requriments.txt` cleanup | Done — the file was a stale, misspelled orphan containing a single `certifi` line; deleted (it was never wired into pyproject.toml or CI). |
 
 ## What has been declined / deferred from the original plan
 
@@ -62,10 +62,10 @@ the measured benchmarks. A next agent can pick them in priority order.
 
 ## Ground rules for the implementer
 
-1. **Behavior preservation is the contract.** All public function signatures, return shapes/dtypes, and numerical results must be unchanged (`np.allclose` with tight tolerance; exact for integer outputs). The existing test suite (36 tests in `tests/`) must pass after every phase: `uv run pytest tests/`.
+1. **Behavior preservation is the contract.** All public function signatures, return shapes/dtypes, and numerical results must be unchanged (`np.allclose` with tight tolerance; exact for integer outputs). The existing test suite (270 tests in `tests/`) must pass after every phase: `uv run pytest tests/`.
 2. **One phase = one commit (or a few logical commits).** Run benchmarks before and after each phase; an optimization that doesn't show a measured improvement gets dropped, not merged.
 3. The repo is uv-managed (`uv.lock` present). Use `uv run pytest`, `uv add --dev <pkg>` etc. Note: working tree already shows many modified files (mostly line-ending churn in `data/tracers/ptv_is.*`); don't commit unrelated churn — stage only files you actually change.
-4. Environment note: repo lives on `/mnt/c` (WSL2 → Windows filesystem), so file I/O in tests/benchmarks is slow; that's environmental, not a code problem — compare relative numbers only.
+4. Environment note: numbers from a WSL2/Windows filesystem should be compared relatively, not absolutely.
 
 ## Repo orientation
 
@@ -74,16 +74,13 @@ the measured benchmarks. A next agent can pick them in priority order.
 | `flowtracks/interpolation.py` | 838 | IDW / RBF / corrfun interpolation; `select_neighbs`, `GeneralInterpolant`, `InverseDistanceWeighter` |
 | `flowtracks/io.py` | 926 | ptv_is/xuap text readers, `iter_trajectories_ptvis`, HDF5 read/write (`trajectories_table`, `save_particles_table`) |
 | `flowtracks/scene.py` | 495 | `Scene`/`DualScene`: HDF5-backed iteration by frame/trajectory via `read_where` |
-| `flowtracks/an_scene.py` | 188 | `AnalysedScene`: reads analysis-result HDF5 |
 | `flowtracks/trajectory.py` | 314 | `Trajectory`, `ParticleSnapshot`, `take_snapshot`, `trajectories_in_frame` |
 | `flowtracks/sequence.py` | 356 | `Sequence` over dual databases |
 | `flowtracks/pairs.py` | 82 | nearest-particle pairing |
 | `flowtracks/smoothing.py` | 121 | Savitzky–Golay trajectory smoothing |
 | `flowtracks/analysis.py` | 146 | per-frame analysis driver (multiplies interpolation cost by frame count) |
 
-Tests: `tests/test_interp.py` (15), `tests/test_scene.py` (7), `tests/test_idw_call.py` (4), `tests/test_io.py` (4), `tests/test_analysis.py` (2), `tests/test_sequence.py` (2), `tests/test_smoothing.py` (3). Test data in `data/` (`data/tracers/ptv_is.10001..10200`, `data/seq_hdf.cfg`, HDF files). CI: `.github/workflows/python-package.yml`, Python 3.10–3.13.
-
-`flowtracks/future_idea_xarray_dask_zarr.py` is a non-imported prototype — **do not touch it**.
+Tests: 270 tests in `tests/` (e.g. `test_interp.py`, `test_scene.py`, `test_idw_call.py`, `test_io.py`, `test_analysis.py`, `test_sequence.py`, `test_smoothing.py`). Test data in `data/` (`data/tracers/ptv_is.10001..10200`, `data/seq_hdf.cfg`, HDF files). CI: `.github/workflows/python-package.yml`, Python ≥ 3.11.
 
 ---
 
@@ -404,7 +401,7 @@ It calls `self(...)` three times with perturbed points, redoing neighbor selecti
 
 ## Phase 2 — HDF5 / pytables readers: batch instead of N queries
 
-The pattern to eliminate — one `read_where` per trajectory (or per frame). The replacement pattern (reusable helper, put it in `flowtracks/io.py` and import in `scene.py`/`an_scene.py`):
+The pattern to eliminate — one `read_where` per trajectory (or per frame). The replacement pattern (reusable helper, put it in `flowtracks/io.py` and import in `scene.py`/`zarr_scene.py`):
 
 ```python
 def _iter_groups(table, key, cond=None, condvars=None):
@@ -430,8 +427,7 @@ Apply to:
 3. **`scene.Scene.trajectory_by_id` (`scene.py:170–191`)** — single-trajectory query; leave as-is (it's already one indexed query).
 4. **`scene.Scene._iter_frame_arrays` (`scene.py:221–234`).** Currently one `read_where('(time == t)')` per `t in range(self._first, self._last)`. Replace with one read of `(time >= first) & (time < last)` grouped by `time`. **Careful:** the current version yields a (possibly empty) array for *every* t in the range, including frames with no rows; `iter_segments` (line 266, `pairwise(...)`) depends on consecutive yields being consecutive frame numbers. Reproduce that: iterate `t in range(first, last)` and yield the matching group or an empty slice (`arr[0:0]`) when a frame is missing.
    Also **fix the latent crash** at `scene.py:231`: `query_string = '&'.join(query_string, cond)` → `query_string = ' & '.join([query_string, cond])` (currently raises TypeError whenever `cond` is passed; keep the equivalent filtered behavior in the batched version by AND-ing `cond` into the single read).
-5. **`an_scene.AnalysedScene._iter_frame_arrays` (`an_scene.py:~68–69`)** — same per-frame pattern, same fix.
-6. **`an_scene.collect` (`an_scene.py:~125–128`)** — replaces per-row Python membership tests; use `np.isin` / `np.searchsorted` against the sorted frame-number array.
+5. **`ZarrScene._iter_frame_arrays` (`zarr_scene.py`)** — the Zarr-backed scene mirrors the same pattern; the plain-numpy `collect` filter uses `np.isin` / `np.searchsorted`.
 
 **Memory guard:** whole-table read can be large. Add a `chunk_frames`/batch keyword (default e.g. 5000 frames or full range) so `_iter_frame_arrays` reads the range in slabs; for `iter_trajectories`, if table size (`table.nrows * table.rowsize`) exceeds a threshold (say 500 MB), fall back to per-trajectory queries in batches of trajids: `read_where('(trajid >= a) & (trajid <= b)')` then group in memory. Keep it simple — a single keyword with a sensible default, no config plumbing.
 
@@ -526,17 +522,16 @@ The following were fixed in prior phases:
 Still open (document / defer):
 
 - The `dists == 0` / companionship ambiguity in `select_neighbs` + IDW exact-match — do NOT change behavior; document as an issue.
-- `requriments.txt` misspelling — optional rename, low priority, separate commit if done.
+- `requriments.txt` misspelling — resolved: the file was deleted (it was a stale, orphaned artifact, not a requirements file).
 
 ## Explicitly out of scope
 
 - Rust/PyO3, Cython — rejected (build/wheel/CI complexity for gains vectorization captures).
-- `flowtracks/future_idea_xarray_dask_zarr.py` — untouched.
 - Any public API signature/semantics change, including the Frame class-name duplication between `trajectory.py` and `scene.py`.
 
 ## Verification
 
-1. `uv run pytest tests/` green after every phase (36 tests).
+1. `uv run pytest tests/` green after every phase (270 tests).
 2. `uv run pytest benchmarks/ --benchmark-save=<phase>` + `--benchmark-compare` — record tables in `benchmarks/BASELINE.md`; drop any change without measured improvement.
 3. **End-to-end equivalence check** (temporary script, not committed): on the real dataset —
    - `iter_trajectories_ptvis('data/tracers/ptv_is.%d', ...)`: old vs new list of trajectories, compare `pos/velocity/time/trajid` arrays exactly;
@@ -544,4 +539,4 @@ Still open (document / defer):
    - IDW/RBF/corrfun `__call__` and scene `interpolate()` old vs new on seeded random scenes, including edge cases: 1D data, m=1, n < num_neighbs, companionship set, exact-position matches, empty tracers;
    - `particle_pairs` old vs new (allow tie-break diffs only if positions are exactly equidistant).
    Run the old implementations from a `git worktree` checkout of the pre-change commit to generate reference outputs.
-4. CI passes on Python 3.10–3.13.
+4. CI passes on Python ≥ 3.11.
